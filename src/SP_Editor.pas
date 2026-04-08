@@ -111,7 +111,6 @@ Begin
     aSave := AUTOSAVE;
     AUTOSAVE := False;
     MaxCompileLines := -1;
-    MaxDirtyLines := -1;
     If SP_FileExists('s:startup-sequence') Then Begin
       SP_Execute('LOAD "s:startup-sequence": RUN', False, Error);
       // Clear any errors, as we just ignore them.

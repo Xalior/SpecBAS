@@ -1,3 +1,4 @@
+
 unit SP_MenuActions;
 
 {$INCLUDE SpecBAS.inc}
@@ -53,24 +54,19 @@ Type
     Class Procedure FPMenu_BreakpointAdd(Sender: SP_BaseComponent; ItemIndex: Integer);
     Class Procedure FPMenu_AddWatch(Sender: SP_BaseComponent; ItemIndex: Integer);
     Class Procedure FPMenu_FullScreen(Sender: SP_BaseComponent; ItemIndex: Integer);
+    Class Procedure FPMenu_HelpContents(Sender: SP_BaseComponent; ItemIndex: Integer);
+    Class Procedure FPMenu_HelpKeyword(Sender: SP_BaseComponent; ItemIndex: Integer);
+    Class Procedure FPMenu_About(Sender: SP_BaseComponent; ItemIndex: Integer);
 
     Class Procedure GrabberMouseDown(Sender: SP_BaseComponent; X, Y, Btn: Integer);
     Class Procedure GrabberMouseMove(Sender: SP_BaseComponent; X, Y, Btn: Integer);
     Class Procedure GrabberMouseUp(Sender: SP_BaseComponent; X, Y, Btn: Integer);
 
-    Class Procedure FPEditorSearchBarPaint(Control: SP_BaseComponent);
-    Class Procedure FPSearchBoxMouseDown(Sender: SP_BaseComponent; X, Y, Btn: Integer);
-    Class Procedure FPSearchBoxChange(Control: SP_BaseComponent; Text: aString);
-    Class Procedure SP_SearchBtnClick(Sender: SP_BaseComponent);
-    Class Procedure SP_SearchKeyDown(Sender: SP_BaseComponent; Key: Integer; Down: Boolean; Var Handled: Boolean);
-
   End;
 
   Procedure SP_CreateEditorMenu;
   Procedure SP_CreateEditorTabBar;
-  Procedure SP_CreateEditorSearchBar;
-  Procedure SP_SwitchQuickSearch;
-  Procedure SP_ResizeSearchPanel;
+  Procedure CreateStatusLabels;
   Procedure UpdateStatusLabel;
 
 Var
@@ -83,15 +79,11 @@ Var
   // Editor status label that sits to the right of the menu
   FPEditorStatusLabel, FPDirectStatusLabel: SP_Label;
 
-  // Editor searchbar
-  FPSearchBox: SP_Edit; FPSearchPanel: SP_Container; FPSearchLastWindow: integer;
-  FPNextBtn, FPPrevBtn, FPCloseBtn: SP_Button;
-
 implementation
 
 Uses SP_BankManager, SP_BankFiling, SP_Errors, SP_Graphics, SP_FileIO, SP_Input,
      SP_FPEditor, SP_SysVars, SP_ControlMsgs, SP_DebugPanel, SP_Main,
-     SP_Variables, SP_PreRun, SP_Components;
+     SP_Variables, SP_PreRun, SP_Components, SP_BASICEditorHostUnit;
 
 Var
 
@@ -108,169 +100,6 @@ Begin
   FPTabBar.Align := SP_AlignBottom;
 End;
 
-Procedure SP_SwitchQuickSearch;
-Begin
-
-  If FocusedWindow <> fwNone Then
-    FPSearchLastWindow := FocusedWindow;
-
-  If Not FPSearchPanel.Visible Then Begin
-    FPSearchPanel.Visible := True;
-  End Else
-    If FocusedWindow = -1 Then
-      FPSearchPanel.Visible := False;
-
-  SP_FPResizeWindow(FPWindowHeight);
-
-  If FPSearchPanel.Visible Then Begin
-    SP_ResizeSearchPanel;
-    FPSearchBox.SetFocus(True);
-    If FPSearchBox.Text <> '' Then
-      SP_MenuActionProcs.FPSearchBoxChange(Nil, FPSearchBox.Text);
-    SP_SwitchFocus(fwNone);
-  End Else Begin
-    SP_SwitchFocus(FPSearchLastWindow);
-    HideSearchResults;
-  End;
-
-End;
-
-Class Procedure SP_MenuActionProcs.SP_SearchKeyDown(Sender: SP_BaseComponent; Key: Integer; Down: Boolean; Var Handled: Boolean);
-Begin
-
-  If Key = K_ESCAPE Then Begin
-    Handled := True;
-    SP_SwitchQuickSearch;
-  End Else
-    If Key in [K_RETURN, K_F3, k_TAB] Then Begin
-      If (FPSearchBox.Text <> '') and (Key <> K_TAB) Then Begin
-        Listing.FPCLine := 0;
-        Listing.FPCPos := 1;
-        SP_MenuActionProcs.SP_SearchBtnClick(FPNextBtn);
-      End;
-      cLastKey := Key;
-      cKEYSTATE[Key] := 0;
-      FPSearchBox.KeyUp(Key, Handled);
-      If Handled Then Begin
-        cLastKeyChar := 0;
-        cLastKey := 0;
-      End;
-      FPSearchBox.SetFocus(False);
-      If Key = K_TAB Then SP_SwitchFocus(FPSearchLastWindow);
-    End;
-
-End;
-
-Class Procedure SP_MenuActionProcs.SP_SearchBtnClick(Sender: SP_BaseComponent);
-Begin
-
-  If Sender.Tag > 0 Then Begin
-    FPSearchOptions := FPSearchOptions + [soForward];
-    FindNext(True);
-    SP_SwitchFocus(fwEditor);
-  End Else
-    If Sender.Tag < 0 Then Begin
-      FPSearchOptions := FPSearchOptions - [soForward];
-      FindNext(True);
-      SP_SwitchFocus(fwEditor);
-    End Else
-      SP_SwitchQuickSearch;
-
-End;
-
-Class Procedure SP_MenuActionProcs.FPEditorSearchBarPaint(Control: SP_BaseComponent);
-Begin
-
-  With Control Do Begin
-    If Assigned(FPSearchBox) Then
-      Print(Max(FPSearchBox.Left - (Round(SP_GetPropTextWidth(EDITORFONT, 'Find', '') * EdFontScaleX) + BSIZE), 2), 5, 'Find', 0, -1, EdFontScaleX, EdFontScaleY, False, False, False, False);
-    DrawLine(0, 0, fWidth -1, 0, fBorderClr);
-    DrawLine(0, 1, fWidth -1, 1, 15);
-    DrawLine(0, fHeight -1, fWidth -1, fHeight -1, SP_UIShadow);
-  End;
-
-End;
-
-Class Procedure SP_MenuActionProcs.FPSearchBoxChange(Control: SP_BaseComponent; Text: aString);
-Var
-  Error: TSP_ErrorCode;
-Begin
-
-  FPSearchTerm := Text;
-  FPSearchOptions := [soForward];
-  FPShowingFindResults := False;
-  FPShowingSearchResults := True;
-  SP_FindAll(Text, FPSearchOptions, Error);
-  SP_ShowFindResults;
-
-End;
-
-Class Procedure SP_MenuActionProcs.FPSearchBoxMouseDown(Sender: SP_BaseComponent; X, Y, Btn: Integer);
-Begin
-
-  SP_SwitchFocus(fwNone);
-
-End;
-
-Procedure SP_CreateEditorSearchBar;
-Var
-  FH: Integer;
-  Win: pSP_Window_Info;
-  Error: TSP_ErrorCode;
-Begin
-
-  FH := Trunc(FONTHEIGHT * EDFONTSCALEY);
-
-  SP_GetWindowDetails(FPWindowID, Win, Error);
-  Win^.Component.Proportional := True;
-
-  FPSearchPanel := SP_Container.Create(Win^.Component);
-  FPSearchPanel.Visible := False;
-  FPSearchPanel.BackgroundClr := 251;
-  FPSearchPanel.Border := False;
-  FPSearchPanel.OnPaintAfter := SP_MenuActionProcs.FPEditorSearchBarPaint;
-  FPSearchPanel.Height := Fh + 10;
-  FPSearchPanel.Align := SP_AlignBottom;
-
-  FPSearchBox := SP_Edit.Create(FPSearchPanel);
-  FPSearchBox.Border := True;
-  FPSearchBox.OnMouseDown := SP_MenuActionProcs.FPSearchBoxMouseDown;
-  FPSearchBox.OnChange := SP_MenuActionProcs.FPSearchBoxChange;
-  FPSearchBox.OnKeyDown := SP_MenuActionProcs.SP_SearchKeyDown;
-  FPSearchBox.WantTAB := True;
-
-  FPNextBtn := SP_Button.Create(FPSearchPanel);
-  FPNextBtn.Caption := #252;
-  FPNextBtn.CentreCaption;
-  FPNextBtn.OnClick := SP_MenuActionProcs.SP_SearchBtnClick;
-  FPNextBtn.Tag := 1;
-
-  FPPrevBtn := SP_Button.Create(FPSearchPanel);
-  FPPrevBtn.Caption := #251;
-  FPPrevBtn.CentreCaption;
-  FPPrevBtn.OnClick := SP_MenuActionProcs.SP_SearchBtnClick;
-  FPPrevBtn.Tag := -1;
-
-  FPCloseBtn := SP_Button.Create(FPSearchPanel);
-  FPCloseBtn.Caption := #244;
-  FPCloseBtn.CentreCaption;
-  FPCloseBtn.OnClick := SP_MenuActionProcs.SP_SearchBtnClick;
-  FPCloseBtn.Tag := 0;
-
-End;
-
-Procedure SP_ResizeSearchPanel;
-Begin
-  FPSearchBox.SetBounds(BSIZE + (FPGutterWidth * FPFw), 3, Fw * 32 + 4, Fh + 4);
-  FPNextBtn.SetBounds(FPSearchBox.Left + FPSearchBox.Width + BSIZE, FPSearchBox.Top, FPSearchBox.Height, FPSearchBox.Height);
-  FPPrevBtn.SetBounds(FPNextBtn.Left + FPNextBtn.Width + BSIZE, FPSearchBox.Top, FPSearchBox.Height, FPSearchBox.Height);
-  FPCloseBtn.SetBounds(FPPrevBtn.Left + FPPrevBtn.Width + BSIZE, FPSearchBox.Top, FPSearchBox.Height, FPSearchBox.Height);
-  FPNextBtn.CentreCaption;
-  FPPrevBtn.CentreCaption;
-  FPCloseBtn.CentreCaption;
-  FPSearchPanel.Paint;
-End;
-
 Procedure SP_CreateEditorMenu;
 Var
   Win: pSP_Window_Info;
@@ -282,6 +111,7 @@ Begin
   SP_GetWindowDetails(FPWindowID, Win, Error);
 
   FPMenu := SP_WindowMenu.Create(Win^.Component);
+  FPMenu.Align := SP_AlignTop;
   FPMenu.Proportional := True;
 
   FPFileMenu := SP_PopUpMenu.Create(Win^.Component, FPMenu);
@@ -417,10 +247,20 @@ Begin
 
   // Help menu
 
-  FPHelpMenu.AddItem(CreateItem('&Contents', False, True, False, False, 'K_F1', Nil, Nil));
-  FPHelpMenu.AddItem(CreateItem('&Keyword help', False, True, False, False, 'K_SHIFT,K_F1', Nil, Nil));
+  FPHelpMenu.AddItem(CreateItem('&Contents', True, True, False, False, 'K_SHIFT,K_F1', Nil, SP_MenuActionProcs.FPMenu_HelpContents));
+  FPHelpMenu.AddItem(CreateItem('&Keyword help', True, True, False, False, 'K_F1', Nil, SP_MenuActionProcs.FPMenu_HelpKeyword));
   FPHelpMenu.AddItem(CreateItem('-', True, True, False, False, '', Nil, Nil));
-  FPHelpMenu.AddItem(CreateItem('&About', False, True, False, False, '', Nil, Nil));
+  FPHelpMenu.AddItem(CreateItem('&About', True, True, False, False, '', Nil, SP_MenuActionProcs.FPMenu_About));
+
+  FPMenu.Permanent := True;
+
+End;
+
+Procedure CreateStatusLabels;
+Var
+  Win: pSP_Window_Info;
+  Error: TSP_ErrorCode;
+Begin
 
   FPEditorStatusLabel := SP_Label.Create(FPMenu);
   FPEditorStatusLabel.SetBounds(FPMenu.Width - Integer(BSize), 3, 0, 0);
@@ -439,8 +279,6 @@ Begin
   FPDirectStatusLabel.TextJustify := 1;
   FPDirectStatusLabel.Proportional := True;
 
-  FPMenu.Permanent := True;
-
 End;
 
 Procedure UpdateStatusLabel;
@@ -452,12 +290,18 @@ Begin
 
   If INSERT then cap := 'INS' else cap := 'OVR';
 
-  If FocusedWindow = fwEditor Then
-    cap := 'L' + IntToString(Listing.FPCLine +1) + ',C' + IntToString(Listing.FPCPos) + ' ' + cap
-  Else
-    cap := 'C' + IntToString(CURSORPOS) + ' ' + cap;
+  If FocusedWindow = fwEditor Then Begin
+    If Assigned(FPBASICEditor) Then
+      cap := 'L' + IntToString(FPBASICEditor.CursorLine +1) + ',C' + IntToString(FPBASICEditor.CursorCol) + ' ' + cap
+    Else
+      cap := 'L' + IntToString(Listing.FPCLine +1) + ',C' + IntToString(Listing.FPCPos) + ' ' + cap;
+  End Else
+    If Assigned(DWBASICEditor) And (FocusedWindow = fwDirect) Then
+      cap := 'C' + IntToString(DWBASICEditor.CursorCol) + ' ' + cap
+    Else
+      cap := 'C' + IntToString(CURSORPOS) + ' ' + cap;
 
-  Ink := 7;// * Ord(FocusedWindow <> fwEditor);
+  Ink := 7;
   If PROGSTATE = SP_PR_RUN Then i := 12 Else i := Ink;
 
   Li := SP_ConvertLineStatement(CONTLINE, CONTSTATEMENT);
@@ -474,14 +318,8 @@ Begin
   Else
     cap := #16 + LongWordToString(Ink) + '[' + #16 + LongWordToString(i) + IntToString(j) + ':' + IntToString(CSTATEMENT) + #16 + LongWordToString(Ink) + '] ' + cap;
 
-  If FocusedWindow = fwEditor Then Begin
-    FPDirectStatusLabel.Caption := cap;
-    FPEditorStatusLabel.Caption := ''
-  End Else
-    If FocusedWindow = fwDirect Then Begin
-      FPDirectStatusLabel.Caption := cap;
-      FPEditorStatusLabel.Caption := '';
-    End;
+  FPDirectStatusLabel.Caption := cap;
+  FPEditorStatusLabel.Caption := ''
 
 End;
 
@@ -567,12 +405,13 @@ End;
 
 Class Procedure SP_MenuActionProcs.FPMenu_SelAll(Sender: SP_BaseComponent; ItemIndex: Integer);
 Begin
-  AddControlMsg(clKeyPress, aChar(Sender.GetParentWindowID)+aChar(K_CONTROL)+'A');
+  If Assigned(FPBASICEditor) Then
+    FPBASICEditor.SelectAll;
 End;
 
 Class Procedure SP_MenuActionProcs.FPMenu_SelNone(Sender: SP_BaseComponent; ItemIndex: Integer);
 Begin
-  AddControlMsg(clKeyPress, aChar(Sender.GetParentWindowID)+aChar(K_CONTROL)+'N');
+  AddControlMsg(clKeyPress, aChar(Sender.GetParentWindowID)+aChar(K_CONTROL)+'D');
 End;
 
 Class Procedure SP_MenuActionProcs.FPMenu_Find(Sender: SP_BaseComponent; ItemIndex: Integer);
@@ -611,7 +450,7 @@ Var
 Begin
   With (Sender as SP_PopUpMenu) Do
     For i := 0 To Count -1 Do
-      MenuItems[i].Checked := EditorMarks[i] <> 0;
+      MenuItems[i].Checked := EditorHost_GetBookMark(i);
 End;
 
 Class Procedure SP_MenuActionProcs.FPMenu_MarkerJumpPopUp(Sender: SP_BaseComponent);
@@ -620,31 +459,25 @@ Var
 Begin
   With (Sender as SP_PopUpMenu) Do
     For i := 0 To Count -1 Do
-      MenuItems[i].Enabled := EditorMarks[i] <> 0;
+      MenuItems[i].Enabled := EditorHost_GetBookMark(i);
 End;
 
 Class Procedure SP_MenuActionProcs.FPMenu_SetMarker(Sender: SP_BaseComponent; ItemIndex: Integer);
 Begin
-  SP_ToggleEditorMark(SP_PopupMenu(Sender).fItems[ItemIndex].Tag);
-  SP_DisplayFPListing(-1);
+  If FocusedWindow = FPWindowID Then
+    EditorHost_SetBookMark(SP_PopupMenu(Sender).fItems[ItemIndex].Tag, -1, -1)
+  Else
+    EditorHost_SetBookMark(SP_PopupMenu(Sender).fItems[ItemIndex].Tag, PROGLINE, -1);
 End;
 
 Class Procedure SP_MenuActionProcs.FPMenu_JumpMarker(Sender: SP_BaseComponent; ItemIndex: Integer);
-Var
-  Cy: Integer;
 Begin
-  cy := Listing.FPCLine;
-  SP_JumpToMark(SP_PopupMenu(Sender).fItems[ItemIndex].Tag);
-  SP_CalculateFPCursorPos;
-  SP_CursorPosChanged;
-  SP_DrawGraphicsID;
-  SP_RefreshCursorLineAfterChange(Cy);
-  SP_ScrollInView(True);
+  EditorHost_GotoBookMark(SP_PopupMenu(Sender).fItems[ItemIndex].Tag);
 End;
 
 Class Procedure SP_MenuActionProcs.FPMenu_ClearMarkers(Sender: SP_BaseComponent; ItemIndex: Integer);
 Begin
-  SP_ClearEditorMarks;
+  EditorHost_ClearBookMarks;
 End;
 
 Class Procedure SP_MenuActionProcs.FPMenu_View_Popup(Sender: SP_BaseComponent);
@@ -717,7 +550,7 @@ End;
 Class Procedure SP_MenuActionProcs.GrabberMouseDown(Sender: SP_BaseComponent; X, Y, Btn: Integer);
 Begin
   DisplaySection.Leave;
-  AddControlMsg(clGrabberMouseDown, LongWordToString(MOUSEX));
+  AddControlMsg(clGrabberMouseDown, '');
 End;
 
 Class Procedure SP_MenuActionProcs.GrabberMouseMove(Sender: SP_BaseComponent; X, Y, Btn: Integer);
@@ -741,6 +574,21 @@ Begin
     SP_FullScreenMenuItem.Caption := 'Windowed';
     AddControlMsg(clInterpretCommand, 'SCREEN FULL');
   End;
+End;
+
+Class Procedure SP_MenuActionProcs.FPMenu_HelpContents(Sender: SP_BaseComponent; ItemIndex: Integer);
+Begin
+  SP_ShowHelpForWord('');
+End;
+
+Class Procedure SP_MenuActionProcs.FPMenu_HelpKeyword(Sender: SP_BaseComponent; ItemIndex: Integer);
+Begin
+  SP_ShowHelpForWord(EditorHost_GetWordAtCursor);
+End;
+
+Class Procedure SP_MenuActionProcs.FPMenu_About(Sender: SP_BaseComponent; ItemIndex: Integer);
+Begin
+  AddControlMsg(clShowAbout, '');
 End;
 
 end.

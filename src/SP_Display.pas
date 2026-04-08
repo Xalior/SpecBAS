@@ -515,6 +515,8 @@ Begin
             AddToFrameTimeHistory(FrameDuration);
             // LastTime was already updated above
             CB_Refresh_Display; // This calls Refresh_Display
+            If VSYNCENABLED Then
+              StartTime := CB_GETTICKS - (FRAMES * FRAME_MS);
           End;
         Finally
           DisplaySection.Leave;
@@ -527,20 +529,10 @@ Begin
     if Assigned(FrameProcessedEvent) then FrameProcessedEvent.SetEvent;
 
     NEXTFRAMETIME := ((FRAMES + 1) * FRAME_MS) + StartTime;
-    SleepTime := Min(NEXTFRAMETIME - CB_GETTICKS, FRAME_MS);
-
-{    If SleepTime > 2 Then Begin
-      If SleepTime <= 4 Then
-        Sleep(1)
-      Else If SleepTime <= 6 Then
-        Sleep(2)
-      Else begin
-        Sleep(Trunc(Min(FRAME_MS, SleepTime / 1.6)));
-      end;
-    End Else
-      While CB_GETTICKS < NEXTFRAMETIME Do SwitchToThread;}
-
-    SmartSleep(SleepTime);
+    If Not VSYNCENABLED Then Begin
+      SleepTime := Min(NEXTFRAMETIME - CB_GETTICKS, FRAME_MS);
+      SmartSleep(SleepTime);
+    End;
 
   End Else
     Sleep(1); // Not time for a new frame yet, sleep a bit.
@@ -644,6 +636,8 @@ Var
   TxLeft, i, Hx, Hy, Ml, MinSize: Integer;
   ptr: pLongWord;
 Begin
+
+  Assert(Assigned(DISPLAYPOINTER));
 
   TxLeft := FPSLEFT + FPSWIDTH - (Length(FPSSTRING) * 8 * FPSSCALE);
   SP_GetRegion32(DISPLAYPOINTER, DISPLAYSTRIDE, DISPLAYHEIGHT, FPSIMAGE, FPSLEFT, FPSTOP, FPSWIDTH, FPSHEIGHT, Error);

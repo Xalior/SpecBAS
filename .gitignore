@@ -23,3 +23,6 @@ FastMM_FullDebugMode64.dll
 bugreport.txt
 SpecBAS_MemoryManager_EventLog.txt
 *.mes
+*.zip
+specbas_gl_error.txt
+src/backup.bat

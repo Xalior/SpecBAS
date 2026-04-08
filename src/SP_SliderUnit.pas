@@ -46,7 +46,7 @@ SP_Slider = Class(SP_BaseComponent)
     Procedure MouseDown(Sender: SP_BaseComponent; X, Y, Btn: Integer); Override;
     Procedure MouseUp(Sender: SP_BaseComponent; X, Y, Btn: Integer); Override;
     Procedure MouseMove(Sender: SP_BaseComponent; X, Y, Btn: Integer); Override;
-    Procedure MouseWheel(Sender: SP_BaseComponent; X, Y, Btn, Delta: Integer); Override;
+    Procedure MouseWheel(Sender: SP_BaseComponent; X, Y, Btn, Delta: Integer; Var Handled: Boolean); Override;
 
     Property OnChange: SP_ScrollEvent read fOnChange write fOnChange;
     Property TrackClr: Integer read fTrackColour write SetTrackColour;
@@ -296,7 +296,7 @@ Begin
 
 End;
 
-Procedure SP_Slider.MouseWheel(Sender: SP_BaseComponent; X, Y, Btn, Delta: Integer);
+Procedure SP_Slider.MouseWheel(Sender: SP_BaseComponent; X, Y, Btn, Delta: Integer; Var Handled: Boolean);
 Begin
 
   If Delta > 0 Then
@@ -304,7 +304,7 @@ Begin
   Else
     If Delta < 0 Then
       Position := fPosition - fStep;
-
+  Handled := True;
 End;
 
 // User Properties

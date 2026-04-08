@@ -26,7 +26,8 @@ Type
 
 implementation
 
-Uses SysUtils, SyncObjs, SP_AnsiStringlist, Math, SP_Main, SP_FPEditor, SP_InfixToPostFix, SP_Tokenise, SP_Errors, SP_SysVars, SP_Util;
+Uses SysUtils, SyncObjs, SP_AnsiStringlist, Math, SP_Main, SP_FPEditor, SP_InfixToPostFix, SP_Tokenise, SP_Errors, SP_SysVars, SP_Util,
+     SP_BASICEditorHostUnit;
 
 Procedure SetAllToCompile;
 Var
@@ -40,29 +41,32 @@ End;
 
 Procedure SP_ForceCompile;
 Var
-  s, s2: aString;
-  Idx, i: Integer;
+  s, s2:    aString;
+  Idx, lIdx, i: Integer;
   InString: Boolean;
-  Error: TSP_ErrorCode;
+  Error:    TSP_ErrorCode;
 Begin
-
   Idx := 0;
   SP_Program_Clear;
 
-  if Assigned(Listing) then
+  If Assigned(Listing) Then
     While Idx < Listing.Count Do Begin
+      lIdx := Idx;   // remember the numbered-line row
       s := Listing[Idx];
       Inc(Idx);
       InString := False;
-      if s <> '' Then For i := 1 to Length(s) Do If s[i] = '"' Then InString := Not InString;
+      If s <> '' Then
+        For i := 1 To Length(s) Do
+          If s[i] = '"' Then InString := Not InString;
       While (Idx < Listing.Count) And (SP_LineHasNumber(Idx) = 0) Do Begin
         s2 := Listing[Idx];
-        If (s <> '') And (s2 <> '') And Not InString And
-           (((s2[1] in ['A'..'Z', 'a'..'z']) And (Listing.Flags[Idx -1].ReturnType = spHardReturn) And (s[Length(s)] in ['0'..'9'])) or (Listing.Flags[Idx -1].ReturnType = spHardReturn)) Then
+        If (s <> '') And (s2 <> '') And Not InString Then
           s := s + ' ' + s2
         Else
           s := s + s2;
-        if s2 <> '' then For i := 1 to Length(s2) Do If s2[i] = '"' Then InString := Not InString;
+        If s2 <> '' Then
+          For i := 1 To Length(s2) Do
+            If s2[i] = '"' Then InString := Not InString;
         Inc(Idx);
       End;
       s := SP_TokeniseLine(s, False, True) + SP_TERMINAL_SEQUENCE;
@@ -70,10 +74,26 @@ Begin
         SP_Convert_ToPostFix(s, Error.Position, Error);
         If Error.Code = SP_ERR_OK Then Begin
           SP_Store_Line(s);
+          // *** FIX: update the Listing flag to match, so the background
+          // compiler thread sees spLineOk and skips recompiling this line,
+          // preventing a race-condition duplicate that produces a false
+          // spLineDuplicate (blue blob) on the last line.
+          If lIdx < Listing.Count Then
+            Listing.Flags[lIdx].State := spLineOk;
+        End Else Begin
+          If lIdx < Listing.Count Then
+            Listing.Flags[lIdx].State := spLineError;
         End;
+      End Else Begin
+        // Empty/whitespace-only line - clear dirty flag.
+        If lIdx < Listing.Count Then
+          Listing.Flags[lIdx].State := spLineNull;
       End;
     End;
 
+  // Now that Listing flags reflect the actual compile results, tell the
+  // editor component to repaint its gutter blobs.
+  EditorHost_RefreshLineStates;
 End;
 
 Procedure SP_MarkAsDirty(Idx: Integer);
@@ -83,13 +103,8 @@ Begin
   // The compiler thread will pick this up.
 
   While (Idx > 0) And (SP_LineHasNumber(Idx) = 0) Do Dec(Idx);
-  Listing.Flags[Idx].GutterSize := SP_LineNumberSize(Idx) + 1;
   Listing.Flags[Idx].State := spLineDirty;
   AddCompileLine(Idx);
-
-  // Also just run a quick check to see if the guttersize has changed
-
-  SP_CheckGutterSize;
 
 End;
 
@@ -141,6 +156,7 @@ Begin
       For j := i To MaxCompileLines -1 Do
         CompileList[j] := CompileList[j +1];
       Dec(MaxCompileLines);
+      Exit;
     End;
 End;
 
@@ -171,7 +187,6 @@ Var
   Idx, lIdx, i: Integer;
   Error: TSP_ErrorCode;
   InString: Boolean;
-  Extents: TPoint;
 Begin
 
   NameThreadForDebugging('Compiler Thread');
@@ -219,7 +234,7 @@ Begin
             For i := 1 To Length(t) Do
               If t[i] = '"' Then
                 InString := not InString;
-            If Not SP_WasPrevSoft(Idx) And Not InString Then
+            If Not InString Then
               t := ' ' + t;
             s := s + t;
             Inc(Idx);
@@ -236,18 +251,16 @@ Begin
               If Byte(Compiled[1]) <> SP_LINE_NUM Then
                 Error.Code := SP_ERR_SYNTAX_ERROR;
 
-            Extents := SP_GetLineExtents(lIdx);
             If Error.Code = SP_ERR_OK Then Begin
 
               If (lIdx < Listing.Count) Then Begin
                 If SP_CheckForConflict(lIdx) Then
                   Listing.Flags[lIdx].State := spLineDuplicate
-                Else
+                Else Begin
                   Listing.Flags[lIdx].State := spLineOk;
-                If Extents.X < Extents.Y Then
-                  For i := Extents.X +1 To Extents.Y Do
-                    Listing.Flags[i].State := spLineNull;
-
+                  SP_Store_Line(Compiled);
+                End;
+                EditorHost_RefreshLineStates;
               End;
 
             End Else Begin
@@ -255,15 +268,12 @@ Begin
               // An error in compilation. Set this listing line's flags as containing an error - the listing display routines
               // will pick it up.
 
-              If lIdx < Listing.Count Then
+              If lIdx < Listing.Count Then Begin
                 Listing.Flags[lIdx].State := spLineError;
+                EditorHost_RefreshLineStates;
+              End;
 
             End;
-
-            // Now flag the editor that this line needs to be refreshed to display the info
-
-            For i := Extents.X To Extents.Y Do
-              AddDirtyLine(i);
 
           End Else Begin
 
@@ -271,7 +281,6 @@ Begin
             While (Idx < Listing.Count) And (SP_LineHasNumber(Idx) = 0) Do Begin
               If Listing.Flags[Idx].State = spLineDirty Then Begin
                 Listing.Flags[Idx].State := spLineNull;
-                AddDirtyLine(Idx);
               End;
               Inc(Idx);
             End;

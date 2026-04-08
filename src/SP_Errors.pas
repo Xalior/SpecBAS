@@ -213,8 +213,9 @@ Const
   SP_ERR_FOR_WITHOUT_NEXT = 165;
   SP_ERR_INVALID_COMPONENT = 166;
   SP_ERR_INVALID_METHOD_NAME = 167;
+  SP_ERR_NOT_IN_SECONDARY = 168;
 
-  MAXERROR = 167;
+  MAXERROR = 168;
 
   // Runtime error codes.
 
@@ -393,7 +394,8 @@ Const
      'Invalid error number',
      'FOR without NEXT',
      'Invalid component',
-     'Invalid method');
+     'Invalid method',
+     'Not available in secondary thread');
 
 Var
 

@@ -458,17 +458,18 @@ End;
 
 Procedure SP_RemoveKey(KeyCode: Word);
 Var
-  i, j, l: Integer;
+  i: Integer;
 Begin
   KeyLock.Enter;
   i := 0;
-  l := Length(ActiveKeys);
-  While i < l Do
+  While i < Length(ActiveKeys) Do
     If ActiveKeys[i].KeyCode = KeyCode Then Begin
-      For j := i To l -2 Do
-        ActiveKeys[j] := ActiveKeys[j +1];
-      Dec(l);
-      SetLength(ActiveKeys, l);
+      While i < Length(ActiveKeys) - 1 Do Begin
+        ActiveKeys[i] := ActiveKeys[i + 1];
+        Inc(i);
+      End;
+      SetLength(ActiveKeys, Length(ActiveKeys) - 1);
+      // don't Inc(i) - recheck same position
     End Else
       Inc(i);
   KeyState[KeyCode] := 0;

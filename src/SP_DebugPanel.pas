@@ -4,7 +4,7 @@ unit SP_DebugPanel;
 
 interface
 
-uses Math, Classes, SyncObjs, SysUtils, SP_Util, SP_BaseComponentUnit, SP_ListBoxUnit, SP_ComboBoxUnit, SP_ControlMsgs, SP_ButtonUnit, SP_Input, SP_ContainerUnit;
+uses Dialogs, Math, Classes, SyncObjs, SysUtils, SP_Util, SP_BaseComponentUnit, SP_ListBoxUnit, SP_ComboBoxUnit, SP_ControlMsgs, SP_ButtonUnit, SP_Input, SP_ContainerUnit, SP_AmigaGuideUnit;
 
 Type
 
@@ -31,24 +31,30 @@ Procedure SP_User_CloseDebugPanel;
 Procedure SP_FillDebugPanel;
 Procedure SP_ResizeDebugPanel(X: Integer);
 Procedure SP_FPUpdatePoIList;
+Procedure SP_ShowHelpForWord(Const Word: aString);
 
 var
 
   FPDebugPanel: SP_ListBox;
+  FPDebugContainer, FPDebugContent: SP_Container;
   FPDebugCombo: SP_ComboBox;
   FPSizeGrabber: SP_Container;
   FPResizingDebugPanel: Boolean;
   FPUserOpenedDebugPanel: Boolean;
   FPDebugPanelVisible: Boolean;
   FPDebugPanelWidth: Integer;
-  FPDebugLastMouseX: Integer;
   FPDebugPanelMode: Integer;
   FPDebugBPAdd,
   FPDebugBPDel,
   FPDebugBPEdt: SP_Button;
   FPPoIList: Array of SP_PoIInfo;
   DebugCurWindow: Integer;
+  LastHelpNode: aString = '';
+  LastHelpScroll: Integer = 0;
   LastDebugPanelIndex: Integer;
+  FPShowingDebugFind: Boolean = False;
+  FPHelpViewer: SP_AmigaGuide;
+  FPHelpPanelMinWidth: Integer = 300;
 
 Const
 
@@ -68,59 +74,39 @@ Const
 implementation
 
 Uses Vcl.ClipBrd, SP_FPEditor, SP_Errors, SP_Graphics, SP_BankManager, SP_BankFiling, SP_SysVars, SP_Components, SP_Variables, SP_AnsiStringList,
-     SP_Interpret_PostFix, SP_FileIO, SP_Main, SP_MenuActions;
+     SP_Interpret_PostFix, SP_FileIO, SP_Main, SP_MenuActions, SP_BASICEditorHostUnit, SP_MemoUnit;
 
 Procedure SP_UpdateAfterDebug;
-Var
-  NewPW: Integer;
-  b: Boolean;
 Begin
-
-  NewPW := (FPClientWidth - (BSize * 3) - Fw - ((FPDebugPanelWidth + BSize) * Ord(FPDebugPanelVisible))) Div FPFw;
-  b := Abs((FPPaperWidth Div FPFw) - NewPW) > 0;
-  FPPaperWidth := FPClientWidth - (BSize * 3) - Fw - ((FPDebugPanelWidth + BSize) * Ord(FPDebugPanelVisible));
-  If b Then SP_FPWrapProgram;
-  If FPShowingSearchResults Then
+  // Trigger layout so FPBASICEditor (AlignAll) resizes to fill the space
+  // not occupied by FPDebugContainer (AlignRight).
+  If Assigned(FPBASICEditor) Then
+    FPBASICEditor.GetParentControl.AlignChildren;
+  If FPShowingSearchResults And Assigned(FPDebugPanel) Then
     SP_DebugPanelActionProcs.SelectItem(Nil, FPDebugPanel.SelectedIndex);
-  SP_AddFPScrollBars(False);
   SP_Decorate_Window(FPWindowID, 'Program listing - ' + SP_GetProgName(PROGNAME, True), False, False, FocusedWindow = fwEditor);
-  SP_DisplayFPListing(-1);
-
 End;
 
 Procedure SP_ResizeDebugPanel(X: Integer);
 Var
-  Delta: Integer;
-  Win: pSP_Window_Info;
-  Error: TSP_ErrorCode;
+  NewW, MinW, MaxW: Integer;
 Begin
+  If Not Assigned(FPDebugContainer) Then Exit;
 
-  Delta := FPDebugLastMouseX - X;
-  If Delta <> 0 Then Begin
-    Inc(FPDebugPanelWidth, Delta);
-    If (FPDebugPanelWidth >= 100) And (FPDebugPanelWidth < FPClientWidth - (FPClientWidth Div 4)) Then
-      FPDebugLastMouseX := X
-    Else
-      If FPDebugPanelWidth < 100 Then Begin
-        Delta := 0;
-        FPDebugPanelWidth := 100
-      End Else Begin
-        FPDebugPanelWidth := FPClientWidth - (FPClientWidth Div 4);
-        Delta := 0;
-      End;
+  // NewW is the width the container needs to be so its left edge sits at MOUSEX.
+  // FPWindowLeft + FPWindowWidth is the right edge of the window in screen coords.
+  NewW := FPWindowLeft + FPWindowWidth - X;
 
-    If Delta <> 0 Then Begin
-      DisplaySection.Enter;
-      SP_GetWindowDetails(FPWindowID, Win, Error);
-      FPDebugCombo.SetBounds(Win^.Width - BSize - FPDebugPanelWidth, FPClientTop + BSize, FPDebugPanelWidth, FH);
-      FPDebugPanel.SetBounds(FPDebugCombo.Left, FPDebugPanel.Top, FPDebugPanelWidth, FPDebugPanel.Height);
-      FPSizeGrabber.SetBounds(FPDebugCombo.Left - BSize, FPDebugCombo.Top, BSize, FPPaperHeight);
-      SP_UpdateAfterDebug;
-      DisplaySection.Leave;
-    End;
+  MinW := 100 + BSize + (FPDebugContainer.Padding * 2);
+  MaxW := (FPWindowWidth * 3 Div 4);
 
-  End;
+  If NewW < MinW Then NewW := MinW;
+  If NewW > MaxW Then NewW := MaxW;
 
+  // Setting Width triggers SetWidth -> DoResize -> parent.AlignChildren.
+  // AlignRight repositions this container; AlignAll resizes FPBASICEditor.
+  // No other bookkeeping needed.
+  FPDebugContainer.Width := NewW;
 End;
 
 Procedure SP_User_OpenDebugPanel;
@@ -132,6 +118,11 @@ End;
 Procedure SP_User_CloseDebugPanel;
 Begin
   FPUserOpenedDebugPanel := False;
+  If FPShowingDebugFind Then Begin
+    FPBASICEditor.ClearSearchResults;   // clears highlights and repaints editor
+    FPShowingSearchResults := False;    // clears the debug panel list state
+    FPShowingDebugFind := False;        // clear the flag
+  End;
   SP_CloseDebugPanel;
 End;
 
@@ -144,79 +135,143 @@ Begin
   DisplaySection.Enter;
 
   SP_GetWindowDetails(FPWindowID, Win, Error);
-  If Not Assigned(FPDebugPanel) Then Begin
-    FPDebugPanel := SP_ListBox.Create(Win^.Component);
-    FPDebugCombo := SP_ComboBox.Create(Win^.Component);
-    FPSizeGrabber := SP_Container.Create(Win^.Component);
-  End;
-  FPDebugPanelVisible := True;
-  FPDebugPanel.AllowLiterals := True;
 
-  With FPDebugCombo Do Begin
-    SetBounds(Win^.Width - BSize - FPDebugPanelWidth, FPClientTop + BSize, FPDebugPanelWidth, FH);
-    AddItem('Variables');
-    AddItem('SysVars');
-    AddItem('Watches');
-    AddItem('Breakpoints');
-    AddItem('Labels');
-    AddItem('Procedures/Functions');
-    AddItem('Character Set');
-    ItemIndex := LastDebugPanelIndex;
-    CanFocus := False;
-    FPDebugPanel.SetBounds(Left, Top + Height + BSize, Width, FPPaperHeight - (Height + BSize));
-    FPDebugPanel.CanUserSort := True;
-    FPDebugPanel.OnFocus := SP_DebugPanelActionProcs.SetFocus;
-    FPDebugPanel.SortByAlpha := True;
-    FPDebugPanel.OnChoose := SP_DebugPanelActionProcs.DblClick;
-    FPDebugPanel.OnSelect := SP_DebugPanelActionProcs.PanelSelect;
-    FPDebugPanel.MultiSelect := False;
-    FPDebugPanel.OnSelect := SP_DebugPanelActionProcs.SelectItem;
-    OnChange := SP_DebugPanelActionProcs.PanelSwitch;
-    FPDebugBPEdt := SP_Button.Create(Win^.Component);
-    FPDebugBPEdt.OnClick := SP_DebugPanelActionProcs.ButtonClick;
-    FPDebugBPDel := SP_Button.Create(Win^.Component);
-    FPDebugBPDel.OnClick := SP_DebugPanelActionProcs.ButtonClick;
-    FPDebugBPAdd := SP_Button.Create(Win^.Component);
-    FPDebugBPAdd.OnClick := SP_DebugPanelActionProcs.ButtonClick;
-    FPSizeGrabber.SetBounds(Left - BSize, Top, BSize, FPPaperHeight);
+  If Not Assigned(FPDebugContainer) Then Begin
+    // Container sits on the right edge - AlignRight, width = panel + grabber strip.
+    FPDebugContainer := SP_Container.Create(Win^.Component);
+    FPDebugContainer.Padding     := 0;  // must precede Width
+    FPDebugContainer.Width       := FPDebugPanelWidth + BSize + (FPDebugContainer.Padding * 2);
+    FPDebugContainer.Align       := SP_AlignRight;
+    FPDebugContainer.Border      := False;
+    FPDebugContainer.Transparent := False;
+    FPDebugContainer.BackgroundClr := FPBASICEditor.Colour;
+    FPDebugContainer.Caption     := '';
+
+    // Grabber strip - left edge of container, full height.
+    FPSizeGrabber := SP_Container.Create(FPDebugContainer);
+    FPSizeGrabber.Width       := BSize +1;
+    FPSizeGrabber.Align       := SP_AlignLeft;
     FPSizeGrabber.Transparent := True;
-    FPSizeGRabber.Border := False;
-    FPSizeGrabber.Caption := '';
-    FPSizeGrabber.Erase := True;
+    FPSizeGrabber.Border      := False;
+    FPSizeGrabber.Caption     := '';
+    FPSizeGrabber.Erase       := True;
     FPSizeGrabber.OnMouseDown := SP_MenuActionProcs.GrabberMouseDown;
     FPSizeGrabber.OnMouseMove := SP_MenuActionProcs.GrabberMouseMove;
-    FPSizeGrabber.OnMouseUp := SP_MenuActionProcs.GrabberMouseUp;
-    FPSizeGrabber.OnFocus := SP_DebugPanelActionProcs.SetFocus;
+    FPSizeGrabber.OnMouseUp   := SP_MenuActionProcs.GrabberMouseUp;
+    FPSizeGrabber.OnFocus     := SP_DebugPanelActionProcs.SetFocus;
     FPSizeGrabber.OnPaintAfter := SP_DebugPanelActionProcs.PaintGrabber;
     FPSizeGrabber.Paint;
+
+    FPDebugContent := SP_Container.Create(FPDebugContainer);
+    FPDebugContent.Align       := SP_AlignAll;
+    FPDebugContent.Padding     := BSize;
+    FPDebugContent.fPaddingLeft:= 0;
+    FPDebugContent.Border      := False;
+    FPDebugContent.Transparent := False;
+    FPDebugContent.BackgroundClr := FPBASICEditor.Colour;
+    FPDebugContent.Caption     := '';
+
+    // Combo box - top of remaining space inside container.
+    FPDebugCombo := SP_ComboBox.Create(FPDebugContent);
+    FPDebugCombo.Height   := FH;
+    FPDebugCombo.Align    := SP_AlignTop;
+    FPDebugCombo.CanFocus := False;
+    FPDebugCombo.AddItem('Variables');
+    FPDebugCombo.AddItem('SysVars');
+    FPDebugCombo.AddItem('Watches');
+    FPDebugCombo.AddItem('Breakpoints');
+    FPDebugCombo.AddItem('Labels');
+    FPDebugCombo.AddItem('Procedures/Functions');
+    FPDebugCombo.AddItem('Character Set');
+    FPDebugCombo.AddItem('Online Help');
+    FPDebugCombo.ItemIndex := LastDebugPanelIndex;
+    FPDebugCombo.OnChange  := SP_DebugPanelActionProcs.PanelSwitch;
+
+    // Buttons - AlignBottom inside container.
+    FPDebugBPEdt := SP_Button.Create(FPDebugContent);
+    FPDebugBPEdt.Height   := FH + (BSize * 2);
+    FPDebugBPEdt.Align    := SP_AlignBottom;
+    FPDebugBPEdt.Visible  := False;
+    FPDebugBPEdt.OnClick  := SP_DebugPanelActionProcs.ButtonClick;
+
+    FPDebugBPDel := SP_Button.Create(FPDebugContent);
+    FPDebugBPDel.Height   := FH + (BSize * 2);
+    FPDebugBPDel.Align    := SP_AlignBottom;
+    FPDebugBPDel.Visible  := False;
+    FPDebugBPDel.OnClick  := SP_DebugPanelActionProcs.ButtonClick;
+
+    FPDebugBPAdd := SP_Button.Create(FPDebugContent);
+    FPDebugBPAdd.Height   := FH + (BSize * 2);
+    FPDebugBPAdd.Align    := SP_AlignBottom;
+    FPDebugBPAdd.Visible  := False;
+    FPDebugBPAdd.OnClick  := SP_DebugPanelActionProcs.ButtonClick;
+
+    // List box - AlignAll, fills remaining space.
+    FPDebugPanel := SP_ListBox.Create(FPDebugContent);
+    FPDebugPanel.fPaddingTop    := BSize;
+    FPDebugPanel.Align          := SP_AlignAll;
+    FPDebugPanel.AllowLiterals  := True;
+    FPDebugPanel.CanUserSort    := True;
+    FPDebugPanel.SortByAlpha    := True;
+    FPDebugPanel.MultiSelect    := False;
+    FPDebugPanel.OnFocus        := SP_DebugPanelActionProcs.SetFocus;
+    FPDebugPanel.OnChoose       := SP_DebugPanelActionProcs.DblClick;
+    FPDebugPanel.OnSelect       := SP_DebugPanelActionProcs.SelectItem;
+    FPDebugPanel.BackgroundClr  := FPBASICEditor.Colour;
+    FPDebugPanel.Colour         := SP_UIWindowBack;
+
+    // AmigaGuide help viewer - hidden until the user switches to Help.
+    FPHelpViewer := SP_AmigaGuide.Create(FPDebugContent);
+    FPHelpViewer.Border       := True;
+    FPHelpViewer.fPaddingTop  := BSize;
+    FPHelpViewer.Align        := SP_AlignAll;
+    FPHelpViewer.Shadow       := True;
+    FPHelpViewer.TextMargin   := 8;
+    FPHelpViewer.Proportional := True;
+    FPHelpViewer.Visible      := LastHelpNode <> '';
+    FPHelpViewer.LoadGuide('/sb.guide');
+    FPHelpViewer.RestorePosition(LastHelpNode, LastHelpScroll);
   End;
+
+  FPDebugPanelVisible := True;
   FocusedControl := Nil;
 
   SP_FillDebugPanel;
+  SP_DebugPanelActionProcs.PanelSwitch(FPDebugCombo, '');
   SP_UpdateAfterDebug;
+
+  FPBASICEditor.fPaddingRight := 0;
+  FPBASICEditor.Paint;
 
   DisplaySection.Leave;
 
 End;
 
 Procedure SP_CloseDebugPanel;
-Var
-  Error: TSP_ErrorCode;
-  Win: pSP_Window_Info;
 Begin
-
-  SP_GetWindowDetails(FPWindowID, Win, Error);
+  If Assigned(FPHelpViewer) Then Begin
+    LastHelpNode   := FPHelpViewer.CurrentNodeName;
+    LastHelpScroll := FPHelpViewer.TopPixel;
+  End;
   FPDebugPanelVisible := False;
-  FPDebugPanel.Free;
-  FPDebugPanel := nil;
-  FPDebugCombo.Free;
-  FPDebugCombo := nil;
-  FPDebugBPAdd.Free;
-  FPDebugBPDel.Free;
-  FPDebugBPEdt.Free;
-  FPSizeGrabber.Free;
+  If Assigned(FPDebugContainer) Then
+    FPDebugPanelWidth := FPDebugContainer.Width - BSize - (FPDebugContainer.Padding * 2);
+  FreeAndNil(FPDebugContainer);
+  // Container owns and has freed all children - nil the pointers.
+  FPDebugPanel   := nil;
+  FPDebugCombo   := nil;
+  FPDebugBPAdd   := nil;
+  FPDebugBPDel   := nil;
+  FPDebugBPEdt   := nil;
+  FPSizeGrabber  := nil;
+  FPHelpViewer   := nil;  // owned and freed by FPDebugContent
+  If Assigned(FPBASICEditor) Then Begin
+    FPBASICEditor.fPaddingRight := 4;
+    FPBASICEditor.Paint;
+  End;
+  // Restore focus to whatever was active before the panel opened
+  SwitchFocusedWindow(DebugCurWindow);
   SP_UpdateAfterDebug;
-
 End;
 
 Procedure SP_MakeBreakPointList(var List: TAnsiStringlist);
@@ -288,22 +343,20 @@ Const
 
   Procedure SetButtons;
   Var
-    xPos, i, hMod: Integer;
+    i: Integer;
     Btn: SP_Button;
-    ShowBtns: Boolean;
   Const
     Caps: Array[0..2] of aChar = (#240, '-', '+');
   Begin
-    ShowBtns := False;
     FPDebugBPAdd.Visible := False;
     FPDebugBPDel.Visible := False;
     FPDebugBPEdt.Visible := False;
+    If FPDebugCombo.ItemIndex = 7 Then Exit;  // Help tab has no list buttons
     Case FPDebugCombo.ItemIndex of
       0: // Vars - Hide add/delete button, show edit button.
         Begin
           If FPDebugPanel.Enabled Then Begin
             FPDebugBPEdt.Visible := True;
-            ShowBtns := True;
           End;
         End;
       2, 3: // Watches and breakpoints
@@ -313,19 +366,10 @@ Const
             FPDebugBPEdt.Visible := True;
             FPDebugBPDel.Visible := True;
           End;
-          ShowBtns := True;
         End;
     End;
-    If not EDITORWRAP then Begin
-      With FPScrollBars[SP_FindScrollBar(FPHorzSc)].BoundsRect do
-        hMod := (Bottom - Top) + BSize;
-    End Else
-      hMod := 0;
-    If ShowBtns Then
-      FPDebugPanel.Height := hMod + FPPaperHeight - (FPDebugCombo.Height + BSize) - (FH + BSize * 3)
-    Else
-      FPDebugPanel.Height := hMod + FPPaperHeight - (FPDebugCombo.Height + BSize);
-    xPos := FPDebugPanel.Left + FPDebugPanel.Width + BSize;
+
+    // Buttons use SP_AlignBottom inside the container - just set captions.
     Btn := nil;
     For i := 0 to 2 Do Begin
       Case i of
@@ -334,15 +378,15 @@ Const
         2: Btn := FPDebugBPAdd;
       End;
       If Btn.Visible Then Begin
-        Dec(xPos, FW + (BSize * 3));
         Btn.Proportional := False;
-        Btn.SetBounds(xPos, FPDebugPanel.Top + FPDebugPanel.Height + BSize, FW + (BSize * 2), FH + (BSize * 2));
         Btn.Caption := Caps[i];
         Btn.CentreCaption;
       End;
     End;
     FPDebugBPDel.Enabled := FPDebugPanel.fSelCount > 0;
     FPDebugBPEdt.Enabled := FPDebugPanel.fSelCount > 0;
+    If Assigned(FPDebugContainer) Then
+      FPDebugContainer.AlignChildren;
   End;
 
 Begin
@@ -350,6 +394,9 @@ Begin
   If FPDebugPanelVisible And not QUITMSG And (FPWIndowID >= 0) Then Begin
 
     List := TAnsiStringlist.Create;
+
+    // Help tab manages its own content — nothing for SP_FillDebugPanel to do.
+    If FPDebugCombo.ItemIndex = 7 Then Begin List.Free; Exit; End;
 
     With FPDebugPanel Do Begin
       Lock;
@@ -584,7 +631,7 @@ Begin
               If FPPoIList[i].PoI_Type = PoI_Label Then Begin
                 s := ' ' + FPPoIList[i].Name;
                 j := FPPoIList[i].Line;
-                vContent := ' ' + IntToString(Listing.Flags[j].Line) + ':' + IntToString(FPPoIList[i].Statement);
+                vContent := ' ' + IntToString(SP_GetLineNumberFromIndex(j)) + ':' + IntToString(FPPoIList[i].Statement);
                 MaxW := Max(MaxW, Length(vContent) +1);
                 MaxP := Max(MaxP, Length(s) +1);
                 Add(s + #255 + vContent);
@@ -680,7 +727,7 @@ Begin
             Enabled := True;
             Sort(0);
           End;
-        7: // Disassembly
+        7: // Help
           Begin
 
           End;
@@ -703,6 +750,25 @@ Class Procedure SP_DebugPanelActionProcs.PanelSwitch(Sender: SP_BaseComponent; T
 Begin
 
   LastDebugPanelIndex := FPDebugCombo.ItemIndex;
+
+  If Assigned(FPHelpViewer) Then Begin
+    If FPDebugCombo.ItemIndex = 7 Then Begin
+      // Switching TO Help - show viewer, hide list and buttons.
+      FPDebugPanel.Visible := False;
+      FPDebugBPAdd.Visible := False;
+      FPDebugBPDel.Visible := False;
+      FPDebugBPEdt.Visible := False;
+      FPHelpViewer.Visible := True;
+      FPHelpViewer.SetFocus(True);
+      FPHelpViewer.RefreshNavBar;
+      FPDebugContent.AlignChildren;
+    End Else Begin
+      // Switching AWAY from Help — restore list, hide viewer.
+      FPHelpViewer.Visible := False;
+      FPDebugPanel.Visible := True;
+    End;
+  End;
+
   SP_FPUpdatePoIList;
 
 End;
@@ -755,7 +821,6 @@ Begin
       SetLength(SP_ConditionalBreakPointList, Length(SP_ConditionalBreakPointList) -1);
     End;
     SP_GetDebugStatus(dbgBreakpoints);
-    SP_DisplayFPListing(-1);
   End Else Begin
     pLongWord(@s[1])^ := Index;
     pNativeUInt(@s[1 + SizeOf(LongWord)])^ := NativeUInt(Bp);
@@ -767,65 +832,43 @@ End;
 Class Procedure SP_DebugPanelActionProcs.SelectItem(Sender: SP_BaseComponent; Index: Integer);
 var
   s: aString;
-  i, j, p, l: Integer;
-  Error: TSP_ErrorCode;
-  IsArray: Boolean;
 Begin
 
   PanelSelect(Sender, Index);
 
   If Index < 0 Then Begin
-    HideSearchResults;
+    FPBASICEditor.ClearSearchResults;
     Exit;
   End Else
     Case FPDebugCombo.ItemIndex of
       0: // Variables - Highlight all instances
         Begin
-          IsArray := False;
           FPSearchTerm := FPDebugPanel.Items[Index];
           if FPSearchTerm[1] = ' ' then FPSearchTerm := Copy(FPSearchTerm, 2);
           if FPSearchTerm[1] < ' ' then FPSearchTerm := Copy(FPSearchTerm, 6);
           FPSearchTerm := Copy(FPSearchTerm, 1, Pos(#255, FPSearchTerm) -1);
-          If Pos('(', FPSearchTerm) > 0 Then Begin
+          If Pos('(', FPSearchTerm) > 0 Then
             FPSearchTerm := Copy(FPSearchTerm, 1, Pos('(', FPSearchTerm));
-            IsArray := True;
-          End;
-          FPSearchOptions := [soForward, soStart, soClearBar, soVarName];
-          SP_FPEditor.SP_FindAll(FPSearchTerm, FPSearchOptions, Error);
+          FPSearchOptions := [soForward, soStart, soVarName];
+          FPBASICEditor.BASICFindAll(FPSearchTerm, FPSearchOptions, nil);
+          FPShowingSearchResults := FPBASICEditor.HasFindResults;
           FPShowingSearchResults := True;
-          j := -1;
-          For i := 0 To Length(FPFindResults) -1 Do Begin
-            If IsArray And Not FPFindResults[i].Split Then Dec(FPFindResults[i].Length);
-            If FPFindResults[i].Line <> j Then Begin
-              SP_FPApplyHighlighting(FPFindResults[i].Line);
-              AddDirtyLine(FPFindResults[i].Line);
-            End;
-            j := FPFindResults[i].Line;
-          End;
-          SP_DisplayFPListing(-1);
+          FPShowingDebugFind := True;
         End;
       1: // SysVars - highlight all sysvarss
         Begin
 
         End;
-      3: // Labels - highlight all @Label instances
+      4: // Labels - highlight all @Label instances
         Begin
           Index := Integer(FPDebugPanel.Objects[Index]);
           FPSearchTerm := '@' + FPPoIList[Index].Name;
-          FPSearchOptions := [soForward, soStart, soClearBar];
-          SP_FPEditor.SP_FindAll(FPSearchTerm, FPSearchOptions, Error);
+          FPSearchOptions := [soForward, soStart];
+          FPBASICEditor.BASICFindAll(FPSearchTerm, FPSearchOptions, nil);
           FPShowingSearchResults := True;
-          j := -1;
-          For i := 0 To Length(FPFindResults) -1 Do Begin
-            If FPFindResults[i].Line <> j Then Begin
-              SP_FPApplyHighlighting(FPFindResults[i].Line);
-              AddDirtyLine(FPFindResults[i].Line);
-            End;
-            j := FPFindResults[i].Line;
-          End;
-          SP_DisplayFPListing(-1);
+          FPShowingDebugFind := True;
         End;
-      4: // Procs and FNs - highlight all usages. Find "Fn x" and "Proc x", "DEF FN x" and "DEF PROC x" as well as "CALL x".
+      5: // Procs and FNs - highlight all usages. Find "Fn x" and "Proc x", "DEF FN x" and "DEF PROC x" as well as "CALL x".
         Begin
           Index := Integer(FPDebugPanel.Objects[Index]);
           s := FPPoIList[Index].Name;
@@ -835,40 +878,16 @@ Begin
             FPSearchTerm := 'fn ' + s
           else
             FPSearchTerm := 'proc ' + s;
-          FPSearchOptions := [soForward, soStart, soClearBar];
-          SP_FPEditor.SP_FindAll(FPSearchTerm, FPSearchOptions, Error);
+          FPSearchOptions := [soForward, soStart];
+          FPBASICEditor.BASICFindAll(FPSearchTerm, FPSearchOptions, nil, True);
           FPSearchTerm := 'def ' + FPSearchTerm;
-          FPSearchOptions := FPSearchOptions + [soNoClear];
-          SP_FPEditor.SP_FindAll(FPSearchTerm, FPSearchOptions, Error);
+          FPBASICEditor.BASICFindAll(FPSearchTerm, FPSearchOptions, nil, False);
           if FPPoIList[Index].PoI_Type = PoI_Proc then Begin
             FPSearchTerm := 'call ' + s;
-            SP_FPEditor.SP_FindAll(FPSearchTerm, FPSearchOptions, Error);
+            FPBASICEditor.BASICFindAll(FPSearchTerm, FPSearchOptions, nil, False);
           End;
           FPShowingSearchResults := True;
-          j := -1;
-          i := 0;
-          l := Length(FPFindResults);
-          While i < l Do With FPFindResults[i] Do Begin
-            If Not Split Then Begin
-              // If any alphanumeric or "_" characters follow, then delete this find result.
-              s := lower(Listing[Line]);
-              p := Position + Length;
-              If (p <= System.Length(s)) and (s[p] in ['a'..'z', '0'..'9', '_']) Then Begin
-                For p := i to l -2 Do
-                  FPFindResults[p] := FPFindResults[p +1];
-                SetLength(FPFindResults, l -1);
-                Dec(l);
-                Continue;
-              End;
-            End;
-            If Line <> j Then Begin
-              SP_FPApplyHighlighting(Line);
-              AddDirtyLine(Line);
-            End;
-            j := Line;
-            Inc(i);
-          End;
-          SP_DisplayFPListing(-1);
+          FPShowingDebugFind := True;
         End;
     End;
 
@@ -877,7 +896,6 @@ End;
 Class Procedure SP_DebugPanelActionProcs.DblClick(Sender: SP_BaseComponent; Index: Integer; Text: aString);
 Var
   s: aString;
-  kInfo: SP_KeyInfo;
   Error: TSP_ErrorCode;
 Begin
 
@@ -914,17 +932,17 @@ Begin
       End;
     6: // Character set - paste character at cursor pos
       Begin
-        kInfo.KeyCode := Integer(FPDebugPanel.Objects[Index]);
-        kInfo.keyChar := aChar(kInfo.KeyCode);
-        kInfo.CanRepeat := False;
-        kInfo.IsKey := False;
         If DebugCurWindow = fwEditor Then Begin
-          SP_FPEditorPerformEdit(@kInfo);
-          SP_SwitchFocus(fwEditor);
+          FPBASICEditor.SetFocus(True);
+          FPBASICEditor.InsertChar(aChar(Integer(FPDebugPanel.Objects[Index])));
+          FPBASICEditor.EnsureCursorVisible;
+          FPBASICEditor.Paint;
         End Else
           If DebugCurWindow = fwDirect Then Begin
-            SP_DWPerformEdit(@kInfo);
-            SP_SwitchFocus(fwDirect);
+            DWBASICEditor.SetFocus(True);
+            DWBASICEditor.InsertChar(aChar(Integer(FPDebugPanel.Objects[Index])));
+            DWBASICEditor.EnsureCursorVisible;
+            DWBASICEditor.Paint;
           End;
       End;
   End;
@@ -987,7 +1005,8 @@ var
 Begin
 
   With Control do Begin
-    x := (Width Div 2) -2;
+    FillRect(0, 0, fWidth, fHeight, FPBASICEditor.Colour);
+    x := (Width Div 2) -1;
     y := (Height Div 2) - 5;
     for i := 0 to 2 do
       FillRect(x, y+(i * 4), x + 2, y+2+(i*4), fDisabledFontClr);
@@ -1011,11 +1030,117 @@ Begin
 
 End;
 
+Procedure SP_ShowHelpForWord(Const Word: aString);
+Var
+  PrevFocus: SP_BaseComponent;
+  raw, col, numLen, lLen, lo, hi, lo2, hi2, p: Integer;
+  line, prevWord, nextWord, compound, compoundFwd: aString;
+Begin
+
+  // Open the panel if it isn't already, switch to the Help tab, and
+  // navigate the guide to the closest matching node.
+  If Not FPDebugPanelVisible Then Begin
+    SP_User_OpenDebugPanel;
+    If Assigned(FPDebugContainer) And
+       (FPDebugContainer.Width < FPHelpPanelMinWidth) Then
+      FPDebugContainer.Width := FPHelpPanelMinWidth;
+  End;
+
+  If Assigned(FPDebugCombo) Then Begin
+    FPDebugCombo.ItemIndex := 7;
+    SP_DebugPanelActionProcs.PanelSwitch(FPDebugCombo, '');
+  End;
+
+  If Assigned(FPHelpViewer) Then Begin
+    PrevFocus := FocusedControl;
+    If Word <> '' Then Begin
+      compound := '';
+
+      // Try to extend Word with the following word on the line
+      // to handle compound keywords like DEF FN, END IF etc.
+      If Assigned(FPBASICEditor) Then Begin
+        raw  := FPBASICEditor.CursorLine;
+        line := FPBASICEditor.Lines[raw];
+        col  := FPBASICEditor.CursorCol;
+        lLen := Length(line);
+        numLen := FPBASICEditor.GetLineNumLen(raw);
+
+        // Find extent of current word
+        lo := col;
+        While (lo > numLen + 1) And
+              (line[lo - 1] In ['A'..'Z','a'..'z','0'..'9','$','_']) Do
+          Dec(lo);
+        hi := col;
+        While (hi < lLen) And
+              (line[hi + 1] In ['A'..'Z','a'..'z','0'..'9','$','_']) Do
+          Inc(hi);
+
+        // Look backwards for a preceding word
+        p := lo - 1;
+        While (p >= numLen + 1) And (line[p] = ' ') Do Dec(p);
+        If p >= numLen + 1 Then Begin
+          hi2 := p;
+          While (p > numLen + 1) And
+                (line[p - 1] In ['A'..'Z','a'..'z','0'..'9','$','_']) Do
+            Dec(p);
+          prevWord := Copy(line, p, hi2 - p + 1);
+        End Else
+          prevWord := '';
+
+        // Look forwards for a following word
+        p := hi + 1;
+        While (p <= lLen) And (line[p] = ' ') Do Inc(p);
+        lo2 := p;
+        While (p <= lLen) And
+              (line[p] In ['A'..'Z','a'..'z','0'..'9','$','_']) Do
+          Inc(p);
+        nextWord := Copy(line, lo2, p - lo2);
+
+        // Build candidates
+        If prevWord <> '' Then
+          compound := Upper(prevWord + '_' + Word)
+        Else
+          compound := '';
+
+        If nextWord <> '' Then
+          compoundFwd := Upper(Word + '_' + nextWord)
+        Else
+          compoundFwd := '';
+      End;
+
+      // Lookup priority
+      If (compound    <> '') And (FPHelpViewer.FindNode(compound)    >= 0) Then
+        FPHelpViewer.GoToNode(compound)
+      Else If (compoundFwd <> '') And (FPHelpViewer.FindNode(compoundFwd) >= 0) Then
+        FPHelpViewer.GoToNode(compoundFwd)
+      Else If FPHelpViewer.FindNode(Word) >= 0 Then
+        FPHelpViewer.GoToNode(Word)
+      Else If FPHelpViewer.FindNode(Upper(Word)) >= 0 Then
+        FPHelpViewer.GoToNode(Upper(Word))
+      Else
+        FPHelpViewer.GoToNode('MAIN');
+    End Else
+      FPHelpViewer.GoToNode('MAIN');
+    If Assigned(PrevFocus) Then
+      PrevFocus.SetFocus(True);
+  End;
+
+End;
+
 Procedure SP_FPUpdatePoIList;
 var
   i, j, l, ps, St, bc, ofs: Integer;
-  inRem, inClr, inString: Boolean;
+  inString: Boolean;
   s, lbl: aString;
+
+  Function InAString(const t: aString): Boolean;
+  Var k: Integer; q: Boolean;
+  Begin
+    q := False;
+    For k := 1 To Length(t) Do
+      If t[k] = '"' Then q := Not q;
+    Result := q;
+  End;
 
   Procedure AddToList(iType: Integer; iName: aString; iLine, iStatement: Integer);
   Begin
@@ -1034,7 +1159,7 @@ Begin
   SetLength(FPPoIList, 0);
   For i := 0 To Listing.Count -1 Do
     If Listing.Flags[i].PoI Then Begin
-      j := i; s := ''; InString := False; InClr := False; InREM := False;
+      j := i; s := '';
       While (j > 0) And (SP_LineHasNumber(j) = 0) Do Dec(j);
       While j < i Do Begin
         s := s + Listing[j];
@@ -1046,10 +1171,10 @@ Begin
         s := s + Lower(Listing[i + 1]);
     Again:
       lbl := '';
-      InString := False; InClr := False; InREM := False;
       ps := SP_Util.Pos('label', s); // Label search
       if ps > 0 Then Begin
-        ScanForStatements(Copy(s, 1, ps -1), St, InString, InREM, InClr);
+        Inc(St, FPBASICEditor.CountStatementSeps(Copy(s, 1, ps - 1), 0));
+        InString := InAString(Copy(s, 1, ps - 1));
         If not InString then Begin
           Inc(ps, 5);
           while (ps < length(s)) and (s[ps] <= ' ') do inc(ps);
@@ -1071,7 +1196,8 @@ Begin
           ps := SP_Util.Pos('def fn', s); ofs := 6;// Look for a function if no procedures found
         end;
         if ps > 0 Then Begin
-          ScanForStatements(Copy(s, 1, ps -1), St, InString, InREM, InClr);
+          Inc(St, FPBASICEditor.CountStatementSeps(Copy(s, 1, ps - 1), 0));
+          InString := InAString(Copy(s, 1, ps - 1));
           If Not InString Then Begin
             Inc(ps, ofs);
             while (ps < length(s)) and (s[ps] <= ' ') do inc(ps);

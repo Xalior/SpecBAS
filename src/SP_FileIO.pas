@@ -25,7 +25,8 @@ unit SP_FileIO;
 
 interface
 
-Uses {$IFNDEF FPC}Windows, {$ENDIF}Types, Classes, SysUtils, SyncObjs, SP_Util, SP_Errors, SP_Tokenise, SP_SysVars, SP_Variables, SP_InfixToPostFix{$IFDEF FPC}, FileUtil{$ENDIF}, SP_AnsiStringlist;
+Uses {$IFNDEF FPC}Windows, {$ENDIF}Types, Classes, SysUtils, SyncObjs, SP_Util, SP_Errors, SP_Tokenise,
+     SP_SysVars, SP_Variables, SP_InfixToPostFix{$IFDEF FPC}, FileUtil{$ENDIF}, SP_AnsiStringlist;
 
 Type
 
@@ -105,7 +106,7 @@ Var
 
 implementation
 
-Uses SP_Compiler, SP_Main, SP_Editor, SP_Package, SP_FPEditor, SP_Graphics, SP_PreRun;
+Uses SP_Compiler, SP_Main, SP_Editor, SP_Package, SP_FPEditor, SP_BASICEditorUnit, SP_Graphics, SP_PreRun, SP_BASICEditorHostUnit;
 
 Procedure CopyFiles(inDir: String; outDir: String);
 Var
@@ -914,14 +915,14 @@ End;
 Procedure SP_SaveProgram(Filename: aString; AutoStart: Integer; Var Error: TSP_ErrorCode);
 Var
   FileID, Idx, ProgLen, p: Integer;
-  ProgLine, SaveBuffer, Backup: aString;
+  SaveBuffer, Backup: aString;
   System, BackBool: Boolean;
 Const
   ASCIITAG: aString = 'ZXASCII'#13#10;
   TrueFalse: Array[0..1] of aString = ('FALSE', 'TRUE');
 Begin
   BackBool := FILENAMED;
-  Backup := PROGNAME;
+  Backup   := PROGNAME;
 
   If Filename = '' Then
     If FILENAMED Then
@@ -937,62 +938,57 @@ Begin
     System := Pos(':', Filename) > 0;
     If PackageIsOpen And Not System Then Begin
       SP_DeletePackageFile(Filename, Error);
-      If Error.Code <> SP_ERR_OK Then Begin
-        Exit;
-      End;
-    End Else
+      If Error.Code <> SP_ERR_OK Then Exit;
+    End Else Begin
       SP_DeleteFile(Filename, Error);
-      If Error.Code <> SP_ERR_OK Then Begin
-        Exit;
-      End;
+      If Error.Code <> SP_ERR_OK Then Exit;
+    End;
   End;
 
-  FileID := SP_FileOpen(Filename, True, Error);
+  FileID     := SP_FileOpen(Filename, True, Error);
   SaveBuffer := '';
 
   If FileID > -1 Then Begin
 
-    ProgLen := Listing.Count;
+    ProgLen := SP_EditorLineCount;
 
-    If (Lower(Filename) <> 's:autosave') and (lower(filename) <> 's:oldprog') and (lower(filename) <> 's:old_temp') Then Begin
+    If (Lower(Filename) <> 's:autosave') And
+       (Lower(Filename) <> 's:oldprog')  And
+       (Lower(Filename) <> 's:old_temp') Then Begin
       PROGNAME := SP_ExtractFileDir(Filename);
       Repeat
         p := Pos('\', PROGNAME);
         If p > 0 Then
-          PROGNAME := Copy(PROGNAME, 1, P -1) + '/' + Copy(PROGNAME, p +1);
+          PROGNAME := Copy(PROGNAME, 1, p-1) + '/' + Copy(PROGNAME, p+1);
       Until p = 0;
       If Copy(PROGNAME, Length(PROGNAME), 1) <> '/' Then
         PROGNAME := PROGNAME + '/';
-       PROGNAME := PROGNAME + SP_ExtractFileName(Filename);
-      FILENAMED := True;
+      PROGNAME    := PROGNAME + SP_ExtractFileName(Filename);
+      FILENAMED   := True;
       FILECHANGED := False;
       SP_AddToRecentFiles(Filename, True);
       LASTFILENAME := Filename;
     End;
 
-    SaveBuffer := ASCIITAG + 'AUTO '+IntToString(AutoStart)+#13+#10;
-    SaveBuffer := SaveBuffer + 'PROG ' + PROGNAME+#13#10;
-    SaveBuffer := SaveBuffer + 'CHANGED '+TrueFalse[Ord(FILECHANGED)]+#13#10;
+    SaveBuffer := ASCIITAG +
+                  'AUTO '    + IntToString(AutoStart)         + #13#10 +
+                  'PROG '    + PROGNAME                       + #13#10 +
+                  'CHANGED ' + TrueFalse[Ord(FILECHANGED)]   + #13#10;
 
-    Idx := 0;
-    While Idx < ProgLen Do Begin
-      ProgLine := SP_StringOfChar(' ', Listing.Flags[Idx].Indent) + SP_FPGetUnwrappedLine(Idx) + #13+#10;
-      SaveBuffer := SaveBuffer + ProgLine;
-    End;
+    For Idx := 0 To ProgLen - 1 Do
+      SaveBuffer := SaveBuffer + SP_EditorLine(Idx) + #13#10;
+
     SP_FileWrite(FileID, @SaveBuffer[1], Length(SaveBuffer), Error);
     SP_FileClose(FileID, Error);
 
     If Error.Code <> SP_ERR_OK Then Begin
-      PROGNAME := Backup;
+      PROGNAME  := Backup;
       FILENAMED := BackBool;
     End;
 
-  End Else Begin
-
+  End Else
     If Error.Code = SP_ERR_OK Then
       Error.Code := SP_ERR_SAVE_OPEN_ERROR;
-
-  End;
 
 End;
 
@@ -1262,41 +1258,36 @@ Begin
 
 End;
 
-Procedure SP_LoadProgram(Filename: aString; Merge, DirtyFile: Boolean; Const pList: TAnsiStringList; Var Error: TSP_ErrorCode);
+Procedure SP_LoadProgram(Filename: aString; Merge, DirtyFile: Boolean;
+                         Const pList: TAnsiStringList; Var Error: TSP_ErrorCode);
 Var
-  cPos, FileID, FileSize, LineCount, AutoStart, NameLen, Idx, lIdx, LineLen, i: Integer;
-  pName, ProgLine, PlainCode, s, Dir, tStr: aString;
-  Done, changed, isAutoSaved: Boolean;
+  FileID, FileSize, AutoStart, Idx, LineNum, InsertAt: Integer;
+  pName, Dir, tStr, RawText, s: aString;
+  Changed, isAutoSaved: Boolean;
   Buffer: Array of Byte;
-  NewProg: array of aString;
-  CheckSum: LongWord;
+  ParsedLines: TAnsiStringList;
 Label
   Finish, DoneLoad;
 
-  Function StrCopy(Ptr: pByte; Length: Integer): aString;
-  Var
-    Idx: Integer;
+  Function StrCopy(Ptr: pByte; Len: Integer): aString;
+  Var n: Integer;
   Begin
-
-    Idx := 1;
-    SetLength(Result, Length);
-    While Length > 0 Do Begin
-      pByte(@Result[Idx])^ := Ptr^;
-      Inc(Idx);
+    SetLength(Result, Len);
+    For n := 1 To Len Do Begin
+      pByte(@Result[n])^ := Ptr^;
       Inc(Ptr);
-      Dec(Length);
     End;
-
   End;
 
 Begin
 
-  cPos := -1;
-  FileID := -1;
-  changed := False;
-  ERRStr := Filename;
-  AutoStart := -1;
-  isAutoSaved := (Lower(Filename) = 's:autosave') or (Lower(Filename) = 's:oldprog');
+  FileID      := -1;
+  Changed     := False;
+  ERRStr      := Filename;
+  AutoStart   := -1;
+  pName       := Filename;
+  isAutoSaved := (Lower(Filename) = 's:autosave') Or
+                 (Lower(Filename) = 's:oldprog');
 
   Dir := SP_ExtractFileDir(Filename);
   If DirtyFile Then Begin
@@ -1306,25 +1297,7 @@ Begin
     SP_SetCurrentDir(Dir, Error);
   If Error.Code <> SP_ERR_OK Then Goto Finish;
 
-  If pList = Nil Then Begin
-
-    // Load a program from a file or package.
-
-    PROGCHANGED := True;
-    pName := Filename;
-    AutoStart := -1;
-
-  End;
-
-{  If DirtyFile Then Begin
-    Filename := SP_ConvertHostFilename(Filename, Error);
-    If Filename <> '' Then
-      If Filename[Length(Filename)] in ['/','\'] Then
-        FileName := Copy(FileName, 1, Length(Filename) -1);
-  End; }
-
   If Not SP_FileExists(Filename) Then Begin
-    // Might be a "dirty" filename - specified on the command line. We allow those for loading ONLY.
     If DirtyFile Then Begin
       If FileExists(String(Dir + Filename)) Then
         FileID := SP_FileOpenDirty(Filename, Error);
@@ -1340,218 +1313,47 @@ Begin
 
   If FileID > -1 Then Begin
 
-    // File opened, suck it into the buffer. Programs never get very big, so just load it all in one go.
-
     FileSize := SP_FileSize(FileID, Error);
+    If Error.Code <> SP_ERR_OK Then Goto Finish;
 
-    If Error.Code = SP_ERR_OK Then Begin
+    // Peek at first 6 bytes to detect ZXPACK
+    SetLength(Buffer, 6);
+    SP_FileRead(FileID, @Buffer[0], 6, Error);
+    If Error.Code <> SP_ERR_OK Then Goto Finish;
 
-      SetLength(Buffer, 6);
-      SP_FileRead(FileID, @Buffer[0], 6, Error);
-      If Error.Code = SP_ERR_OK Then Begin
-
-        If StrCopy(@Buffer[0], 6) = 'ZXPACK' Then Begin
-
-          // This file is a package, so open it as such and try again with the "/autorun" file
-
-          SP_FileClose(FileID, Error);
-          FileID := -1;
-
-          SP_CreatePackage(Filename, Error);
-          If Error.Code = SP_ERR_OK Then Begin
-            If SP_FileExists('/autorun') Then Begin
-              SP_LoadProgram('/autorun', False, False, pList, Error);
-              If pList = nil Then Begin
-                NXTLINE := SP_FindLine(0, False);
-                Error.ReturnType := SP_JUMP;
-                tStr := '';
-                SP_PreParse(True, True, Error, tStr);
-              End;
-            End;
+    If StrCopy(@Buffer[0], 6) = 'ZXPACK' Then Begin
+      SP_FileClose(FileID, Error);
+      FileID := -1;
+      SP_CreatePackage(Filename, Error);
+      If Error.Code = SP_ERR_OK Then
+        If SP_FileExists('/autorun') Then Begin
+          SP_LoadProgram('/autorun', False, False, pList, Error);
+          If pList = nil Then Begin
+            NXTLINE := SP_FindLine(0, False);
+            Error.ReturnType := SP_JUMP;
+            tStr := '';
+            SP_PreParse(True, True, Error, tStr);
           End;
-          Goto DoneLoad;
-
-        End Else Begin
-
-          SetLength(Buffer, FileSize);
-          SP_FileSeek(FileID, 0, Error);
-          If (Error.Code = SP_ERR_OK) And (FileSize > 7) Then Begin
-
-            SP_FileRead(FileID, @Buffer[0], FileSize, Error);
-            If Error.Code = SP_ERR_OK Then Begin
-
-              // Loaded the file - determine it's type (Tokenised BASIC or plain text) and load it.
-
-              If Error.Code <> SP_ERR_OK Then Goto Finish;
-
-              If StrCopy(@Buffer[0], 7) = 'ZXBASIC' Then Begin
-
-                // File is tokenised BASIC. Pull file info:
-
-                Idx := 7;
-
-                If Not Merge Then
-                  AutoStart := pInteger(@Buffer[Idx])^;
-                Inc(Idx, SizeOf(LongWord));
-
-                LineCount := pLongWord(@Buffer[Idx])^;
-                Inc(Idx, SizeOf(LongWord));
-                If LineCount < 1 Then Goto DoneLoad;
-
-                If StrCopy(@Buffer[Idx], 4) = 'PROG' Then Begin
-
-                  // Program name here
-
-                  Inc(Idx, 4);
-                  NameLen := pLongWord(@Buffer[Idx])^;
-                  Inc(Idx, SizeOf(LongWord));
-
-                  pName := StrCopy(@Buffer[Idx], NameLen);
-                  Inc(Idx, NameLen);
-
-                End;
-
-                SetLength(NewProg, LineCount);
-
-                For lIdx := 1 To LineCount Do Begin
-
-                  LineLen := pLongWord(@Buffer[Idx])^;
-                  Inc(Idx, SizeOf(LongWord));
-
-                  ProgLine := StrCopy(@Buffer[Idx], LineLen);
-                  Inc(Idx, LineLen);
-
-                  CheckSum := pLongWord(@Buffer[Idx])^;
-                  Inc(Idx, SizeOf(LongWord));
-
-                  // Got the tokens, now strip off the p-code and re-tokenise to test for errors.
-
-                  If CheckSum = GetCRC32FromString(ProgLine) Then Begin
-
-                    PlainCode := SP_Detokenise(ProgLine, cPos, false, True);
-                    NewProg[lIdx -1] := PlainCode;
-
-                  End Else Begin
-                    Error.Code := SP_ERR_FILE_CORRUPT;
-                    Goto Finish;
-                  End;
-
-                End;
-
-                Goto Finish;
-
-              End Else
-
-                If StrCopy(@Buffer[0], 7) = 'ZXASCII' Then Begin
-
-                  // ASCII text file - start grabbing lines!
-
-                  SetLength(NewProg, 0);
-                  LineCount := 0;
-                  Idx := 7;
-                  While Buffer[Idx] < 32 Do Inc(Idx);
-
-                  // Now start pulling in lines.
-
-                  While Idx < FileSize Do Begin
-
-                    lIdx := Idx;
-                    Done := False;
-                    While not Done Do Begin
-                      If (lIdx >= FileSize) or (Buffer[lIdx] in [13, 10]) Then
-                        Done := True
-                      Else
-                        Inc(lIdx);
-                    End;
-
-                    // Now grab the characters from Idx up to (but not including) lIdx, and process.
-
-                    ProgLine := StrCopy(@Buffer[Idx], lIdx - Idx);
-                    PlainCode := StripLeadingSpaces(ProgLine);
-                    Idx := lIdx;
-                    if Idx < FileSize Then Begin
-                      If Buffer[Idx] = 13 Then Inc(Idx);
-                      If Buffer[Idx] = 10 Then Inc(Idx);
-                    End;
-
-                    // Strip trailing spaces
-                    While (ProgLine <> '') And (ProgLine[Length(ProgLine)] <= ' ') Do
-                      ProgLine := Copy(ProgLine, 1, Length(ProgLine) -1);
-
-                    // Now figure out what it is and what to do with it.
-//                    If ProgLine <> '' Then Begin
-                      If Lower(Copy(PlainCode, 1, 4)) = 'auto' Then Begin
-                        PlainCode := Copy(PlainCode, 5, Length(PlainCode));
-                        While Copy(PlainCode, 1, 1) <= ' ' Do
-                          PlainCode := Copy(PlainCode, 2, Length(PlainCode));
-                        If Not Merge Then
-                          AutoStart := StrToIntDef(String(PlainCode), 0);
-                        ProgLine := '';
-                      End Else Begin
-                        If Lower(Copy(PlainCode, 1, 4)) = 'prog' Then Begin
-                          if not DirtyFile then Begin
-                            PlainCode := Copy(PlainCode, 5, Length(PlainCode));
-                            While (PlainCode <> '') And (Copy(PlainCode, 1, 1) <= ' ') Do
-                              PlainCode := Copy(PlainCode, 2, Length(PlainCode));
-                            If isAutoSaved Then
-                              pName := PlainCode;
-                            If SP_ExtractFileDir(pName) = '' Then
-                              pName := SP_ConvertHostFilename(SP_GetCurrentDir + '/', Error) + SP_ExtractFilename(pName);
-                          End;
-                          ProgLine := '';
-                        End Else Begin
-                          If Lower(Copy(PlainCode, 1, 7)) = 'changed' Then Begin
-                            PlainCode := Copy(PlainCode, 8, Length(PlainCode));
-                            While Copy(PlainCode, 1, 1) <= ' ' Do
-                              PlainCode := Copy(PlainCode, 2, Length(PlainCode));
-                            If (Filename <> 's:autosave') and (Filename <> 's:oldprog') Then
-                              changed := False
-                            else
-                              If Lower(Copy(Plaincode, 1, 4)) = 'true' Then
-                                changed := True
-                              Else
-                                changed := False;
-                            ProgLine := '';
-                          End Else Begin
-                            Inc(LineCount);
-                            SetLength(NewProg, LineCount);
-                            NewProg[LineCount -1] := ProgLine;
-                            ProgLine := '';
-                          End;
-                        End;
-                      End;
-//                    End;
-
-                  End;
-
-                  // Check if the final line had no carriage-return - if so, the line would not have been tokenised.
-
-                  If ProgLine <> '' Then Begin
-                    Inc(LineCount);
-                    SetLength(NewProg, LineCount);
-                    NewProg[LineCount -1] := ProgLine;
-                  End;
-
-                  Goto Finish;
-
-                End Else Begin
-                  Error.Code := SP_ERR_FILE_CORRUPT;
-                  Goto Finish;
-                End;
-
-            End Else
-              Goto Finish;
-
-          End Else
-            Goto Finish;
-
         End;
+      Goto DoneLoad;
+    End;
 
-      End Else
-        Goto Finish;
+    // Read full file
+    SetLength(Buffer, FileSize);
+    SP_FileSeek(FileID, 0, Error);
+    If (Error.Code <> SP_ERR_OK) Or (FileSize <= 7) Then Goto Finish;
+    SP_FileRead(FileID, @Buffer[0], FileSize, Error);
+    If Error.Code <> SP_ERR_OK Then Goto Finish;
 
-    End Else
+    // Must be ZXASCII plain text
+    If StrCopy(@Buffer[0], 7) <> 'ZXASCII' Then Begin
+      Error.Code := SP_ERR_FILE_CORRUPT;
       Goto Finish;
+    End;
+
+    // Hand the raw bytes to the component as a string
+    SetLength(RawText, FileSize);
+    Move(Buffer[0], RawText[1], FileSize);
 
   End Else
     Error.Code := SP_ERR_COULD_NOT_OPEN_FILE;
@@ -1566,77 +1368,104 @@ Finish:
       DoAutoSave;
 
       If Not Merge Then Begin
-
-        CompilerLock.Enter;
-        Listing.Clear;
-        SyntaxListing.Clear;
-        FPShowingFindResults := False;
+        // Component parses ZXASCII headers and loads lines into the editor.
+        // OnTextReset fires ? TextReset ? Listing rebuilt + SetAllToCompile.
         FPShowingSearchResults := False;
-        SetLength(FPFindResults, 0);
-        For Idx := 0 To Length(NewProg) -1 Do Begin
-          s := NewProg[Idx]; i := 1;
-          While (i < Length(s)) And (s[i] = #9) Do Inc(i);
-          SP_AddLine(Copy(s, i), '', '');
-          If i > 1 Then Listing.Flags[Listing.Count -1].Indent := i -1;
-          Listing.Flags[Listing.Count -1].ReturnType := spHardReturn;
-          SP_MarkAsDirty(Idx);
-          SP_FPApplyHighlighting(Listing.Count -1);
-        End;
-        FILECHANGED := changed;
-        CompilerLock.Leave;
+        SP_LoadIntoEditorFromText(RawText, AutoStart, pName, Changed);
 
+        // For autosaved files only, honour the CHANGED flag from the header.
+        If Not isAutoSaved Then Changed := False;
+        FILECHANGED := Changed;
+        PROGCHANGED := True;
+
+        // Build runtime bytecode from the freshly-populated Listing
         SP_ForceCompile;
 
-      End Else Begin
-
-        For Idx := 0 To Length(NewProg) -1 Do Begin
-
+        If AutoStart <> -1 Then Begin
+          NXTLINE := SP_FindLine(AutoStart, False);
+          Error.ReturnType := SP_JUMP;
+          tStr := '';
+          SP_PreParse(True, True, Error, tStr);
+          FileID := -1;
         End;
 
-      End;
-
-      SP_FillFlags;
-
-      If (AutoStart <> -1) And Not Merge Then Begin
-        NXTLINE := SP_FindLine(AutoStart, False);
-        Error.ReturnType := SP_JUMP;
-        tStr := '';
-        SP_PreParse(True, True, Error, tStr);
-        FileID := -1;
-      End;
-      If Not Merge Then Begin
-        If SP_FileExists(pName) and Not DirtyFile Then Begin
+        If SP_FileExists(pName) And Not DirtyFile Then Begin
           SP_SetCurrentDir(SP_ExtractFileDir(pName), Error);
           PROGNAME := Lower(SP_ConvertPathToAssigns(pName));
-          If Not INSTARTUP Then
-            SP_AddToRecentFiles(PROGNAME, False);
+          If Not INSTARTUP Then SP_AddToRecentFiles(PROGNAME, False);
           LASTFILENAME := PROGNAME;
-          FILENAMED := True;
+          FILENAMED    := True;
         End Else Begin
-          PROGNAME := SP_ExtractFilename(pName);
+          PROGNAME  := SP_ExtractFilename(pName);
           FILENAMED := False;
         End;
+
+        If SP_Program_Count > 0 Then
+          SP_SysVars.PROGLINE := SP_GetFPLineNumber(0);
+        SP_RESTORE;
+      End Else Begin
+
+        // Merge=True: insert/replace lines from the incoming file.
+        // Incoming lines take priority on line-number collision.
+        ParsedLines := SP_BASICEditor.ParseBASICText(RawText, AutoStart, pName, Changed);
+        Try
+          CompilerLock.Enter;
+          Try
+            InsertAt := 0;
+            For Idx := 0 To ParsedLines.Count - 1 Do Begin
+              s := ParsedLines[Idx];
+              LineNum := SP_GetLineNumberFromText(s);
+              If LineNum > 0 Then Begin
+                // Numbered line: find insertion point
+                InsertAt := SP_GetLineIndex(LineNum);
+                // Collision: delete existing line and its continuation lines
+                If (InsertAt < Listing.Count) And
+                   (SP_GetLineNumberFromText(Listing[InsertAt]) = LineNum) Then Begin
+                  SP_DeleteLine(InsertAt, False);
+                  While (InsertAt < Listing.Count) And
+                        (SP_GetLineNumberFromText(Listing[InsertAt]) = 0) Do
+                    SP_DeleteLine(InsertAt, False);
+                End;
+                SP_InsertLine(InsertAt, s, '', '', False);
+                Inc(InsertAt);
+              End Else Begin
+                // Continuation line: insert immediately after its parent
+                SP_InsertLine(InsertAt, s, '', '', False);
+                Inc(InsertAt);
+              End;
+            End;
+          Finally
+            CompilerLock.Leave;
+          End;
+        Finally
+          ParsedLines.Free;
+        End;
+        EditorHost_LoadFromListing;
+        SP_ForceCompile;
+        FILECHANGED := True;
+        PROGCHANGED := True;
+
       End;
-      If SP_Program_Count > 0 Then
-        SP_SysVars.PROGLINE := SP_GetFPLineNumber(0);
-      SP_RESTORE;
+
     End;
 
   End Else Begin
-
-    pList.Clear;
-    For Idx := 0 To Length(NewProg) -1 Do
-      pList.Add(NewProg[Idx]);
-
+    // pList non-nil: caller wants lines without touching the editor
+    // (SP_IncludeFile, internal use). Parse without loading.
+    ParsedLines := SP_BASICEditor.ParseBASICText(RawText, AutoStart, pName, Changed);
+    Try
+      pList.Clear;
+      For Idx := 0 To ParsedLines.Count - 1 Do
+        pList.Add(ParsedLines[Idx]);
+    Finally
+      ParsedLines.Free;
+    End;
   End;
 
 DoneLoad:
-
-  SetLength(NewProg, 0);
-
+  SetLength(Buffer, 0);
   If FileID > -1 Then SP_FileClose(FileID, Error);
-
-  CONTLINE := 0;
+  CONTLINE      := 0;
   CONTSTATEMENT := 1;
 
 End;
@@ -1647,6 +1476,8 @@ Var
 Begin
 
   Error.Code := SP_ERR_OK;
+
+  FileSection.Enter;
 
   // First determine if the Assignment is valid - the name doesn't contain any
   // illegal characters.
@@ -1661,6 +1492,7 @@ Begin
     Else Begin
       ERRStr := Ass + ':';
       Error.Code := SP_ERR_INVALID_ASSIGNMENT;
+      FileSection.Leave;
       Exit;
     End;
   End;
@@ -1718,6 +1550,8 @@ Begin
 
   End;
 
+  FileSection.Leave;
+
 End;
 
 Function SP_Decode_Assignment(Ass: aString; var Error: TSP_ErrorCode): aString;
@@ -1731,6 +1565,8 @@ Begin
     Exit;
   End Else
     Error.Code := SP_ERR_OK;
+
+  FileSection.Enter;
 
   If Ass[Length(Ass)] = ':' Then
     Ass := Copy(Ass, 1, Length(Ass) -1);
@@ -1758,6 +1594,8 @@ Begin
     If Copy(Result, Length(Result), 1) <> '/' Then
       Result := Result + '/';
   End;
+
+  FileSection.Leave;
 
 End;
 
@@ -2001,9 +1839,9 @@ End;
 
 Procedure SP_GetFileList(Var FileSpec: aString; Var Files, FileSizes: TAnsiStringList; Var Error: TSP_ErrorCode; PreserveDirs: Boolean);
 Var
-  PathStr: aString;
+  PathStr, lowerSpec, Name: aString;
   Idx: Integer;
-  HostPath: Boolean;
+  HostPath, IsDir: Boolean;
 Begin
 
   HostPath := Pos(':', FileSpec) > 0;
@@ -2037,23 +1875,28 @@ Begin
     // Was the only file matching, actually the filespec? If so, is the filespec a folder?
 
     If (FileSpec <> '') And (Files.Count > 0) Then Begin
-      Idx := 0;
-      While Idx < Files.Count Do Begin
-        If SP_DirectoryExists(PathStr + aString(Files[Idx])) Then Begin
+      LowerSpec := Lower(FileSpec);
+      idx := 0;
+      While idx < Files.Count Do Begin
+        IsDir := NativeUInt(Files.Objects[idx]) = 1;  // no filesystem call needed
+        Name  := Lower(aString(Files[idx]));
+        If IsDir Then Begin
           If PreserveDirs Then
-            Inc(Idx)
-          Else
-            If Not (WildComp(Lower(FileSpec), Lower(aString(Files[Idx]))) or WildComp(Lower(FileSpec), Lower(aString(Files[Idx]+PathDelim)))) Then Begin
-              Files.Delete(Idx);
-              FileSizes.Delete(Idx);
-            End Else
-              Inc(Idx);
-        End Else
-          If Not WildComp(Lower(FileSpec), Lower(aString(Files[Idx]))) Then Begin
-            Files.Delete(Idx);
-            FileSizes.Delete(Idx);
-          End Else
-            Inc(Idx);
+            Inc(idx)
+          Else If WildComp(LowerSpec, Name) Or WildComp(LowerSpec, Name + PathDelim) Then
+            Inc(idx)
+          Else Begin
+            Files.Delete(idx);
+            FileSizes.Delete(idx);
+          End;
+        End Else Begin
+          If WildComp(LowerSpec, Name) Then
+            Inc(idx)
+          Else Begin
+            Files.Delete(idx);
+            FileSizes.Delete(idx);
+          End;
+        End;
       End;
     End;
 

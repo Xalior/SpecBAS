@@ -128,7 +128,7 @@ Type
   Procedure SP_SetWindowDefaults(Bank: pSP_Bank; Window: pSP_Window_Info; Left, Top, Width, Height, TransIdx, Bpp, Alpha: Integer; Shadow: Boolean = False);
   Function  SP_Add_Window(Left, Top, Width, Height, TransIdx, Bpp, Alpha: Integer; Var Error: TSP_ErrorCode): Integer;
   Procedure SP_SetWindowVisible(WindowID: Integer; Vis: Boolean; Error: TSP_ErrorCode);
-  Procedure SP_SetWindowShadow(WindowID: Integer; Enabled: Boolean);
+  Procedure SP_SetWindowShadow(WindowID: Integer; Enabled: Boolean; ShadowSize: Integer = 0; ShadowAlpha: Integer = 0);
   Procedure SwitchFocusedWindow(ID: Integer);
 
   Function  SP_Program_Bank_Create(Name: aString): Integer;
@@ -219,7 +219,7 @@ Var
 
 implementation
 
-Uses SP_Graphics, SP_Sound, SP_Main, SP_BaseComponentUnit;
+Uses SP_FPEditor, SP_BASICEditorHostUnit, SP_Graphics, SP_Sound, SP_Main, SP_BaseComponentUnit, SP_ToolTipWindow;
 
 Procedure SP_ChangeBankSize(Index: Integer);
 Begin
@@ -257,6 +257,8 @@ Begin
   // a Binary Object bank with no data attached. To use it, call one of the
   // Specialised creation procedures for the bank type you want.
 
+  DisplaySection.Enter;
+
   // Find a new IndexID for the new bank - usually the first available
   // lowest number. This will be returned after the bank has been created.
 
@@ -293,6 +295,7 @@ Begin
 
   Result := NewID;
   Inc(NUMBANKS);
+  DisplaySection.Leave;
 
 End;
 
@@ -694,8 +697,10 @@ Begin
     SP_SetDrawingWindow(0);
   End;
 
+  DisplaySection.Enter;
   SetLength(Bank^.Memory, 0);
   Bank^.Changed := True;
+  DisplaySection.Leave;
 
   If MOUSEISGRAPHIC And (MOUSESPRITE = Bank^.ID) Then SP_MousePointerFromDefault;
 
@@ -818,8 +823,7 @@ Begin
   // Shrinks or grows (non-destructively in the "growing") a bank, specified by
   // the Index. Growing a bank fills the new free space with 0s.
 
-  If SP_BankList[Index]^.DataType = SP_SPRITE_BANK Then
-    DisplaySection.Enter;
+  DisplaySection.Enter;
   CurSize := Length(SP_BankList[Index]^.Memory);
   SetLength(SP_BankList[Index]^.Memory, NewSize);
 
@@ -831,8 +835,7 @@ Begin
   If SCREENBANK = -SP_BankList[Index]^.ID Then SP_SetDrawingWindow(0);
 
   SP_ChangeBankSize(Index);
-  If SP_BankList[Index]^.DataType = SP_SPRITE_BANK Then
-    DisplaySection.Leave;
+  DisplaySection.Leave;
 
 End;
 
@@ -1310,6 +1313,7 @@ Begin
   Window^.Component := SP_BaseComponent.Create(Nil);
   Window^.Component.WindowID := Bank^.ID;
   Window^.DropShadow := Shadow;
+  Window^.ShadowSize := 0;
 
   SP_InvalidateWindow(Bank^.ID, Error);
 
@@ -1319,7 +1323,7 @@ Begin
 
 End;
 
-Procedure SP_SetWindowShadow(WindowID: Integer; Enabled: Boolean);
+Procedure SP_SetWindowShadow(WindowID: Integer; Enabled: Boolean; ShadowSize: Integer = 0; ShadowAlpha: Integer = 0);
 Var
   Bank: pSP_Bank;
   BankIdx: Integer;
@@ -1335,6 +1339,8 @@ Begin
 
       SP_GetWindowDetails(WindowID, Window, Error);
       Window^.DropShadow := Enabled;
+      Window^.ShadowSize := ShadowSize;
+      Window^.ShadowAlpha := ShadowAlpha;
       SP_InvalidateWindow(WindowID, Error);
 
     End;
@@ -1346,6 +1352,9 @@ End;
 Procedure SwitchFocusedWindow(ID: Integer);
 Begin
   FocusedWindow := ID;
+  If TipWindowActive Then Exit;
+  If Assigned(FPBASICEditor) And (FocusedWindow <> FPWindowID) Then
+    FPBASICEditor.SetFocus(False);
 End;
 
 Function SP_Add_Window(Left, Top, Width, Height, TransIdx, Bpp, Alpha: Integer; Var Error: TSP_ErrorCode): Integer;

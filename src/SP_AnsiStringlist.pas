@@ -12,11 +12,7 @@ Type
 
   TLineFlags = Packed Record
     State: Integer;
-    ReturnType: Integer;
-    Indent: Integer;
-    GutterSize: Integer;
-    Break, NeedWrap, PoI: Boolean;
-    Line, Statement: Integer;
+    PoI: Boolean;
   End;
   pLineFlags = ^TLineFlags;
 
@@ -114,8 +110,6 @@ Const
 implementation
 
 Uses SysUtils, SP_Util, SP_FileIO, SP_Errors;
-
-{ TAnsiStringList }
 
 Constructor TAnsiStringlist.Create;
 Begin
@@ -1054,16 +1048,23 @@ Begin
         Idx := 0;
         s := '';
         While Idx < Length(FileBuffer) Do Begin
-          If FileBuffer[Idx] in [10, 13] Then Begin
+          If FileBuffer[Idx] = 13 Then Begin
             Add(s);
             s := '';
-            While (Idx < Length(FileBuffer)) And (FileBuffer[Idx] in [10, 13]) Do
-              Inc(Idx);
-          End Else Begin
-            s := s + AnsiChar(FileBuffer[Idx]);
             Inc(Idx);
-          End;
+            If (Idx < Length(FileBuffer)) And (FileBuffer[Idx] = 10) Then
+              Inc(Idx);
+          End Else
+            If FileBuffer[Idx] = 10 Then Begin
+              Add(s);
+              s := '';
+              Inc(Idx);
+            End Else Begin
+              s := s + AnsiChar(FileBuffer[Idx]);
+              Inc(Idx);
+            End;
         End;
+        If s <> '' Then Add(s);
         If (Count > 0) And (fStrings[Count -1] = '') Then
           Delete(Count -1);
       End Else
@@ -1099,7 +1100,5 @@ Begin
   FileSection.Leave;
 
 End;
-
- {----------------------}
 
 end.

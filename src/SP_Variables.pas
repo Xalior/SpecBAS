@@ -257,6 +257,8 @@ Var
 
   hash: pHashEntry;
 
+  VarLock: TCriticalSection;
+
 Const
 
   SP_FORVAR = 1;
@@ -405,6 +407,7 @@ End;
 
 Function SP_NewNumVar: Integer;
 Begin
+  VarLock.Enter;
   Inc(NumNV);
   Result := NumNV -1;
   If NumNV > NVLen Then Begin
@@ -412,10 +415,12 @@ Begin
     SetLength(NumVars, NVLen);
     NumVars[Result] := New(pSP_NumVar);
   End;
+  VarLock.Leave;
 End;
 
 Function SP_NewStrVar: Integer;
 Begin
+  VarLock.Enter;
   Inc(NumSV);
   Result := NumSV -1;
   If NumSV > SVLen Then Begin
@@ -423,6 +428,7 @@ Begin
     SetLength(StrVars, SVLen);
     StrVars[Result] := New(pSP_StrVar);
   End;
+  VarLock.Leave;
 End;
 
 Procedure SP_ResizeNumVars(Size: Integer); Inline;
@@ -443,6 +449,7 @@ Procedure SP_InsertGlobalNumVar(Var Idx: Integer); inline;
 Var
   nIdx: Integer;
 Begin
+  VarLock.Enter;
   Inc(NumNV);
   If NumNV > NVLen Then Begin
     Inc(NVLen);
@@ -466,12 +473,14 @@ Begin
     FinalizeNumVar(Idx);
   End;
   NumVars[Idx] := New(pSP_NumVar);
+  VarLock.Leave;
 End;
 
 Procedure SP_InsertGlobalStrVar(Var Idx: Integer); inline;
 Var
   nIdx: Integer;
 Begin
+  VarLock.Enter;
   Inc(NumSV);
   If NumSV > SVLen Then Begin
     Inc(SVLen);
@@ -495,6 +504,7 @@ Begin
     FinalizeStrVar(Idx);
   End;
   StrVars[Idx] := New(pSP_StrVar);
+  VarLock.Leave;
 End;
 
 Function SP_UpdateNumVar(Idx: Integer; const Name: aString; Var Value: aFloat; Var Error: TSP_ErrorCode; Ptr: pLongWord): Integer; inline;
@@ -963,6 +973,7 @@ Begin
     If aSliceTo > StrVars[Idx]^.ContentPtr^.SliceTo Then
       aSliceTo := StrVars[Idx]^.ContentPtr^.SliceTo;
 
+  VarLock.Enter;
   If (aSliceFrom = -1) And (aSliceTo = -1) Then
     StrVars[Idx]^.ContentPtr^.Value := Value
   Else Begin
@@ -987,6 +998,7 @@ Begin
       If Len > StrVars[Idx]^.ContentPtr^.DLen Then
         StrVars[Idx]^.ContentPtr^.Value := Copy(StrVars[Idx]^.ContentPtr^.Value, 1, StrVars[Idx]^.ContentPtr^.DLen);
   End;
+  VarLock.Leave;
 
   Result := Idx;
 
@@ -995,7 +1007,9 @@ End;
 Procedure SP_UpdateStrVarIndex(Idx: Integer; Value: aString);
 Begin
 
-  StrVars[Idx -1]^.ContentPtr^.Value := Value
+  VarLock.Enter;
+  StrVars[Idx -1]^.ContentPtr^.Value := Value;
+  VarLock.Leave;
 
 End;
 
@@ -4450,22 +4464,26 @@ End;
 
 Procedure FinalizeNumVar(i: Integer);
 Begin
+  VarLock.Enter;
   If Assigned(NumVars[i]) Then Begin
     Finalize(NumVars[i]^.Content); // Frees EachTokens and Key
     Finalize(NumVars[i]^);         // Frees Name
     Dispose(NumVars[i]);           // Frees the record itself
     NumVars[i] := nil;
   End;
+  VarLock.Leave;
 End;
 
 Procedure FinalizeStrVar(i: Integer);
 Begin
+  VarLock.Enter;
   If Assigned(StrVars[i]) Then Begin
     Finalize(StrVars[i]^.Content); // Frees EachTokens and Key
     Finalize(StrVars[i]^);         // Frees Name
     Dispose(StrVars[i]);           // Frees the record itself
     StrVars[i] := nil;
   End;
+  VarLock.Leave;
 End;
 
 procedure FinalizeNumVars;
@@ -4511,5 +4529,13 @@ Begin
   FinalizeStrVars;
 
 End;
+
+Initialization
+
+  VarLock := TCriticalSection.Create;
+
+Finalization
+
+  VarLock.Free;
 
 end.

@@ -215,6 +215,8 @@ Function  SP_Convert_MEMWRITE(Var KeyWordID: LongWord; Var Tokens: aString; Var 
 Function  SP_Convert_MEMWRITES(Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
 Function  SP_Convert_FORCE(Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
 Function  SP_Convert_INSTALL(Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Function  SP_Convert_SAY(Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Function  SP_Convert_THREAD(Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
 
 Var
 
@@ -716,6 +718,8 @@ Begin
     SP_KW_MEMWRITES: Result := Result + SP_Convert_MEMWRITES(KeyWordID, Tokens, Position, Error);
     SP_KW_INSTALL: Result := Result + SP_Convert_INSTALL(KeywordID, Tokens, Position, Error);
     SP_KW_CTRL: Result := Result + SP_Convert_CTRL(Tokens, KeyWordID, Position, Error);
+    SP_KW_SAY: Result := Result + SP_Convert_SAY(KeyWordID, Tokens, Position, Error);
+    SP_KW_THREAD: Result := Result + SP_Convert_THREAD(KeyWordID, Tokens, Position, Error);
 
   Else
 
@@ -1218,7 +1222,8 @@ Begin
             SP_FN_FONTWIDTH, SP_FN_FONTHEIGHT, SP_FN_FONTMODE, SP_FN_FONTTRANSPARENT, SP_FN_MOUSEDX, SP_FN_MOUSEDY,
             SP_FN_HEADING, SP_FN_DRPOSX, SP_FN_DRPOSY, SP_FN_LASTK, SP_FN_FRAMES, SP_FN_TIME, SP_FN_MOUSEWHEEL,
             SP_FN_ITEM, SP_FN_POPLINE, SP_FN_POPST, SP_FN_VOL, SP_FN_LOGW, SP_FN_LOGH, SP_FN_ORGX, SP_FN_ORGY,
-            SP_FN_MUSICPOS, SP_FN_MUSICLEN, SP_FN_LASTM, SP_FN_LASTMI, SP_FN_TXTW, SP_FN_TXTH, SP_FN_STK, SP_FN_INKEY:
+            SP_FN_MUSICPOS, SP_FN_MUSICLEN, SP_FN_LASTM, SP_FN_LASTMI, SP_FN_TXTW, SP_FN_TXTH, SP_FN_STK, SP_FN_INKEY,
+            SP_FN_THREADCOUNT:
               Begin
                 Inc(StackPtr);
                 Stack[StackPtr] := SP_VALUE;
@@ -1346,7 +1351,7 @@ Begin
             // Functions that take one String parameter and return a String:
 
             SP_FN_VALS, SP_FN_UPS, SP_FN_LOWS, SP_FN_TRIMS, SP_FN_LTRIMS, SP_FN_RTRIMS, SP_FN_TOKENS, SP_FN_GETOPTS, SP_FN_FPATH, SP_FN_TEXTURES,
-            SP_FN_FNAME, SP_FN_REVS:
+            SP_FN_FNAME, SP_FN_REVS, SP_FN_TRANSLATES:
               Begin
                 If (StackPtr < 0) Or (Stack[StackPtr] <> SP_STRING) Then Begin
                   Error.Code := SP_ERR_MISSING_STREXPR;
@@ -3140,7 +3145,7 @@ Begin
             SP_FN_FONTHEIGHT, SP_FN_FONTMODE, SP_FN_FONTTRANSPARENT,SP_FN_MOUSEDX, SP_FN_MOUSEDY, SP_FN_HEADING, SP_FN_DRPOSX,
             SP_FN_DRPOSY, SP_FN_LASTK, SP_FN_FRAMES, SP_FN_TIME, SP_FN_MOUSEWHEEL, SP_FN_ERRORS, SP_FN_POPLINE, SP_FN_POPST,
             SP_FN_VOL, SP_FN_LOGW, SP_FN_LOGH, SP_FN_ORGX, SP_FN_ORGY, SP_FN_MSECS, SP_FN_MUSICPOS, SP_FN_MUSICLEN, SP_FN_LASTM,
-            SP_FN_LASTMI, SP_FN_TXTW, SP_FN_TXTH, SP_FN_STK, SP_FN_STKS, SP_FN_CLIPS, SP_FN_INKEY:
+            SP_FN_LASTMI, SP_FN_TXTW, SP_FN_TXTH, SP_FN_STK, SP_FN_STKS, SP_FN_CLIPS, SP_FN_INKEY, SP_FN_THREADCOUNT:
               Begin
                 Inc(Position, SizeOf(LongWord));
                 FnResult := '';
@@ -3161,7 +3166,8 @@ Begin
             SP_FN_GETOPT, SP_FN_GETOPTS, SP_FN_NUBMODE, SP_FN_NUBX, SP_FN_NUBY, SP_FN_FEXISTS, SP_FN_FPATH, SP_FN_FNAME, SP_FN_LTOPX,
             SP_FN_LTOPY, SP_FN_PTOLX, SP_FN_PTOLY, SP_FN_INV, SP_FN_SPFRAME, SP_FN_SPCOLL, SP_FN_TEXTURES, SP_FN_IVAL, SP_FN_MEMRD,
             SP_FN_DMEMRD, SP_FN_QMEMRD, SP_FN_FMEMRD, SP_FN_DATADDR, SP_FN_WINADDR, SP_FN_MILLISECONDS, SP_FN_PAR, SP_FN_SINH,
-            SP_FN_COSH, SP_FN_TANH, SP_FN_ASNH, SP_FN_ACSH, SP_FN_ATNH, SP_FN_PARAMS, SP_FN_REVS, SP_FN_BITCNT, SP_FN_HIBIT, SP_FN_DEXISTS:
+            SP_FN_COSH, SP_FN_TANH, SP_FN_ASNH, SP_FN_ACSH, SP_FN_ATNH, SP_FN_PARAMS, SP_FN_REVS, SP_FN_BITCNT, SP_FN_HIBIT, SP_FN_DEXISTS,
+            SP_FN_TRANSLATES:
               Begin
                 Inc(Position, SizeOf(LongWord));
                 FnResult := SP_Convert_Expr(Tokens, Position, Error, 14);
@@ -5583,23 +5589,34 @@ Var
   Position, oPosition: Integer;
   TokensPtr: paString;
   newTokens: aString;
-  SaveStack: pSP_StackItem;
+  // Private stack storage for the compiler thread. SP_StackPtr is now a
+  // ThreadVar; the compiler thread's slot starts uninitialised so we give
+  // it a small local array and point the ThreadVar pointers at it for the
+  // duration of this call, then restore them afterwards.
+  // 256 entries is ample for any expression the constant-folder will see.
+  LocalStack: Array[0..255] of SP_StackItem;
+  SaveStackPtr:   pSP_StackItem;
+  SaveStackStart: pSP_StackItem;
 Begin
 
-  // If we end up here, it's because the string passed (a stack) can be evaluated down to just one value or string.
-  // So evaluate it and then condense into just one token!
+  // If we end up here, it's because the string passed (a stack) can be
+  // evaluated down to just one value or string. Evaluate it and condense
+  // into just one token.
 
-  Position := 1;
+  Position  := 1;
   newTokens := Tokens;
   SP_RemoveFunctionMarkers(newTokens);
   newTokens := newTokens + #255#255#255#255;
   TokensPtr := @newTokens;
-  SaveStack := SP_StackPtr;
+
+  // Install the local stack into the compiler thread's ThreadVar slots.
+  SaveStackPtr   := SP_StackPtr;
+  SaveStackStart := SP_StackStart;
+  SP_StackStart  := @LocalStack[0];
+  Dec(SP_StackStart);
+  SP_StackPtr    := SP_StackStart;
 
   SP_AddHandlers(NewTokens);
-
-  // Use the current stack - should condense down to just one token, which when pulled off will leave the stack in
-  // the state it was in when we entered. If there's an error, then just restore the stack pointer.
 
   BREAKSIGNAL := False;
   oPosition := Error.Position;
@@ -5609,16 +5626,22 @@ Begin
   If Error.Code = SP_ERR_OK Then Begin
     Case SP_StackPtr^.OpType of
       SP_VALUE:
-        Tokens := CreateToken(SP_VALUE, tPos, SizeOf(aFloat)) + aFloatToString(SP_StackPtr^.Val);
+        Tokens := CreateToken(SP_VALUE, tPos, SizeOf(aFloat)) +
+                  aFloatToString(SP_StackPtr^.Val);
       SP_STRING:
-        Tokens := CreateToken(SP_STRING, tPos, Length(SP_StackPtr^.Str)) + SP_StackPtr^.Str;
+        Tokens := CreateToken(SP_STRING, tPos, Length(SP_StackPtr^.Str)) +
+                  SP_StackPtr^.Str;
     Else
       Error.Code := SP_ERR_SYNTAX_ERROR;
     End;
     Dec(SP_StackPtr);
   End;
 
-  SP_StackPtr := saveStack;
+  // Restore the ThreadVar slots. For the compiler thread these will go back
+  // to their saved values (both nil on first call, local array on recursion).
+  // For any other caller the slots are restored to exactly what they were.
+  SP_StackPtr   := SaveStackPtr;
+  SP_StackStart := SaveStackStart;
 
 End;
 
@@ -12374,12 +12397,23 @@ End;
 Function  SP_Convert_EXECUTE(Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
 Begin
 
-  // EXECUTE strexpr
+  // EXECUTE strexpr [ASYNC]
+  // If ASYNC is present, a numeric 1.0 is pushed before the string so
+  // SP_Interpret_EXECUTE can detect it and fork a secondary thread.
+  // Without ASYNC the existing synchronous behaviour is unchanged.
 
   Result := SP_Convert_Expr(Tokens, Position, Error, -1);
-  If Error.Code = SP_ERR_OK Then
+  If Error.Code = SP_ERR_OK Then Begin
     If Error.ReturnType <> SP_STRING Then
-      Error.Code := SP_ERR_MISSING_STREXPR;
+      Error.Code := SP_ERR_MISSING_STREXPR
+    Else
+      If (Position <= Length(Tokens)) And
+         (Byte(Tokens[Position]) = SP_KEYWORD) And
+         (pLongWord(@Tokens[Position + 1])^ = SP_KW_ASYNC) Then Begin
+        Inc(Position, 1 + SizeOf(LongWord));
+        Result := Result + CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(1.0);
+      End;
+  End;
 
 End;
 
@@ -13513,6 +13547,7 @@ Var
   FnType, VarType: aChar;
   Name, FnExpr: aString;
   NameLen, VarCount: LongWord;
+  change: Boolean;
 Begin
 
   // DEF FN numvar[(num/strvar[,num/strvar...])] = Expr
@@ -13585,7 +13620,7 @@ Begin
           Exit;
         End Else Begin
           SP_RemoveBlocks(FnExpr);
-          SP_TestConsts(FnExpr, 1, Error, False);
+          SP_TestConsts(FnExpr, 1, Error, False, change);
           SP_AddHandlers(FnExpr);
           Result := Result + CreateToken(SP_STRING, 0, Length(FnExpr)) + FnExpr;
         End;
@@ -15589,42 +15624,40 @@ Begin
 End;
 
 Function  SP_Convert_THREAD(Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
-Var
-  Expr, VarResult: aString;
 Begin
 
-  // THREAD NEW numvar,token$ [PRIORITY pri]
+  // THREAD WAIT  - block primary until all secondaries finish
+  // THREAD STOP  - signal all secondaries, wait, then continue
+  // THREAD COUNT - expression form; handled as a zero-arg function
 
   Result := '';
 
-  If (Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position +1])^ = SP_KW_NEW) Then Begin
-
+  If (Byte(Tokens[Position]) = SP_KEYWORD) And
+     (pLongWord(@Tokens[Position +1])^ = SP_KW_WAIT) Then Begin
     Inc(Position, 1 + SizeOf(LongWord));
+    KeyWordID := SP_KW_THREAD;
+    // Emit a distinguishing flag: 1.0 = WAIT, 2.0 = STOP
+    Result := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(1.0);
+  End Else
 
-    If Byte(Tokens[Position]) = SP_NUMVAR Then Begin
+  If (Byte(Tokens[Position]) = SP_KEYWORD) And
+     (pLongWord(@Tokens[Position +1])^ = SP_KW_STOP) Then Begin
+    Inc(Position, 1 + SizeOf(LongWord));
+    KeyWordID := SP_KW_THREAD;
+    Result := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(2.0);
+  End Else
 
-      VarResult := SP_Convert_Var_Assign(Tokens, Position, Error);
-      If Error.Code <> SP_ERR_OK Then Exit;
+  If (Byte(Tokens[Position]) = SP_KEYWORD) And
+     (pLongWord(@Tokens[Position +1])^ = SP_KW_COUNT) Then Begin
+    // COUNT used as a statement (e.g. PRINT THREAD COUNT) would have been
+    // tokenised as an expression; this branch handles the statement context.
+    // In expression context it is caught by SP_Convert_Expr as SP_FN_THREADCOUNT.
+    Inc(Position, 1 + SizeOf(LongWord));
+    KeyWordID := SP_KW_THREAD;
+    Result := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(3.0);
+  End Else
 
-      If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position +1] = ',') Then Begin
-        Inc(Position, 2);
-        Expr := SP_Convert_Expr(Tokens, Position, Error, -1); // token$
-        If Error.Code <> SP_ERR_OK Then Exit Else If Error.ReturnType <> SP_STRING Then Begin
-          Error.Code := SP_ERR_MISSING_STREXPR;
-          Exit;
-        End;
-
-        If (Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position +1])^ = SP_KW_PRIORITY) Then Begin
-
-        End Else Begin
-
-        End;
-
-      End;
-
-    End;
-
-  End;
+    Error.Code := SP_ERR_SYNTAX_ERROR;
 
 End;
 
@@ -19014,5 +19047,72 @@ Begin
 
 End;
 
+Function SP_Convert_SAY(Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Var
+  Expr: aString;
+  Pitch, Rate, Sex, Async: aString;
+Begin
+
+  // SAY phoneme$  [PITCH n] [RATE n] [SEX n] [ASYNC]
+
+  Result := '';
+
+  // Phoneme string expression (required)
+  Expr := SP_Convert_Expr(Tokens, Position, Error, -1);
+  If Error.Code <> SP_ERR_OK Then Exit;
+  If Error.ReturnType <> SP_STRING Then Begin
+    Error.Code := SP_ERR_MISSING_STREXPR;
+    Exit;
+  End;
+
+  // Defaults encoded as tokens
+  Pitch := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(110);
+  Rate  := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(150);
+  Sex   := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(0);
+  Async := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(0);
+
+  // Optional PITCH n
+  If (Byte(Tokens[Position]) = SP_KEYWORD) And
+     (pLongWord(@Tokens[Position+1])^ = SP_KW_PITCH) Then Begin
+    Inc(Position, 1 + SizeOf(LongWord));
+    Pitch := SP_Convert_Expr(Tokens, Position, Error, -1);
+    If Error.Code <> SP_ERR_OK Then Exit;
+    If Error.ReturnType <> SP_VALUE Then Begin
+      Error.Code := SP_ERR_MISSING_NUMEXPR; Exit;
+    End;
+  End;
+
+  // Optional RATE n
+  If (Byte(Tokens[Position]) = SP_KEYWORD) And
+     (pLongWord(@Tokens[Position+1])^ = SP_KW_RATE) Then Begin
+    Inc(Position, 1 + SizeOf(LongWord));
+    Rate := SP_Convert_Expr(Tokens, Position, Error, -1);
+    If Error.Code <> SP_ERR_OK Then Exit;
+    If Error.ReturnType <> SP_VALUE Then Begin
+      Error.Code := SP_ERR_MISSING_NUMEXPR; Exit;
+    End;
+  End;
+
+  // Optional SEX n
+  If (Byte(Tokens[Position]) = SP_KEYWORD) And
+     (pLongWord(@Tokens[Position+1])^ = SP_KW_SEX) Then Begin
+    Inc(Position, 1 + SizeOf(LongWord));
+    Sex := SP_Convert_Expr(Tokens, Position, Error, -1);
+    If Error.Code <> SP_ERR_OK Then Exit;
+    If Error.ReturnType <> SP_VALUE Then Begin
+      Error.Code := SP_ERR_MISSING_NUMEXPR; Exit;
+    End;
+  End;
+
+  // Optional ASYNC
+  If (Byte(Tokens[Position]) = SP_KEYWORD) And
+     (pLongWord(@Tokens[Position+1])^ = SP_KW_ASYNC) Then Begin
+    Inc(Position, 1 + SizeOf(LongWord));
+    Async := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(1);
+  End;
+
+  // Stack order: Async, Sex, Rate, Pitch, Phonemes (top = first popped)
+  Result := Async + Sex + Rate + Pitch + Expr;
+End;
 
 end.

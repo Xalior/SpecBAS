@@ -51,7 +51,7 @@ Function  SP_IsKeyWord(Const Line: aString): Integer;
 Function  SP_IsFunction(Const Line: aString): Integer;
 Function  SP_GetNumber(Line: aString; Var Idx: Integer; Var Number: aFloat; AllowSpaces: Boolean = False): Boolean;
 Function  SP_Detokenise(Tokens: aString; Var cPos: Integer; Highlight, UseDoubles: Boolean): aString;
-Function  SP_SyntaxHighlight(CodeLine, PrevSyntax: aString; HasNumber: Boolean; Var AddedChars: Integer): aString;
+Function  SP_SyntaxHighlight(CodeLine, PrevSyntax: aString; HasNumber, StartsInString: Boolean): aString;
 Function  SP_Store_Line(Tokens: aString): Integer;
 Procedure SP_Program_Add(Str: aString);
 Procedure SP_Program_AddStrings(List: TAnsiStringList);
@@ -80,7 +80,7 @@ Const
   // List of keywords that are used in statements.
   // MUST Be in this order - add new commands to the end of the list.
 
-  SP_KEYWORDS_EXTRA: Array[0..255] of aString =
+  SP_KEYWORDS_EXTRA: Array[0..259] of aString =
     ('SPECTRUM ', 'PLAY ', 'AT ', 'TAB ', 'LINE ', ' THEN ', ' TO ', ' STEP ',
      'DEF ', 'CAT ', ' FORMAT ', 'MOVE ', 'ERASE ', 'OPEN ', 'CLOSE ', 'MERGE ', 'BEEP ',
      'CIRCLE ', 'INK ', 'PAPER ', 'INVERSE ', 'OUT ', 'STOP ', 'READ ', ' DATA ',
@@ -110,7 +110,8 @@ Const
      'BOLD ', 'ITALIC ', 'FILTER ', 'INSERT ', 'MENUITEM ', 'MEMWRT ', 'MEMWRTD ', 'MEMWRTQ ',
      'MEMWRT$ ', 'REPEAT', 'PARTICLE ', 'FRICTION ', 'GRAVITY ', 'FORCE ', 'INSTALL', 'MEMWRTF ',
      'PRESS', 'TURNS', 'GRADIANS', 'EGA', 'CGA', 'ADDCTRL', 'CTRL', 'PROP ', 'OLD', ' ASYNC',
-     'COMPILE ', 'APPLEHGR', 'APPLELGR', 'CPC', 'ENUM ', 'STROKE ', 'LLIST ', ' TILE ');
+     'COMPILE ', 'APPLEHGR', 'APPLELGR', 'CPC', 'ENUM ', 'STROKE ', 'LLIST ', ' TILE ', 'SAY ',
+     ' PITCH ', ' SEX ', ' COUNT ');
 
   // Constants used to quickly identify keywords when in token form. Each keyword listed
   // above has a corresponding constant, which must be SP_KEYWORD_BASE + (Index of Keyword above).
@@ -373,6 +374,11 @@ Const
   SP_KW_STROKE              = 1253;
   SP_KW_LLIST               = 1254;
   SP_KW_TILE                = 1255;
+  SP_KW_SAY                 = 1256;
+  SP_KW_PITCH               = 1257;
+  SP_KW_SEX                 = 1258;
+  SP_KW_COUNT               = 1259;
+
 
   // These are meta-commands; they do not appear in listings, and are used during
   // execution only, having been inserted by the pre-processor.
@@ -818,7 +824,7 @@ Const
   // List of Functions that are used in expressions. Again, MUST be in order.
   // Functions that take only one parameter have a space at the end of their name. All others have no spaces.
 
-  SP_FUNCTIONS_EXTRA: Array[0..282] of aString =
+  SP_FUNCTIONS_EXTRA: Array[0..284] of aString =
     ('nRND', 'nINKEY$', 'oPI', 'nVAL$ ', 'oCODE ', 'oVAL ', 'oLEN ', 'nSIN ', 'nCOS ',
      'nTAN ', 'nASN ', 'nACS ', 'nATN ', 'oLN ', 'oEXP ', 'oINT ', 'oSQR ', 'oSGN ', 'oABS ', 'n IN ',
      'nUSR ', 'oSTR$ ','oCHR$ ', 'nPEEK ', 'oNOT ', 'o OR ', 'o AND ', 'o MOD ', 'o XOR ', 'o SHL ',
@@ -850,7 +856,7 @@ Const
      'oTAU', 'nMILLISECONDS', 'oBINV', 'oBREV', 'oINTERP', 'oMIN$', 'oMAX$', 'nFMEMRD', 'nTXTw', 'nTXTh',
      'nNOISE', 'nOCTNOISE', 'oPAR ', 'oMAP', 'o EQV ', 'o IMP ', 'oSINH ', 'oCOSH ', 'oTANH ', 'oASNH ',
      'oACSH ', 'oATNH ', 'oMID', 'nPARAM$', 'nSTK', 'nSTK$', 'oREV$ ', 'nCLIP$', 'oINSTR', 'oFMOD',
-     'oBITCNT', 'oHIBIT', 'oCPAD$', 'nINKEY', 'nFILEREQ', 'nCTRLGET', 'oLOG ');
+     'oBITCNT', 'oHIBIT', 'oCPAD$', 'nINKEY', 'nFILEREQ', 'nCTRLGET', 'oLOG ', 'oTRANSLATE$', 'nTHREADCOUNT');
 
   // Constants, like above, for identifying Functions in token form
 
@@ -1139,6 +1145,8 @@ Const
   SP_FN_FILEREQ             = 2280;
   SP_FN_CTRLATTR            = 2281;
   SP_FN_LOG                 = 2282;
+  SP_FN_TRANSLATES          = 2283;
+  SP_FN_THREADCOUNT         = 2284;
 
   // Meta-functions
 
@@ -2549,355 +2557,231 @@ Begin
 
 End;
 
-Function SP_SyntaxHighlight(CodeLine, PrevSyntax: aString; HasNumber: Boolean; Var AddedChars: Integer): aString;
+Function SP_SyntaxHighlight(CodeLine, PrevSyntax: aString; HasNumber, StartsInString: Boolean): aString;
 Var
-
-  Idx, l, l1, Idx2, sIdx: Integer;
-  Wd, LastSyntax, NewSyntax, Tw: aString;
-  Valid, AddSpace, IsREM, StringDone: Boolean;
+  Idx, L, sIdx, KwIdx: Integer;
+  Tw, LastSyntax, NewSyntax, TokenText: aString;
   Ch, Ch1: aChar;
-
-Const
-
-  Compounds: Array[0..9, 0..1] of aString =
-    (('DEFPROC', 'DEF PROC'),
-     ('DEFFN', 'DEF FN'),
-     ('DEFSTRUCT', 'DEF STRUCT'),
-     ('ENDPROC', 'END PROC'),
-     ('ENDIF', 'END IF'),
-     ('ENDSTRUCT', 'END STRUCT'),
-     ('EXITPROC', 'EXIT PROC'),
-     ('ENDCASE', 'END CASE'),
-     ('GOTO', 'GO TO'),
-     ('GOSUB', 'GO SUB'));
-
-Label
-
-  ProcessString;
-
+  IsREM, StringDone: Boolean;
 Begin
-
-  // Provides syntax highlighting for the new editor, and preserves code style.
-
   Result := '';
   LastSyntax := '';
-  AddedChars := 0;
   IsREM := False;
-  StringDone := False;
-  AddSpace := False;
 
-  // Highlight the line number.
+  CodeLine := InsertLiterals(CodeLine);
+  L := Length(CodeLine);
 
-  Idx := 1;
-  COdeLine := InsertLiterals(CodeLine);
-  l := Length(CodeLine);
+  // --- 1. Line Number or Continuation State ---
   If HasNumber Then Begin
-    wd := '';
-    While CodeLine[Idx] <= ' ' Do Inc(Idx);
-    If Idx <= l Then
-      While (Idx <= l) And (CodeLine[Idx] in ['0'..'9']) Do Begin
-        wd := wd + CodeLine[Idx];
-        Inc(Idx);
-      End;
-    Result := Result + LinClr + Wd;
-    LastSyntax := LinClr;
+    sIdx := 1;
+    While (sIdx <= L) And (CodeLine[sIdx] <= ' ') Do Inc(sIdx);
+    Idx := sIdx;
+    While (Idx <= L) And (CodeLine[Idx] In ['0'..'9']) Do Inc(Idx);
+
+    If Idx > 1 Then Begin
+      Result := LinClr + Copy(CodeLine, 1, Idx - 1);
+      LastSyntax := LinClr;
+    End Else Idx := 1;
   End Else Begin
-    Result := PrevSyntax;
+    Idx := 1;
     If PrevSyntax = remClr Then Begin
-      Result := CondenseString(Result + CodeLine + PrevSyntax);
+      Result := CondenseString(PrevSyntax + CodeLine);
       Exit;
-    End Else
-      If PrevSyntax = StrClr Then
-        Goto ProcessString;
+    End;
   End;
-  Wd := '';
 
-  // Now get tokens one at a time. Alphanumeric, numeric, symbol.
+  If StartsInString Then
+    PrevSyntax := strClr;
 
-  While Idx <= l Do Begin
+  // --- 2. Main Tokenizer Loop ---
+  While Idx <= L Do Begin
+    sIdx := Idx;
+    Ch := CodeLine[Idx];
+    TokenText := '';
+    StringDone := False;
 
-    NewSyntax := '';
-    AddSpace := False;
-
-    // Now start to gather up characters for the current token.
-
-    If CodeLine[Idx] in ['a'..'z', 'A'..'Z'] Then Begin
-      // Starts with a letter, has to be alphanumeric with optional $ suffix.
-      sIdx := Idx;
-      While (Idx <= l) And (CodeLine[Idx] in ['_', 'A'..'Z', 'a'..'z', '0'..'9']) Do Begin
-        Wd := Wd + CodeLine[Idx];
-        Inc(Idx);
-      End;
-      // Variables and some functions can have a $ suffix
-      If (Idx <= l) And (CodeLine[Idx] = '$') Then Begin
-        Wd := Wd + '$';
-        Inc(Idx);
-      End;
-      // Now Wd contains our token. It may be a function or keyword, it may be a variable name, and Idx is ready for the next loop.
-      // So test - what is it? Is it a contracted compound like GOTO which expands to GO TO?
-      For Idx2 := 0 To High(Compounds) Do Begin
-        L1 := Length(Compounds[Idx2, 0]);
-        If Upper(Copy(Wd, 1, L1)) = Compounds[Idx2, 0] Then Begin
-          Wd := Copy(Wd, 1, Pos(' ', Compounds[Idx2, 1]) -1);
-          Idx := sIdx + Length(Wd);
-          AddSpace := True;
-          Inc(AddedChars);
-          Break;
-        End;
-      End;
-      // Finally, we now run through our tests to determine if it's a keyword or function.
-      Tw := Upper(Wd);
-      Idx2 := SP_IsKeyWord(Tw);
-      If Idx2 > -1 Then Begin
-        If Idx2 + SP_KEYWORD_BASE = SP_KW_REM Then Begin
-          NewSyntax := kwdClr;
-          Wd := Tw + remClr;
-          Wd := Wd + Copy(CodeLine, Idx);
-          IsREM := True;
-          Idx := L +1;
-        End Else Begin
-          NewSyntax := kwdClr;
-          Wd := Tw;
-        End;
-      End Else
-        If SP_IsFunction(Tw) > -1 Then Begin
-          NewSyntax := fnClr;
-          Wd := Tw;
-        End Else
-          If SP_IsConstant(Tw) > -1 Then Begin
-            NewSyntax := constClr;
-          End Else
-            If Tw = 'END' Then Begin
-              NewSyntax := kwdClr; // END is not a keyword, but is part of END PROC etc
-              Wd := Tw;
-            End Else
-              // It's not a keyword, a function or a constant. Could be... A Variable! W00t!
-              If Wd[Length(Wd)] = '$' Then
-                NewSyntax := svClr
-              Else
-                NewSyntax := nvClr;
-    End Else
-      If CodeLine[Idx] in ['%', '$', '.', '0'..'9'] Then Begin
-        // Number - Hex, Binary, Decimal, Any base. May be of the form:
-        // .xxx, xE+xx, $xx, %xx, xxx\xx, xx.xxx etc.
-        Valid := False;
-        If CodeLine[Idx] = '%' Then Begin
-          // Binary
-          Wd := '%';
+    // A. Multi-line String Continuation
+    If PrevSyntax = StrClr Then Begin
+      NewSyntax := strClr;
+      PrevSyntax := ''; // Clear continuation state
+      While Idx <= L Do Begin
+        If CodeLine[Idx] = '"' Then Begin
+          StringDone := True;
           Inc(Idx);
-          While (Idx <= L) And (CodeLine[Idx] in ['0'..'1']) Do Begin
-            Wd := Wd + CodeLine[Idx];
-            Valid := True;
+          If (Idx <= L) And (CodeLine[Idx] = '"') Then Begin
+            StringDone := False; // Escaped quote, string continues
             Inc(Idx);
-          End;
-          If Valid Then
-            NewSyntax := binClr
-          Else
-            NewSyntax := noClr;
-        End Else
-          If (CodeLine[Idx] = '$') or (Lower(Copy(CodeLine, Idx, 2)) = '0x') Then Begin
-            // Hex
-            If CodeLine[Idx] = '$' Then Begin
-              Wd := '$';
-              Inc(Idx);
-            End Else Begin
-              Wd := '0x';
-              Inc(Idx, 2);
-            End;
-            While (Idx <= L) And (CodeLine[Idx] in ['0'..'9', 'A'..'Z', 'a'..'z']) Do Begin
-              Wd := Wd + Upper(CodeLine[Idx]);
-              Valid := True;
-              Inc(Idx);
-            End;
-            If Valid Then
-              NewSyntax := hexClr
-            Else
-              NewSyntax := noClr;
-          End Else Begin
-            // Regular number for now. If a backslash occurs, it's a based number, with a radix to follow.
-            // If an E happens, it's Scientific.
-            While (Idx <= L) And (CodeLine[Idx] in ['0'..'9']) Do Begin
-              Wd := Wd + CodeLine[Idx];
-              Valid := True;
-              Inc(Idx);
-            End;
-            If (Idx <= L) And (CodeLine[Idx] = '.') Then Begin
-              Wd := Wd + '.'; Inc(Idx);
-              Valid := False;
-              While (Idx <= L) And (CodeLine[Idx] in ['0'..'9']) Do Begin
-                Wd := Wd + CodeLine[Idx];
-                Valid := True;
-                Inc(Idx);
-              End;
-              If (Idx <= L) And (CodeLine[Idx] in ['E', 'e']) Then Begin
-                Wd := Wd + Upper(CodeLine[Idx]);
-                Valid := False;
-                Inc(Idx);
-                If (Idx <= L) And (CodeLine[Idx] in ['+', '-']) Then Begin
-                  Wd := Wd + CodeLine[Idx];
-                  Inc(Idx);
-                End;
-                While (Idx <= L) And (CodeLine[Idx] in ['0'..'9']) Do Begin
-                  Wd := Wd + CodeLine[Idx];
-                  Valid := True;
-                  Inc(Idx);
-                End;
-              End;
-            End Else
-              If (Idx <= L) And (CodeLine[Idx] = '\') Then Begin
-                Wd := Wd + '\';
-                Valid := False;
-                Inc(Idx);
-                While (Idx <= L) And (CodeLine[Idx] in ['0'..'9']) Do Begin
-                  Wd := Wd + CodeLine[Idx];
-                  Valid := True;
-                  Inc(Idx);
-                End;
-                NewSyntax := '';
-              End Else
-                If (Idx <= L) And (CodeLine[Idx] in ['E', 'e']) Then Begin
-                  Wd := Wd + Upper(CodeLine[Idx]);
-                  Valid := False;
-                  Inc(Idx);
-                  If (Idx <= L) And (CodeLine[Idx] in ['+', '-']) Then Begin
-                    Wd := Wd + CodeLine[Idx];
-                    Inc(Idx);
-                  End;
-                  While (Idx <= L) And (CodeLine[Idx] in ['0'..'9']) Do Begin
-                    Wd := Wd + CodeLine[Idx];
-                    Valid := True;
-                    Inc(Idx);
-                  End;
-                End;
-            If Valid Then Begin
-              If NewSyntax = '' Then
-                NewSyntax := baseClr
-              Else
-                NewSyntax := numClr;
-            End Else
-              // This is an unfinished number, so no highlighting.
-              NewSyntax := noClr;
-          End;
-      End Else Begin
-        // Something else. Maybe a symbol. Maybe just whitespace. Strings start with " characters or a # character.
-        If CodeLine[Idx] <= ' ' Then Begin
-          While (Idx <= L) And (CodeLine[Idx] <= ' ') Do Begin
-            Wd := Wd + CodeLine[Idx];
-            Inc(Idx);
-          End;
-          NewSyntax := noClr;
+          End Else Break;
+        End Else Inc(Idx);
+      End;
+    End
+
+    // B. Whitespace
+    Else If Ch <= ' ' Then Begin
+      While (Idx <= L) And (CodeLine[Idx] <= ' ') Do Inc(Idx);
+      NewSyntax := noClr;
+    End
+
+    // C. Alphanumerics (Keywords, Functions, Variables)
+    Else If Ch In['a'..'z', 'A'..'Z'] Then Begin
+      While (Idx <= L) And (CodeLine[Idx] In['a'..'z', 'A'..'Z', '0'..'9', '_']) Do Inc(Idx);
+      If (Idx <= L) And (CodeLine[Idx] = '$') Then Inc(Idx);
+
+      Tw := Upper(Copy(CodeLine, sIdx, Idx - sIdx));
+      KwIdx := SP_IsKeyWord(Tw);
+
+      If KwIdx > -1 Then Begin
+        If KwIdx + SP_KEYWORD_BASE = SP_KW_REM Then Begin
+          NewSyntax := kwdClr;
+          If NewSyntax <> LastSyntax Then Result := Result + NewSyntax;
+
+          // REM consumes the rest of the line as a comment instantly
+          Result := Result + Tw + remClr + Copy(CodeLine, Idx, L - Idx + 1);
+          IsREM := True;
+          LastSyntax := remClr;
+          Break;
         End Else Begin
-          // A Symbol, then.
-          Ch := CodeLine[Idx];
-          Idx2 := 1;
-          If Idx < L Then
-            Ch1 := CodeLine[Idx +1]
-          Else
-            Ch1 := #0;
-          If Ch in ['<', '>'] Then Begin
-            If Ch1 = '=' Then Begin
-              NewSyntax := relClr;
-              Idx2 := 2;
-            End Else
-              If (Ch = '<') And (Ch1 = '>') Then Begin
-                NewSyntax := relClr;
-                Idx2 := 2;
-              End Else
-                NewSyntax := relClr;
-          End Else
-            If Ch in ['+', '-', '*', '/', '^', '%', '&', '|', '~'] Then Begin
-              If Ch1 = '=' Then Begin
-                NewSyntax := mathClr;
-                Idx2 := 2;
-              End Else
-                NewSyntax := mathClr;
-            End Else
-              If Ch = '@' Then Begin // Label
-                Idx2 := Idx +1;
-                While (Idx2 <= L) And (CodeLine[Idx2] in ['0'..'9', '_', 'A'..'Z', 'a'..'z']) Do
-                  Inc(Idx2);
-                Dec(Idx2, Idx);
-                NewSyntax := labClr;
-              End Else
-                If CodeLine[Idx] = '"' Then Begin // String constant
-                  ProcessString:
-                  Idx2 := Idx +1;
-                  StringDone := False;
-                  While (Idx2 <= L) Do Begin
-                    If CodeLine[Idx2] = '"' Then Begin
-                      StringDone := True;
-                      If Idx2 < L Then
-                        If CodeLine[Idx2 +1] <> '"' Then
-                          Break
-                        Else
-                          Inc(Idx2);
-                    End;
-                    Inc(Idx2);
-                  End;
-                  Dec(Idx2, Idx -1);
-                  NewSyntax := StrClr;
-                End Else
-                  If Ch = '=' Then Begin
-                    NewSyntax := relClr
-                  End Else
-                    If Ch in ['(', ')', '[', ']'] Then Begin
-                      NewSyntax := BraceClr;
-                    End Else
-                      If Ch = '#' Then Begin
-                        Idx2 := Idx +1;
-                        NewSyntax := symClr;
-                        If Idx2 <= L Then
-                          If Copy(CodeLine, Idx2, 2) = '0x' Then Begin
-                            Inc(Idx2, 2); sIdx := Idx2;
-                            While (Idx2 <= L) And (CodeLine[Idx2] in ['0'..'9', 'a'..'f', 'A'..'F']) Do
-                              Inc(Idx2);
-                            If Idx2 < sIdx Then NewSyntax := strClr;
-                          End Else
-                            If CodeLine[Idx2] in ['0'..'9'] Then Begin
-                              While (Idx2 <= L) And (CodeLine[Idx2] in ['0'..'9']) Do
-                                Inc(Idx2); sIdx := Idx2;
-                              If Idx2 < sIdx Then NewSyntax := strClr;
-                            End Else
-                              If CodeLine[Idx2] = '%' Then Begin
-                                Inc(Idx2); sIdx := Idx2;
-                                While (Idx2 <= L) And (CodeLine[Idx2] in ['0', '1']) Do
-                                  Inc(Idx2);
-                                If Idx2 < sIdx Then NewSyntax := strClr;
-                              End Else
-                                If CodeLine[Idx2] = '$' Then Begin
-                                  Inc(Idx2); sIdx := Idx2;
-                                  While (Idx2 <= L) And (CodeLine[Idx2] in ['0'..'9', 'a'..'f', 'A'..'F']) Do
-                                    Inc(Idx2);
-                                  If Idx2 < sIdx Then NewSyntax := strClr;
-                                End;
-                      Dec(Idx2, Idx );
-                    End Else
-                      NewSyntax := symClr;
-          Wd := Copy(CodeLine, Idx, Idx2);
-          Inc(Idx, Idx2);
+          NewSyntax := kwdClr;
+          TokenText := Tw; // Override with UPPERCASE Keyword
+        End;
+      End
+      Else If SP_IsFunction(Tw) > -1 Then Begin
+        NewSyntax := fnClr;
+        TokenText := Tw;   // Override with UPPERCASE Function
+      End
+      Else If SP_IsConstant(Tw) > -1 Then NewSyntax := constClr
+      Else If Tw = 'END' Then Begin
+        NewSyntax := kwdClr;
+        TokenText := Tw;   // Override with UPPERCASE 'END'
+      End
+      Else If Tw[Length(Tw)] = '$' Then NewSyntax := svClr
+      Else NewSyntax := nvClr;
+    End
+
+    // D. Numbers (Decimal, Hex, Binary, Float, Radix)
+    Else If Ch In ['0'..'9', '.', '$', '%'] Then Begin
+      NewSyntax := noClr;
+      If Ch = '%' Then Begin
+        Inc(Idx);
+        While (Idx <= L) And (CodeLine[Idx] In ['0', '1']) Do Inc(Idx);
+        If Idx > sIdx + 1 Then NewSyntax := binClr Else Idx := sIdx;
+      End
+      Else If (Ch = '$') Or ((Ch = '0') And (Idx < L) And (Lower(CodeLine[Idx+1]) = 'x')) Then Begin
+        If Ch = '$' Then Inc(Idx) Else Inc(Idx, 2);
+        While (Idx <= L) And (CodeLine[Idx] In['0'..'9', 'A'..'Z', 'a'..'z']) Do Inc(Idx);
+        If (Ch = '$') And (Idx > sIdx + 1) Then NewSyntax := hexClr
+        Else If (Ch = '0') And (Idx > sIdx + 2) Then NewSyntax := hexClr
+        Else Idx := sIdx; // Invalid hex, backtrack
+      End
+      Else Begin
+        While (Idx <= L) And (CodeLine[Idx] In ['0'..'9']) Do Inc(Idx);
+        If (Idx <= L) And (CodeLine[Idx] = '.') Then Begin
+          Inc(Idx);
+          While (Idx <= L) And (CodeLine[Idx] In ['0'..'9']) Do Inc(Idx);
+        End;
+        If (Idx <= L) And (CodeLine[Idx] In['E', 'e']) Then Begin
+          Inc(Idx);
+          If (Idx <= L) And (CodeLine[Idx] In ['+', '-']) Then Inc(Idx);
+          While (Idx <= L) And (CodeLine[Idx] In ['0'..'9']) Do Inc(Idx);
+        End Else If (Idx <= L) And (CodeLine[Idx] = '\') Then Begin
+          Inc(Idx);
+          While (Idx <= L) And (CodeLine[Idx] In ['0'..'9']) Do Inc(Idx);
+          NewSyntax := baseClr;
+        End;
+
+        If Idx > sIdx Then Begin
+          If (Idx = sIdx + 1) And (Ch = '.') Then Idx := sIdx // Stray dot, backtrack
+          Else If NewSyntax = noClr Then NewSyntax := numClr;
         End;
       End;
+    End;
 
-    If LastSyntax <> NewSyntax Then
-      Result := Result + NewSyntax;
-    If (NewSyntax = StrClr) And StringDone Then
-      LastSyntax := NoClr
-    Else
-      LastSyntax := NewSyntax;
-    Result := Result + wd;
-    If AddSpace Then
-      Result := Result + ' ';
-    Wd := ''
+    // E. Symbols (Executes if not captured above, or if numeric parsing backtracked)
+    If Idx = sIdx Then Begin
+      Ch1 := #0;
+      If Idx < L Then Ch1 := CodeLine[Idx+1];
 
+      Case Ch Of
+        '"':
+          Begin
+            NewSyntax := strClr;
+            Inc(Idx);
+            While Idx <= L Do Begin
+              If CodeLine[Idx] = '"' Then Begin
+                StringDone := True;
+                Inc(Idx);
+                If (Idx <= L) And (CodeLine[Idx] = '"') Then Begin
+                  StringDone := False; // Escaped quote
+                  Inc(Idx);
+                End Else Break;
+              End Else Inc(Idx);
+            End;
+          End;
+        '<', '>':
+          Begin
+            NewSyntax := relClr;
+            If (Ch1 = '=') Or ((Ch = '<') And (Ch1 = '>')) Then Inc(Idx, 2) Else Inc(Idx);
+          End;
+        '+', '-', '*', '/', '^', '%', '&', '|', '~':
+          Begin
+            NewSyntax := mathClr;
+            If Ch1 = '=' Then Inc(Idx, 2) Else Inc(Idx);
+          End;
+        '=':
+          Begin
+            NewSyntax := relClr;
+            Inc(Idx);
+          End;
+        '(', ')', '[', ']':
+          Begin
+            NewSyntax := BraceClr;
+            Inc(Idx);
+          End;
+        '@':
+          Begin
+            NewSyntax := labClr;
+            Inc(Idx);
+            While (Idx <= L) And (CodeLine[Idx] In['0'..'9', '_', 'A'..'Z', 'a'..'z']) Do Inc(Idx);
+          End;
+        '#':
+          Begin
+            NewSyntax := symClr;
+            Inc(Idx);
+            If (Idx < L) And (Lower(Copy(CodeLine, Idx, 2)) = '0x') Then Begin
+              Inc(Idx, 2); While (Idx <= L) And (CodeLine[Idx] In ['0'..'9', 'a'..'f', 'A'..'F']) Do Inc(Idx);
+              If Idx > sIdx + 3 Then NewSyntax := strClr Else Idx := sIdx + 1;
+            End Else If (Idx <= L) And (CodeLine[Idx] In ['0'..'9']) Then Begin
+              While (Idx <= L) And (CodeLine[Idx] In ['0'..'9']) Do Inc(Idx);
+              NewSyntax := strClr;
+            End Else If (Idx <= L) And (CodeLine[Idx] = '%') Then Begin
+              Inc(Idx); While (Idx <= L) And (CodeLine[Idx] In ['0', '1']) Do Inc(Idx);
+              If Idx > sIdx + 2 Then NewSyntax := strClr Else Idx := sIdx + 1;
+            End Else If (Idx <= L) And (CodeLine[Idx] = '$') Then Begin
+              Inc(Idx); While (Idx <= L) And (CodeLine[Idx] In['0'..'9', 'a'..'f', 'A'..'F']) Do Inc(Idx);
+              If Idx > sIdx + 2 Then NewSyntax := strClr Else Idx := sIdx + 1;
+            End;
+          End;
+      Else
+        NewSyntax := symClr;
+        Inc(Idx);
+      End;
+    End;
+
+    // --- 3. Append Token ---
+    If TokenText = '' Then TokenText := Copy(CodeLine, sIdx, Idx - sIdx);
+
+    If NewSyntax <> LastSyntax Then Result := Result + NewSyntax;
+    Result := Result + TokenText;
+
+    // Check if a string cleanly terminated
+    If (NewSyntax = strClr) And StringDone Then LastSyntax := noClr
+    Else LastSyntax := NewSyntax;
   End;
 
-  If IsREM Then
-    Result := Result + remClr
-  Else
-    Result := Result + LastSyntax;
+  If IsREM Then Result := Result + remClr
+  Else Result := Result + LastSyntax;
 
   Result := CondenseString(Result);
-
 End;
 
 Function SP_Store_Line(Tokens: aString): Integer;

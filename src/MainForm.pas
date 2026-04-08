@@ -28,7 +28,7 @@ interface
 
 uses
   {$IFNDEF FPC}System.Types, SyncObjs, SHellAPI, PNGImage, GIFImg, Windows, Messages,{$ELSE} LCLIntf, LCLType, {$IFDEF Windows}Windows, Messages{$ELSE}LMessages{$ENDIF}, {$ENDIF}
-  SHFolder, SysUtils, Variants, Classes, Graphics, Controls, Forms, Math, Dialogs, SP_SysVars, SP_Graphics, SP_Graphics32, SP_BankManager, SP_Util, SP_Main, SP_FileIO,
+  SHFolder, SysUtils, Variants, Classes, Graphics, Controls, Forms, Math, SP_SysVars, SP_Graphics, SP_Graphics32, SP_BankManager, SP_Util, SP_Main, SP_FileIO,
   ExtCtrls, SP_Input, MMSystem, SP_Errors, SP_Sound, Bass, SP_Tokenise, SP_Menu, RunTimeCompiler, SP_Components, SP_BaseComponentUnit, Clipbrd;
 
 Const
@@ -115,10 +115,10 @@ Const
   GL_BGRA = $80E1;
 {$ENDIF}
 
-
 implementation
 
-Uses {$IFDEF FPC}ShlObj, {$ENDIF}SP_FPEditor, SP_ToolTipWindow, SP_Display;
+Uses {$IFDEF FPC}ShlObj, {$ENDIF}SP_FPEditor, SP_ToolTipWindow, SP_Display, SP_BASICEditorHostUnit, SP_WindowMenuUnit, SP_PopUpMenuUnit,
+      SP_BASICInterpreter;
 
 {$IFDEF FPC}
   {$R *.lfm}
@@ -213,6 +213,8 @@ begin
 End;
 
 Procedure TSpecBAS_Thread.Execute;
+Var
+  Interpreter: TSP_BASICInterpreter;
 Begin
 
   NameThreadForDebugging('Interpreter Thread');
@@ -221,7 +223,15 @@ Begin
   Priority := tpNormal;
   FreeOnTerminate := True;
 
-  SP_MainLoop;
+  Interpreter := TSP_BASICInterpreter.Create(0);
+  Try
+    Interpreter.AcquireThreadVars;
+    SP_MainLoop;
+    Interpreter.ReleaseThreadVars;
+  Finally
+    Interpreter.Free;
+  End;
+
   InterpreterThreadAlive := False;
 
 End;
@@ -297,7 +307,7 @@ begin
     End Else Begin
       Win := WindowAtPoint(X, Y, ID);
       If Assigned(Win) Then Begin
-        If not TestForWindowMenu(Win, Shift) Then Begin
+        If not TestForWindowMenu(Nil, Shift) Then Begin
           If Not (SYSTEMSTATE in [SS_EDITOR, SS_DIRECT, SS_EVALUATE]) and (MODALWINDOW = -1) Then
             SwitchFocusedWindow(ID); // The editor handles this.
           Win := ControlAtPoint(Win, X, Y);
@@ -313,7 +323,7 @@ begin
           End Else Begin
             If Assigned(CaptureControl) And SP_CanInteract(CaptureControl) Then
               SP_BaseComponent(CaptureControl).MouseDown(SP_BaseComponent(CaptureControl), X, Y, Btn);
-            If Assigned(FocusedControl) And (MODALWINDOW = -1) Then
+            If Assigned(FocusedControl) And (MODALWINDOW = -1) And ((FocusedControl Is SP_PopUpMenu) or (FocusedControl is SP_WindowMenu)) Then
               FocusedControl.SetFocus(False);
           End;
         End;
@@ -539,6 +549,8 @@ begin
   If Not QUITMSG Then Begin
     Quitting := True;
     QUITMSG := True;
+    BREAKSIGNAL := True;
+    SP_WaitForSecondaries;
   End;
 
   While InterpreterThreadAlive {$IFDEF RefreshThread} And RefreshThreadAlive{$ENDIF} Do
@@ -585,6 +597,7 @@ begin
   DragAcceptFiles(Handle, True);
 
   INSTARTUP := True;
+  HELPFILE := '/specbas.guide';
 
   DisplaySection.Enter;
 
@@ -896,15 +909,6 @@ begin
   kInfo.NextFrameTime := FRAMES;
   kInfo.WindowID := FocusedWindow;
 
-  If ControlsAreInUse Then Begin
-    DisplaySection.Enter;
-    If ControlKeyEvent(kInfo.KeyChar, kInfo.KeyCode, True, kInfo.IsKey) Then Begin
-      DisplaySection.Leave;
-      Exit;
-    End Else
-      DisplaySection.Leave;
-  End;
-
   If Key = $12 Then Begin // ALT went down
 
     AltDown := True;
@@ -940,6 +944,15 @@ begin
 
   End;
 
+  If ControlsAreInUse Then Begin
+    DisplaySection.Enter;
+    If ControlKeyEvent(kInfo.KeyChar, kInfo.KeyCode, True, kInfo.IsKey) Then Begin
+      DisplaySection.Leave;
+      Exit;
+    End Else
+      DisplaySection.Leave;
+  End;
+
   SP_AddKey(kInfo);
 
   Key := 0;
@@ -947,9 +960,9 @@ begin
 end;
 
 Procedure TMain.FormKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
-begin
-
+Begin
   KEYSTATE[Key] := 0;
+  cKEYSTATE[Key And $7F] := 0;        // always clear - can't be skipped
   ControlKeyEvent(#0, Key And $7F, False, True);
   SP_RemoveKey(Key And $7F);
 
@@ -958,13 +971,13 @@ begin
     SP_RemoveKey(StringToInt(AltChars));
     AltChars := '';
   End;
-
-end;
+End;
 
 procedure TMain.FormMouseWheelDown(Sender: TObject; Shift: TShiftState; MousePos: TPoint; var Handled: Boolean);
 Var
   p: TPoint;
   Win: Pointer;
+  Ctrl: SP_BaseComponent;
   X, Y, Btn, ID: Integer;
 begin
 
@@ -981,10 +994,14 @@ begin
   End Else Begin
     Win := WindowAtPoint(X, Y, ID);
     If Assigned(Win) Then Begin
-      Win := ControlAtPoint(Win, X, Y);
-      If Assigned(Win) Then Begin
-        pSP_BaseComponent(Win)^.MouseWheel(pSP_BaseComponent(Win)^, X, Y, Btn, 1);
-        Handled := True;
+      Ctrl := ControlAtPoint(Win, X, Y)^;
+      While Assigned(Ctrl) And Not Handled Do Begin
+        Ctrl.MouseWheel(Ctrl, X, Y, Btn, 1, Handled);
+        If Not Handled Then
+          If Ctrl.fParentType = spWindow Then
+            Ctrl := Nil
+          Else
+            Ctrl := Ctrl.GetParentControl;
       End;
     End;
   End;
@@ -1002,6 +1019,7 @@ procedure TMain.FormMouseWheelUp(Sender: TObject; Shift: TShiftState; MousePos: 
 Var
   p: TPoint;
   Win: Pointer;
+  Ctrl: SP_BaseComponent;
   X, Y, Btn, ID: Integer;
 begin
 
@@ -1018,10 +1036,14 @@ begin
   End Else Begin
     Win := WindowAtPoint(X, Y, ID);
     If Assigned(Win) Then Begin
-      Win := ControlAtPoint(Win, X, Y);
-      If Assigned(Win) Then Begin
-        pSP_BaseComponent(Win)^.MouseWheel(pSP_BaseComponent(Win)^, X, Y, Btn, -1);
-        Handled := True;
+      Ctrl := ControlAtPoint(Win, X, Y)^;
+      While Assigned(Ctrl) And not Handled Do Begin
+        Ctrl.MouseWheel(Ctrl, X, Y, Btn, -1, Handled);
+        If Not Handled Then
+          If Ctrl.fParentType = spWindow Then
+            Ctrl := Nil
+          Else
+            Ctrl := Ctrl.GetParentControl;
       End;
     End;
   End;
@@ -1426,9 +1448,10 @@ begin
             paste := paste + s + #13#10;
         End;
       End;
-      Clipboard.AsText := String(paste);
-      SP_SwitchFocus(FPWindowID);
-      SP_PasteSelection;
+      FPBASICEditor.SetFocus(True);
+      FPBASICEditor.InsertText(paste);
+      FPBASICEditor.EnsureCursorVisible;
+      FPBASICEditor.Paint;
     End;
     sl.Free;
   end;

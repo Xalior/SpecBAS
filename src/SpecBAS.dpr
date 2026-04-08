@@ -23,9 +23,14 @@ program SpecBAS;
 {$ENDIF}
 {$WEAKLINKRTTI ON}
 
+{$IFDEF DEBUG} // This, and the FastMM4 below in Uses, will SLOW DOWN specbas massively. Use for leak diagnosis only.
+{$DEFINE FullDebugMode}
+{$DEFINE LogMemoryLeakDetailToFile}
+{$ENDIF}
+
 uses
   {$IFDEF DEBUG}
-  //FastMM4,
+  FastMM4,
   madExcept,
   madLinkDisAsm,
   madListHardware,
@@ -39,7 +44,9 @@ uses
   {$ENDIF }
   Forms,
   SP_Display,
-  MainForm in 'MainForm.pas' {Main};
+  MainForm in 'MainForm.pas' {Main},
+  SP_Narrator in 'SP_Narrator.pas',
+  SP_NarratorTranslator in 'SP_NarratorTranslator.pas';
 
 {$R *.res}
 begin

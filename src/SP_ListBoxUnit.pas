@@ -98,7 +98,7 @@ SP_ListBox = Class(SP_BaseComponent)
     Procedure     HasSized; Override;
     Procedure     MoveItem(Item1, Item2: Integer);
 
-    Procedure     MouseWheel(Sender: SP_BaseComponent; X, Y, Btn, Delta: Integer); Override;
+    Procedure     MouseWheel(Sender: SP_BaseComponent; X, Y, Btn, Delta: Integer; Var Handled: Boolean); Override;
     Procedure     MouseDown(Sender: SP_BaseComponent; X, Y, Btn: Integer); Override;
     Procedure     MouseMove(Sender: SP_BaseComponent; X, Y, Btn: Integer); Override;
     Procedure     MouseUp(Sender: SP_BaseComponent; X, Y, Btn: Integer); Override;
@@ -773,6 +773,7 @@ End;
 Procedure SP_ListBox.SetUIElements;
 Var
   w, h, rh, i, t, cFW, cFH: Integer;
+  bL, bT, bR, bB: Integer;
   ScrollBarsDone: Boolean;
 Begin
 
@@ -784,7 +785,12 @@ Begin
   cfW := Round(iFW * iSX);
   cfH := Round(iFH * iSY);
 
-  w := fWidth - (4 * Ord(fBorder)) - 2;
+  bL := (Ord(fBorder) * 2) + fPaddingLeft;
+  bT := (Ord(fBorder) * 2) + fPaddingTop;
+  bR := (Ord(fBorder) * 2) + fPaddingRight;
+  bB := (Ord(fBorder) * 2) + fPaddingBottom;
+
+  w := fWidth - bL - bR - 2;
   rh := fClientRgn.Bottom - fClientRgn.Top;
   h := rh - (Ord(fShowHeaders And (Length(fHeaders) > 0)) * cFH);
 
@@ -820,17 +826,17 @@ Begin
   While Not ScrollBarsDone Do Begin
 
     If h < fCount * cFH Then Begin
-      fVScroll.SetBounds(Width - cfW - (Ord(fBorder) * 2), Ord(fBorder) * 2, cfW, rh + (cfH * Ord(fHScroll.Visible)));
+      fVScroll.SetBounds(Width - cfW - bR, bT, cfW, rh + (cfH * Ord(fHScroll.Visible)));
       fVScroll.Visible := True;
       Dec(w, cfW + 2);
     End;
 
     ScrollBarsDone := fHScroll.Visible;
     If w < t Then Begin
-      fHScroll.SetBounds(Ord(fBorder) * 2, fHeight - cfH - (Ord(fBorder) * 2), w + (Ord(fBorder) * 2) + (Ord(fVScroll.Visible) * (cfW + 2)), cfH);
+      fHScroll.SetBounds(bl, fHeight - cfH - bB, w + (bl + br) + (Ord(fVScroll.Visible) * (cfW + 2)), cfH);
       fHScroll.Visible := True;
       Dec(h, cFh);
-      fVScroll.SetBounds(Width - cfW - (Ord(fBorder) * 2), Ord(fBorder) * 2, cfW, rh + (cfH * Ord(fHScroll.Visible)));
+      fVScroll.SetBounds(Width - cfW - bR, bT, cfW, rh + (cfH * Ord(fHScroll.Visible)));
     End Else
       ScrollBarsDone := True;
 
@@ -839,9 +845,9 @@ Begin
   fHScroll.PageSize := w;
   fVScroll.PageSize := h;
   If fHScroll.Visible Then
-    fClientRgn := Rect(Ord(fBorder) * 2, Ord(fBorder) * 2, w, fHScroll.Top)
+    fClientRgn := Rect(bL, bT, w, fHScroll.Top)
   Else Begin
-    fClientRgn := Rect(Ord(fBorder) * 2, Ord(fBorder) * 2, w, fHeight - (Ord(fBorder) * 2));
+    fClientRgn := Rect(bL, bT, w, fHeight - bB);
   End;
 
   Paint;
@@ -853,6 +859,7 @@ Var
   r: TRect;
   p: Boolean;
   c1, c2, c3: Byte;
+  bL, bT, bR: Integer;
   yp, i, j, l, py, hx, ps, sx1, sx2, cfW, cfH: Integer;
   s, s2, pr: aString;
 
@@ -862,8 +869,8 @@ Var
       c3 := SP_UISelectionOutline
     Else
       c3 := SP_UISelectionUnfocusedOutline;
-    r.Left := Ord(fBorder) * 2;
-    r.Right := (Width - (Ord(fBorder) * 4)) - ((fVScroll.Width + 1) * Ord(fVScroll.Visible)) + 1;
+    r.Left  := bL;
+    r.Right := (Width - bL - bR) - ((fVScroll.Width + 1) * Ord(fVScroll.Visible)) + 1;
     DrawLine(r.left, r.top, r.left, r.bottom, c3);
     DrawLine(r.Right, r.top, r.right, r.bottom, c3);
     If (i = 0) or not fSelected[i -1] Then
@@ -873,6 +880,10 @@ Var
   End;
 
 Begin
+
+  bL := (Ord(fBorder) * 2) + fPaddingLeft;
+  bT := (Ord(fBorder) * 2) + fPaddingTop;
+  bR := (Ord(fBorder) * 2) + fPaddingRight;
 
   sx2 := 0; sx1 := 0;
   If fVScroll.Visible Then
@@ -886,7 +897,10 @@ Begin
   i := yp Div cfH;
   py := (i * cfH - yp) + fClientRgn.Top + Ord(fShowHeaders And (HeaderCount > 0));
   If fShowHeaders And (HeaderCount > 0) Then Inc(py, cfH);
-  If not fTransparent Then FillRect(Rect(0, 0, Width, Height), fBackgroundClr);
+  If not fTransparent Then Begin
+    FillRect(Rect(0, 0, Width, Height), fBackgroundClr);
+    FillRect(fPaddingLeft + 1, fPaddingTop + 1, fWidth - fPaddingRight, fHeight - fPaddingBottom, fColour);
+  End;
 
   While (i < fCount) And (py - cFH < fClientRgn.Bottom) Do Begin
 
@@ -908,7 +922,7 @@ Begin
           If fSelected[i] Then
             c1 := fHighlightClr
           Else
-            c1 := fBackgroundClr; // non-sorted column
+            c1 := fColour; // non-sorted column
         If fSelected[i] Then
           If Not Focused Then
             c1 := fUnfocusedHighlightClr;
@@ -959,7 +973,7 @@ Begin
       If fSelected[i] And fEnabled Then
         c1 := fHighlightClr
       Else
-        c1 := fBackgroundClr;
+        c1 := fColour;
       s2 := fStrings[i];
       If Assigned(OnTextPrep) Then s2 := OnTextPrep(s2, 0, i);
       If fEnabled then
@@ -967,10 +981,10 @@ Begin
       Else
         c2 := fDisabledFontClr;
 
-      r := Rect(-fHScroll.Pos -1 + (Ord(fBorder) * 2), py, fWidth +1, py + cFH -1);
+      r := Rect(-fHScroll.Pos - 1 + bL, py, fWidth + 1, py + cFH - 1);
       If (Not fTransparent) or (fSelected[i]) Then
         FillRect(r, c1);
-      Print(-fHScroll.Pos + (Ord(fBorder) * 2), py, s2, c2, -1, iSX, iSY, False, False, False, False);
+      Print(-fHScroll.Pos + bL, py, s2, c2, -1, iSX, iSY, False, False, False, False);
       If fSelected[i] Then
         DrawSelectionRect;
 
@@ -984,9 +998,9 @@ Begin
   If fSorted And fCanUserSort and fEnabled and not fTransparent Then
     If py < fClientRgn.Bottom Then
       If fSortedBy = fHCount -1 Then
-        FillRect(sx1 + (Ord(fBorder) * 2), py, Width -1, fHeight, fSortedColumnClr)
+        FillRect(sx1 + bL, py, Width -1, fHeight, fSortedColumnClr)
       Else
-        FillRect(sx1 + (Ord(fBorder) * 2), py, sx2 +1, fHeight, fSortedColumnClr);
+        FillRect(sx1 + bL, py, sx2 +1, fHeight, fSortedColumnClr);
 
   If fShowHeaders And (HeaderCount > 0) Then Begin
 
@@ -1001,9 +1015,9 @@ Begin
       End;
       If not fTransparent Then
         If j = fHCount -1 Then
-          FillRect(hx + (Ord(fBorder) * 2), Ord(fBorder) * 2, Width + (Ord(fBorder) * 2), cFH -1 + (Ord(fBorder) * 2), fHeaderClr)
+          FillRect(hx + bL, bT, Width + bL, cFH -1 + bT, fHeaderClr)
         Else
-          FillRect(hx + (Ord(fBorder) * 2), Ord(fBorder) * 2, hx + fHeaders[j].Width -2 + (Ord(fBorder) * 2), cFH -1 + (Ord(fBorder) * 2), fHeaderClr);
+          FillRect(hx + bL, bT, hx + fHeaders[j].Width -2 + bL, cFH -1 + bT, fHeaderClr);
       If fEnabled then
         c1 := fFontClr
       Else
@@ -1012,8 +1026,8 @@ Begin
         l := TextWidth(fHeaders[j].Caption) + cFW
       Else
         l := (Length(fHeaders[j].Caption) +1) * cFW;
-      Print(hx + (Ord(fBorder) * 2), Ord(fBorder) * 2, fHeaders[j].Caption, c1, -1, iSX, iSY, False, False, False, False);
-      Print(hx + (Ord(fBorder) * 2) + l, ((cFH - fH) Div 2) + (Ord(fBorder) * 2), pr, fSortIndClr, -1, 1, 1, False, False, False, False);
+      Print(hx + bL, bT, fHeaders[j].Caption, c1, -1, iSX, iSY, False, False, False, False);
+      Print(hx + bL + l, ((cFH - fH) Div 2) + bT, pr, fSortIndClr, -1, 1, 1, False, False, False, False);
       Inc(hx, fHeaders[j].Width);
 
     End;
@@ -1021,18 +1035,21 @@ Begin
   End;
 
   If not fTransparent Then Begin
-    FillRect(fWidth - cfW, fHeight - cfH, fWidth, fHeight, fBackgroundClr);
+    FillRect(fWidth - cfW, fHeight - cfH, fWidth, fHeight, fColour);
     If fHScroll.Visible Then
-      FillRect(0, Height - (cfH + 2), Width, Height, fBackgroundClr);
+      FillRect(0, Height - (cfH + 2), Width, Height, fColour);
     If fVScroll.Visible Then
-      FillRect(Width - (cfW +3), 0, Width, Height, fBackgroundClr);
+      FillRect(Width - (cfW +3), 0, Width, Height, fColour);
   End;
 
   If fBorder Then Begin
-    DrawRect(0, 0, Width -1, Height -1, fBorderClr);
-    DrawRect(1, 1, Width -2, Height -2, fBackgroundClr);
+    DrawRect(fPaddingLeft,     fPaddingTop,
+             Width  - 1 - fPaddingRight,  Height - 1 - fPaddingBottom,
+             fBorderClr);
+    DrawRect(fPaddingLeft + 1, fPaddingTop + 1,
+             Width  - 2 - fPaddingRight,  Height - 2 - fPaddingBottom,
+             fBackgroundClr);
   End;
-
 End;
 
 Procedure SP_ListBox.vScroll(Delta, NewPos: aFloat);
@@ -1049,13 +1066,14 @@ Begin
 
 End;
 
-Procedure SP_ListBox.MouseWheel(Sender: SP_BaseComponent; X, Y, Btn, Delta: Integer);
+Procedure SP_ListBox.MouseWheel(Sender: SP_BaseComponent; X, Y, Btn, Delta: Integer; Var Handled: Boolean);
 Begin
 
   Inherited;
 
   If fVScroll.Visible Then
     fVScroll.Pos := fVScroll.TargetPos + (Delta * fVScroll.WheelStep);
+  Handled := True;
 
 End;
 
@@ -1097,11 +1115,8 @@ Begin
 
   if fEnabled then Begin
 
-    Dec(Y, 2);
-    If fBorder Then Begin
-      Dec(X, 2);
-      Dec(Y, 2);
-    End;
+    Dec(X, (Ord(fBorder) * 2) + fPaddingLeft);
+    Dec(Y, (Ord(fBorder) * 2) + fPaddingTop);
 
     If Btn = 1 Then Begin
 

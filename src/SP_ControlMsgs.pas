@@ -26,6 +26,7 @@ Const
   clGrabberMouseDown = 5;
   clGrabberMouseMove = 6;
   clGrabberMouseUp   = 7;
+  clShowAbout        = 8;
 
 Var
 
@@ -36,7 +37,7 @@ implementation
 
 Uses
 
-  SP_Compiler, SP_FPEditor, SP_Errors, SP_Input, SP_SysVars, SP_DebugPanel;
+  SP_Main, SP_Compiler, SP_Components, SP_FPEditor, SP_Errors, SP_Input, SP_SysVars, SP_DebugPanel, SP_UITools;
 
 Procedure ProcessNextControlMsg;
 Var
@@ -52,6 +53,12 @@ Begin
   While Length(ControlMsgList) > 0 Do Begin
 
     Case ControlMsgList[0].ID of
+
+      clShowAbout:
+        Begin
+          DeleteControlMsg(0);
+          ShowAboutDialog;
+        End;
 
       clInterpretCommand:
         Begin
@@ -112,7 +119,6 @@ Begin
       clGrabberMouseDown:
         Begin
           SP_StopCompiler;
-          FPDebugLastMouseX := Integer(pLongWord(@ControlMsgList[0].Data[1])^);
           FPResizingDebugPanel := True;
           DeleteControlMsg(0);
         End;

@@ -76,8 +76,10 @@ Function  TestForWindowMenu(Win: Pointer; Var Shift: TShiftState): Boolean;
 Procedure DoTimerEvents;
 Procedure ClearTimerEvents(InRegistry: Boolean = False);
 Function  AddTimer(Sender: TObject; Interval: Integer; ObjProc: SP_TimerProc; DoNow, OneShot: Boolean): pSP_TimerEvent;
+Function  FindTimerByID(ID: Integer): pSP_TimerEvent;
 Procedure RemoveTimer(Sender: TObject); Overload;
 Procedure RemoveTimer(Var ID: Integer); Overload;
+Procedure RemoveTimerByProc(Proc: Pointer);
 
 Function  SP_CreateControl(ParentID, cClass, X, Y, W, H: Integer; Var Error: TSP_ErrorCode): Integer;
 Procedure SP_HaltAllControls;
@@ -90,7 +92,7 @@ Const
   SP_UIHalfLight                  = 249;
   SP_UI_HalfShadow                = 234;
   SP_UIShadow                     = 240;
-  SP_UIBtnBack                    = 251; //248;
+  SP_UIBtnBack                    = 15; //248;
   SP_UIBtnBackFocus               = 248;
   SP_UIText                       = 0;
   SP_UITextDisabled               = 8;
@@ -100,15 +102,16 @@ Const
   SP_UISelectionUnfocusedOutline  = 0;
   SP_UIUnfocusedSelection         = 8;
   SP_UIBorder                     = 0;
-  SP_UIBackground                 = 251;
+  SP_UIBackground                 = 255;
   SP_UIMenuSeparator              = 8;
   SP_UIScrollThumb                = 0;
   SP_UIScrollTrack                = 8;
   SP_UIScrollBtn                  = 0;
-  SP_UIWindowBack                 = 255;
+  SP_UIWindowBack                 = 251;
   SP_FocusTextClr                 = 0;
+  SP_UIBracketHighlight           = 6;
 
-  SP_ScrollWheelValue             = 3;
+  SP_ScrollWheelValue             = 6;
 
   SP_LeftJustify                  = -1;
   SP_CentreJustify                = 0;
@@ -137,7 +140,7 @@ implementation
 
 Uses SP_Main, SP_Sound, SP_BankManager, SP_BankFiling, SP_Graphics, SP_Graphics32, SP_Input, SP_Tokenise, SP_Interpret_PostFix,
      SP_PopupMenuUnit, SP_WindowMenuUnit, SP_CheckBoxUnit, SP_ComboBoxUnit, SP_RadioGroupUnit, SP_CheckListUnit, SP_ContainerUnit, SP_EditUnit,
-     SP_ListBoxUnit, SP_FileListBoxUnit, SP_LabelUnit, SP_ProgressBarUnit, SP_ScrollBarUnit, SP_SliderUnit;
+     SP_ListBoxUnit, SP_FileListBoxUnit, SP_LabelUnit, SP_ProgressBarUnit, SP_ScrollBarUnit, SP_SliderUnit, SP_MemoUnit, SP_BASICEditorUnit;
 
 // Timer Functions
 
@@ -190,6 +193,22 @@ Begin
 
 End;
 
+Procedure RemoveTimerByProc(Proc: Pointer);
+Var i, j: Integer;
+Begin
+  TimerSection.Enter;
+  i := 0;
+  While i < Length(TimerList) Do Begin
+    If TMethod(TimerList[i].ObjectProc).Code = Proc Then Begin
+      For j := i To Length(TimerList) - 2 Do
+        TimerList[j] := TimerList[j + 1];
+      SetLength(TimerList, Length(TimerList) - 1);
+    End Else
+      Inc(i);
+  End;
+  TimerSection.Leave;
+End;
+
 Function AddTimer(Sender: TObject; Interval: Integer; ObjProc: SP_TimerProc; DoNow, OneShot: Boolean): pSP_TimerEvent;
 Var
   l, Id, i: Integer;
@@ -225,6 +244,18 @@ Begin
 
 End;
 
+Function FindTimerByID(ID: Integer): pSP_TimerEvent;
+Var
+  i: Integer;
+Begin
+  Result := Nil;
+  For i := 0 To Length(TimerList) -1 Do
+    If TimerList[i].ID = ID Then Begin
+      Result := @TimerList[i];
+      Exit;
+    End;
+End;
+
 Procedure RemoveTimer(Sender: TObject);
 Var
   i, j: Integer;
@@ -238,8 +269,8 @@ Begin
       For j := i To Length(TimerList) -2 Do
         TimerList[j] := TimerList[j +1];
       SetLength(TimerList, Length(TimerList) -1);
-    End;
-    Inc(i);
+    End Else
+      Inc(i);
   End;
 
   TimerSection.Leave;
@@ -259,8 +290,8 @@ Begin
       For j := i To Length(TimerList) -2 Do
         TimerList[j] := TimerList[j +1];
       SetLength(TimerList, Length(TimerList) -1);
-    End;
-    Inc(i);
+    End Else
+      Inc(i);
   End;
 
   ID := -1;
@@ -425,13 +456,14 @@ Begin
         If w = Windows[j] Then Begin
           if (c is SP_PopupMenu) And SP_CanInteract(c) Then
             Result := SP_PopUpMenu(c).CheckShortcuts;
-          If Result Then
-            Exit
-          Else
-            if c.Visible Then Begin
-              Result := SendKey(c);
-              If Result And (Key <> K_ALT) Then Exit;
-            End;
+            If Result Then Begin
+              c.CancelKeyRepeat;   // ? add this
+              Exit;
+            End Else
+              if c.Visible Then Begin
+                Result := SendKey(c);
+                If Result And (Key <> K_ALT) Then Exit;
+              End;
         End;
       Dec(i);
     End;
@@ -671,7 +703,7 @@ Var
   Control: SP_BaseComponent;
 Begin
 
-  Result := ControlRegistry.TryGetValue(c.fIDNumber, Control);
+  Result := ControlRegistry.TryGetValue(c.fIDNumber, Control) And (Control = C);
   If Not Result Then
     If C.fParentType = spControl then
       Result := SP_IsInRegistry(C.fParentControl);
@@ -770,6 +802,14 @@ Begin
       spSlider:
         Begin
           Control := SP_Slider.Create(Parent);
+        End;
+      spMemo:
+        Begin
+          Control := SP_Memo.Create(Parent);
+        End;
+      spBASIC:
+        Begin
+          Control := SP_BASICEditor.Create(Parent);
         End;
     End;
     If Assigned(Control) Then Begin

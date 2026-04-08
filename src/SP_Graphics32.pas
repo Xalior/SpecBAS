@@ -54,7 +54,7 @@ Type
   Procedure SP_PutRegion32to32(Dst: pByte; dX, dY: Integer; dW, dH: LongWord; Src: pByte; SrcLen: Integer; RotAngle, Scale: aFloat; Var cX1, cY1, cX2, cY2: Integer; Var Error: TSP_ErrorCode);
   Procedure SP_PutRegion_NO_OVER32To32(Dst: pLongWord; dX, dY: Integer; dW, dH: LongWord; Src: pLongWord; SrcLen: Integer; Var cX1, cY1, cX2, cY2: Integer; Var Error: TSP_ErrorCode);
 
-  Function  IntersectRect(ax1,ay1,ax2,ay2,bx1,by1,bx2,by2: Integer): Integer;
+  Function  IntersectRect32(ax1,ay1,ax2,ay2,bx1,by1,bx2,by2: Integer): Integer;
 
   Procedure SP_SetPixel32(X, Y: aFloat); Inline;
   Procedure SP_SetPixelPtr32(Ptr: pLongWord); Inline;
@@ -98,6 +98,8 @@ Var
   MaxRect: Integer;
   dsDistLUT: array of Byte;
   dsInitialised: Boolean;
+  dsDistLUT_Radius: Integer = 0;
+  dsDistLUT_Alpha: Integer = 0;
 
 Const
   dsBlurRadius = 16;
@@ -109,7 +111,7 @@ implementation
 
 Uses SP_Graphics32Alpha, SP_Main, SP_Interpret_PostFix;
 
-Function IntersectRect(ax1,ay1,ax2,ay2,bx1,by1,bx2,by2: Integer): Integer;
+Function IntersectRect32(ax1,ay1,ax2,ay2,bx1,by1,bx2,by2: Integer): Integer;
 Begin
 
   // Returns a code if the two rectangles intersect - rects are a and b, and are
@@ -144,14 +146,14 @@ Var
     Split: Boolean;
   Begin
 
-    If IntersectRect(ax1,ay1,ax2,ay2,CX1,CY1,CX2,CY2) <> -1 Then Begin
+    If IntersectRect32(ax1,ay1,ax2,ay2,CX1,CY1,CX2,CY2) <> -1 Then Begin
 
       Split := False;
       Idx := TopRect -1;
       While Idx >= 0  Do Begin
         With UpdateRects[Idx] Do Begin
           If (sPtr^.Transparent = $FFFF) And Not (sPtr^.AlphaEnabled) Then
-            Case IntersectRect(ax1,ay1,ax2,ay2,bx1,by1,bx2,by2) Of
+            Case IntersectRect32(ax1,ay1,ax2,ay2,bx1,by1,bx2,by2) Of
               $0:
                 Begin
                   Split := True;
@@ -289,7 +291,7 @@ Begin
     While SP_BankList[Idx]^.DataType <> SP_WINDOW_BANK Do Dec(Idx); // Should never fail - there will always be a window in bank zero.
     Window := @SP_BankList[Idx].Info[0];
 
-    If Window^.Visible And (IntersectRect(Window^.Left, Window^.Top, Window^.Left + Window^.Width -1, Window^.Top + Window^.Height -1, CX1, CY1, CX2, CY2) <> -1) Then Begin
+    If Window^.Visible And (IntersectRect32(Window^.Left, Window^.Top, Window^.Left + Window^.Width -1, Window^.Top + Window^.Height -1, CX1, CY1, CX2, CY2) <> -1) Then Begin
       With UpdateRects[0] Do Begin
         sPtr := Window;
         bx1 := Sptr^.Left; by1 := sPtr^.Top; bx2 := bx1+sPtr^.Width-1; by2 := by1+sPtr^.Height-1;
@@ -337,7 +339,8 @@ Begin
 
 End;
 
-procedure DrawDropShadow(ParentPtr: Pointer; ParentW, ParentH, ParentPitch: Integer; WinX, WinY, WinW, WinH: Integer; ClipInterior: Boolean; dX1, dY1, dX2, dY2: Integer);
+procedure DrawDropShadow(ParentPtr: Pointer; ParentW, ParentH, ParentPitch: Integer; WinX, WinY, WinW, WinH: Integer; ClipInterior: Boolean; dX1, dY1, dX2, dY2: Integer;
+                         BlurRadius: Integer = dsBlurRadius; MaxAlpha: Integer = dsMaxShadowAlpha);
 var
   SX, SY, SW, SH: Integer;
   MinX, MaxX, MinY, MaxY: Integer;
@@ -351,7 +354,24 @@ var
   i: Integer;
   dist, t: Single;
 begin
-  if (dsBlurRadius <= 0) or (dsMaxShadowAlpha = 0) then Exit;
+  if (BlurRadius <= 0) or (dsMaxShadowAlpha = 0) then Exit;
+
+  // Rebuild LUT if radius differs from cached size
+  if (not dsInitialised) Or (dsDistLUT_Radius <> BlurRadius) Or (dsDistLUT_Alpha  <> MaxAlpha) Then Begin
+    dsDistLUT_Radius := BlurRadius;
+    dsDistLUT_Alpha  := MaxAlpha;
+    SetLength(dsDistLUT, (2 * BlurRadius * BlurRadius) + 1);
+    for i := 0 to High(dsDistLUT) do begin
+      dist := Sqrt(i);
+      if dist >= BlurRadius then
+        dsDistLUT[i] := 0
+      else begin
+        t := 1.0 - (dist / BlurRadius);
+        dsDistLUT[i] := Round(MaxAlpha * (t * t * (3.0 - 2.0 * t)));
+      end;
+    end;
+    dsInitialised := True;
+  End;
 
   if not dsInitialised Then Begin
     SetLength(dsDistLUT, (2 * dsBlurRadius * dsBlurRadius) + 1);
@@ -440,14 +460,14 @@ Var
   Trans: Byte;
 
   BankIdx, fragIdx: Integer;
-  sw1, sh1, sw2, sh2: Integer;
+  sw1, sh1, sw2, sh2, shadowR: Integer;
   HasFragments: Boolean;
   sPtr: pSP_Window_Info;
 
   Function IsWindowVisible(sPtr: pSP_Window_Info): Boolean;
   Begin
 
-    Result := IntersectRect(0, 0, DISPLAYWIDTH -1, DISPLAYHEIGHT -1, sPtr^.Left, sPtr^.Top, sPtr^.Left + sPtr^.Width -1, sPtr^.Top + sPtr^.Height -1) <> -1;
+    Result := IntersectRect32(0, 0, DISPLAYWIDTH -1, DISPLAYHEIGHT -1, sPtr^.Left, sPtr^.Top, sPtr^.Left + sPtr^.Width -1, sPtr^.Top + sPtr^.Height -1) <> -1;
 
   End;
 
@@ -506,15 +526,19 @@ Begin
     If Not sPtr^.Visible Then Continue;
 
     If sPtr^.DropShadow Then Begin
-      sw1 := sPtr^.Left + dsOffsetX - dsBlurRadius;
-      sh1 := sPtr^.Top + dsOffsetY - dsBlurRadius;
-      sw2 := sPtr^.Left + sPtr^.Width - 1 + dsOffsetX + dsBlurRadius;
-      sh2 := sPtr^.Top + sPtr^.Height - 1 + dsOffsetY + dsBlurRadius;
 
-      If IntersectRect(sw1, sh1, sw2, sh2, X1, Y1, X2, Y2) <> -1 Then
+      shadowR := IfThen(sPtr^.ShadowSize > 0, sPtr^.ShadowSize, dsBlurRadius);
+      sw1 := sPtr^.Left + dsOffsetX - shadowR;
+      sh1 := sPtr^.Top + dsOffsetY - shadowR;
+      sw2 := sPtr^.Left + sPtr^.Width - 1 + dsOffsetX + shadowR;
+      sh2 := sPtr^.Top + sPtr^.Height - 1 + dsOffsetY + shadowR;
+
+      If IntersectRect32(sw1, sh1, sw2, sh2, X1, Y1, X2, Y2) <> -1 Then
         DrawDropShadow(Dest, DisplayWidth, DisplayHeight, DISPLAYSTRIDE,
                        sPtr^.Left, sPtr^.Top, sPtr^.Width, sPtr^.Height,
-                       False, X1, Y1, X2, Y2);
+                       False, X1, Y1, X2, Y2,
+                       IfThen(sPtr^.ShadowSize > 0, sPtr^.ShadowSize, dsBlurRadius),
+                       IfThen(sPtr^.ShadowAlpha > 0, sPtr^.ShadowAlpha, dsMaxShadowAlpha));
     End;
 
     HasFragments := False;

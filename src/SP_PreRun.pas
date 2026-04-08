@@ -55,17 +55,20 @@ Type
 Procedure SP_RESTORE;
 Procedure SP_PreParse(ClearVars, Restore: Boolean; Var Error: TSP_ErrorCode; Var CmdTokens: aString);
 Procedure SP_FixStatementList(Var Tokens: aString; Position, Displacement: Integer);
-Procedure SP_TestConsts(Var Tokens: aString; lIdx: Integer; Var Error: TSP_ErrorCode; Preserve: Boolean);
+Procedure SP_TestConsts(Var Tokens: aString; lIdx: Integer; Var Error: TSP_ErrorCode; Preserve: Boolean; Var WasChanged: Boolean);
+Procedure SP_FoldConstExprs(Var Tokens: aString; lIdx: Integer; Var Error: TSP_ErrorCode);
 
 Var
+
+  ProcListAvailable: Boolean;
+
+ThreadVar
 
   Constants: Array of TSP_Constant;
   SP_DATA_Line: TSP_GOSUB_Item;
   SP_DATA_Tokens: paString;
-  ProcListAvailable: Boolean;
   SP_ProcStack: Array [0 .. MAXDEPTH -1] of TSP_ProcStackItem;
   SP_ProcStackPtr: Integer;
-
 
 implementation
 
@@ -119,7 +122,7 @@ Var
   Idx, Idx2, Idx3, Idx4, sIdx, pStatement,
   LabelPos, LabelLen, ProcIdx, LastStrAt, LastStrLen, DATALine, DATAStatement, TokenLen: Integer;
   Tokens, Name, s: aString;
-  Changed, Reference, NewStatement, IsVar: Boolean;
+  Changed, Reference, NewStatement, IsVar, constChanged: Boolean;
   TempLine, cLine: TSP_GOSUB_Item;
   xVar: pVarType;
   KeyWord, MaxLineNum, cKW, LastKW, CurLine: LongWord;
@@ -155,7 +158,18 @@ Begin
     SetLength(FillQueue, 0);
     SP_DeleteAllMenus;
     OSD := '';
+    // Explicit reset of ThreadVars that cannot carry initialised values.
+    // EveryEnabled must be True by default; all others reset to clean state.
+    SP_EveryCount  := 0;
+    IgnoreEvery    := False;
+    EveryEnabled   := True;
+    ReEnableEvery  := False;
+    IgnoreColours  := False;
+    FN_Recursion_Count := 0;
+    DoingOnCtrl    := False;
+    OnActive       := 0;
   End;
+
   SP_ClearLabels;
   ProcLines := '';
   MaxLineNum := 0;
@@ -166,15 +180,13 @@ Begin
   SP_NextCount := 0;
   SetLength(LineLUT, 0);
 
-  If Not PAYLOADPRESENT Then
-    SP_ForceCompile;
-
   sIdx := -1;
   if CmdTokens <> '' then
     Idx := -2
   else
     Idx := -1;
 
+  constChanged := False;
   LastTknType := $FF;
   CurLine := 0;
 
@@ -485,7 +497,7 @@ Begin
                 SP_KW_DEF_FN:
                   Begin
                     s := Copy(Tokens, LastStrAt, LastStrLen);
-                    SP_TestConsts(s, 1, Error, False);
+                    SP_TestConsts(s, 1, Error, False, constChanged);
                     SP_AddHandlers(s);
                     pToken(@Tokens[LastStrAt])^.TokenLen := Length(s);
                     //pLongWord(@Tokens[LastStrAt - (SizeOf(LongWord) * 2)])^ := Length(s);
@@ -521,6 +533,7 @@ Begin
 
       End;
 
+      constChanged := False;
       If Changed Then Begin
         if Idx = -1 then Begin
           SetLength(CmdTokens, Length(Tokens));
@@ -533,17 +546,25 @@ Begin
 
       If idx = -1 then Begin
         If sIdx = -1 Then
-          SP_TestConsts(CmdTokens, Idx, Error, False)
+          SP_TestConsts(CmdTokens, Idx, Error, False, constChanged)
         Else Begin
           s := Copy(CmdTokens, sIdx);
-          SP_TestConsts(s, Idx, Error, False);
+          SP_TestConsts(s, Idx, Error, False, constChanged);
           CmdTokens := Copy(CmdTokens, 1, sIdx -1) + s;
         End;
       End Else
-        SP_TestConsts(SP_Program[Idx], Idx, Error, False);
+        SP_TestConsts(SP_Program[Idx], Idx, Error, False, constChanged);
       If Error.Code <> SP_ERR_OK Then Begin
         Error.Line := Idx;
         Exit;
+      End;
+      If constChanged Then Begin
+        constChanged := False;
+        If idx = -1 Then
+          SP_FoldConstExprs(cmdTokens, Idx, Error)
+        Else
+          SP_FoldConstExprs(SP_Program[Idx], Idx, Error);
+        Error.Code := SP_ERR_OK;
       End;
     End;
 
@@ -580,12 +601,17 @@ Begin
     SP_Program[Idx2] := SP_TokeniseLine(SP_Detokenise(SP_Program[Idx2], Idx3, False, False), False, True) + SP_TERMINAL_SEQUENCE;
     Idx3 := 1;
     SP_Convert_ToPostFix(SP_Program[Idx2], Idx3, Error);
-    SP_TestConsts(SP_Program[Idx2], Idx2, Error, True);
+    SP_TestConsts(SP_Program[Idx2], Idx2, Error, True, constChanged);
     If Error.Code <> SP_ERR_OK Then Begin
       Error.Line := Idx2;
       Exit;
     End;
     Inc(Idx, SizeOf(LongWord));
+  End;
+
+  If constChanged Then Begin
+    SP_FoldConstExprs(SP_Program[Idx], Idx, Error);
+    Error.Code := SP_ERR_OK;
   End;
 
   If ClearVars Then Begin
@@ -692,12 +718,114 @@ Begin
 
 End;
 
-Procedure SP_TestConsts(Var Tokens: aString; lIdx: Integer; Var Error: TSP_ErrorCode; Preserve: Boolean);
+Procedure SP_FixTokenDisplacement(Var Tokens: aString; lIdx: Integer; Position, Displacement: Integer);
+Var
+  n, Idx, Idx2, Value: LongWord;
+  NewVal: aFloat;
+  Jump: Integer;
+  Kwd: LongWord;
+  Token: pToken;
+Begin
+
+  SP_FixStatementList(Tokens, Position, Displacement);
+
+  // While we're here, check the line for IIF functions - they utilise a displacement to shortcut
+  // to the False expression, and to skip the false expression if true. So search for the value preceding
+  // an IIF, and the jump after:
+  // If Position falls between the IIF and the JUMP, then increment the preceding value
+  // If Position falls between the JUMP and the jump's target, increment the JUMP.
+  // Also check for other jumps, and if their target is beyond the position, increment them also.
+  // *AND* check the labels list for their positions in a similar manner.
+  // NEW! Now also check the list of offsets after am SP_IJMP opcode (indexed jump)
+
+  If Length(SP_LabelList) > 0 Then
+    For Idx := 0 To Length(SP_LabelList) -1 Do Begin
+      If (SP_LabelList[Idx].Dline = lIdx) and (SP_LabelList[Idx].DStatement >= Position) Then
+        Inc(SP_LabelList[Idx].DStatement, Displacement);
+      If (SP_LabelList[Idx].Line = lIdx) and (SP_LabelList[Idx].Statement >= Position) Then
+        Inc(SP_LabelList[Idx].Statement, Displacement);
+    End;
+
+  Idx := 1;
+  If Tokens[Idx] = aChar(SP_LINE_NUM) Then Inc(Idx, 1 + SizeOf(LongWord));
+  If Tokens[Idx] = aChar(SP_STATEMENTS) Then Idx := pLongWord(@Tokens[1 + Idx + SizeOf(LongWord)])^;
+  While Integer(Idx) < Length(Tokens) Do Begin
+    Token := @Tokens[Idx];
+    Inc(Idx, SizeOf(TToken));
+    Case Token^.Token of
+      SP_JZ, SP_JNZ:
+        Begin
+          Jump := pLongWord(@Tokens[Idx])^;
+          If (Integer(Idx) + Jump >= Position - Displacement) And (Jump > 0) Then
+            If Displacement >= 0 Then
+              Inc(pLongWord(@Tokens[Idx])^, Displacement)
+            Else
+              Dec(pLongWord(@Tokens[Idx])^, -Displacement);
+          Inc(Idx, Token^.TokenLen);
+        End;
+      SP_DISPLACEMENT:
+        Begin
+          Token^.TokenPos := Idx;
+          Inc(Idx, Token^.TokenLen);
+        End;
+      SP_VALUE:
+        Begin
+          If (Idx + Token^.TokenLen < LongWord(Length(Tokens))) and (pToken(@Tokens[Idx + Token^.TokenLen])^.Token = SP_FUNCTION) Then Begin
+            Kwd := pLongWord(@Tokens[Idx + Token^.TokenLen + SizeOf(TToken)])^;
+            If (Kwd = SP_FN_IIF) or (Kwd = SP_FN_IIFS) Then Begin
+              // Found a value followed by an IIF or IIF$.
+              Idx2 := Idx + Token^.TokenLen + SizeOf(TToken) + SizeOf(LongWord);
+              Value := Trunc(gaFloat(@Tokens[Idx]));
+              If (Position > Integer(Idx2)) And (Position < Integer(Idx2 + Value)) Then Begin
+                If Displacement >= 0 Then
+                  Inc(Value, Displacement)
+                Else
+                  Dec(Value, -Displacement);
+                NewVal := Value;
+                WriteaFloat(@Tokens[Idx], NewVal);
+              End;
+              // Now find the SP_JUMP token. Idx2 points at the first token after the IIF, so
+              // Adding Value to that should get us there.
+              Inc(Idx2, Value);
+              // Now get the jump and see if the displacement counts.
+              Jump := pInteger(@Tokens[Idx2 - SizeOf(Integer)])^;
+              If (Position >= Integer(Idx2)) And (Position < Integer(Idx2) + Jump) Then
+                pLongWord(@Tokens[Idx2 - SizeOf(Integer)])^ := Jump + Displacement;
+              Inc(Idx, Token^.TokenLen);
+            End Else
+              Inc(Idx, Token^.TokenLen);
+          End Else
+            Inc(Idx, Token^.TokenLen);
+        End;
+      SP_IJMP: // Indexed jump. Basically a count (n) then n longwords indicating a distance into the code.
+               // Used by ON <a> GOTO <m,n,o,p...>
+        Begin
+          n := pLongWord(@Tokens[Idx])^;
+          Inc(Idx, SizeOf(LongWord));
+          While n > 0 Do Begin
+            Jump := pLongWord(@Tokens[Idx])^;
+            If (Integer(Idx) + Jump >= Position - Displacement) And (Jump > 0) Then
+              If Displacement >= 0 Then
+                Inc(pLongWord(@Tokens[Idx])^, Displacement)
+              Else
+                Dec(pLongWord(@Tokens[Idx])^, -Displacement);
+            Inc(Idx, SizeOf(LongWord));
+            Dec(n);
+          End;
+        End;
+    Else
+      Inc(Idx, Token^.TokenLen);
+    End;
+  End;
+
+End;
+
+Procedure SP_TestConsts(Var Tokens: aString; lIdx: Integer; Var Error: TSP_ErrorCode; Preserve: Boolean; Var WasChanged: Boolean);
 Var
   cKw, LineNum: LongWord;
   Idx, Idx2, Idx3, TokenPos, TokenLen, TLen, TknLen2, TknType2, pStatement, StartPos, SkipCnt: Integer;
   Name: aString;
-  LastRefWasConst, Changed: Boolean;
+  LastRefWasConst: Boolean;
   Tkn, Tkn2: pToken;
   TknType: Byte;
   kwPtr: pLongWord;
@@ -707,108 +835,6 @@ Var
   cTokens: aString;
   Dbl: aFloat;
   cLine: TSP_GOSUB_Item;
-
-  Procedure FixStatements(Position, Displacement: Integer);
-  Var
-    n, Idx, Idx2, Value: LongWord;
-    NewVal: aFloat;
-    Jump: Integer;
-    Kwd: LongWord;
-    Token: pToken;
-  Begin
-
-    SP_FixStatementList(Tokens, Position, Displacement);
-
-    // While we're here, check the line for IIF functions - they utilise a displacement to shortcut
-    // to the False expression, and to skip the false expression if true. So search for the value preceding
-    // an IIF, and the jump after:
-    // If Position falls between the IIF and the JUMP, then increment the preceding value
-    // If Position falls between the JUMP and the jump's target, increment the JUMP.
-    // Also check for other jumps, and if their target is beyond the position, increment them also.
-    // *AND* check the labels list for their positions in a similar manner.
-    // NEW! Now also check the list of offsets after am SP_IJMP opcode (indexed jump)
-
-    If Length(SP_LabelList) > 0 Then
-      For Idx := 0 To Length(SP_LabelList) -1 Do Begin
-        If (SP_LabelList[Idx].Dline = lIdx) and (SP_LabelList[Idx].DStatement >= Position) Then
-          Inc(SP_LabelList[Idx].DStatement, Displacement);
-        If (SP_LabelList[Idx].Line = lIdx) and (SP_LabelList[Idx].Statement >= Position) Then
-          Inc(SP_LabelList[Idx].Statement, Displacement);
-      End;
-
-    Idx := 1;
-    If Tokens[Idx] = aChar(SP_LINE_NUM) Then Inc(Idx, 1 + SizeOf(LongWord));
-    If Tokens[Idx] = aChar(SP_STATEMENTS) Then Idx := pLongWord(@Tokens[1 + Idx + SizeOf(LongWord)])^;
-    While Integer(Idx) < Length(Tokens) Do Begin
-      Token := @Tokens[Idx];
-      Inc(Idx, SizeOf(TToken));
-      Case Token^.Token of
-        SP_JZ, SP_JNZ:
-          Begin
-            Jump := pLongWord(@Tokens[Idx])^;
-            If (Integer(Idx) + Jump >= Position - Displacement) And (Jump > 0) Then
-              If Displacement >= 0 Then
-                Inc(pLongWord(@Tokens[Idx])^, Displacement)
-              Else
-                Dec(pLongWord(@Tokens[Idx])^, -Displacement);
-            Inc(Idx, Token^.TokenLen);
-          End;
-        SP_DISPLACEMENT:
-          Begin
-            Token^.TokenPos := Idx;
-            Inc(Idx, Token^.TokenLen);
-          End;
-        SP_VALUE:
-          Begin
-            If (Idx + Token^.TokenLen < LongWord(Length(Tokens))) and (pToken(@Tokens[Idx + Token^.TokenLen])^.Token = SP_FUNCTION) Then Begin
-              Kwd := pLongWord(@Tokens[Idx + Token^.TokenLen + SizeOf(TToken)])^;
-              If (Kwd = SP_FN_IIF) or (Kwd = SP_FN_IIFS) Then Begin
-                // Found a value followed by an IIF or IIF$.
-                Idx2 := Idx + Token^.TokenLen + SizeOf(TToken) + SizeOf(LongWord);
-                Value := Trunc(gaFloat(@Tokens[Idx]));
-                If (Position > Integer(Idx2)) And (Position < Integer(Idx2 + Value)) Then Begin
-                  If Displacement >= 0 Then
-                    Inc(Value, Displacement)
-                  Else
-                    Dec(Value, -Displacement);
-                  NewVal := Value;
-                  WriteaFloat(@Tokens[Idx], NewVal);
-                End;
-                // Now find the SP_JUMP token. Idx2 points at the first token after the IIF, so
-                // Adding Value to that should get us there.
-                Inc(Idx2, Value);
-                // Now get the jump and see if the displacement counts.
-                Jump := pInteger(@Tokens[Idx2 - SizeOf(Integer)])^;
-                If (Position >= Integer(Idx2)) And (Position < Integer(Idx2) + Jump) Then
-                  pLongWord(@Tokens[Idx2 - SizeOf(Integer)])^ := Jump + Displacement;
-                Inc(Idx, Token^.TokenLen);
-              End Else
-                Inc(Idx, Token^.TokenLen);
-            End Else
-              Inc(Idx, Token^.TokenLen);
-          End;
-        SP_IJMP: // Indexed jump. Basically a count (n) then n longwords indicating a distance into the code.
-                 // Used by ON <a> GOTO <m,n,o,p...>
-          Begin
-            n := pLongWord(@Tokens[Idx])^;
-            Inc(Idx, SizeOf(LongWord));
-            While n > 0 Do Begin
-              Jump := pLongWord(@Tokens[Idx])^;
-              If (Integer(Idx) + Jump >= Position - Displacement) And (Jump > 0) Then
-                If Displacement >= 0 Then
-                  Inc(pLongWord(@Tokens[Idx])^, Displacement)
-                Else
-                  Dec(pLongWord(@Tokens[Idx])^, -Displacement);
-              Inc(Idx, SizeOf(LongWord));
-              Dec(n);
-            End;
-          End;
-      Else
-        Inc(Idx, Token^.TokenLen);
-      End;
-    End;
-
-  End;
 
 Begin
 
@@ -820,8 +846,8 @@ Begin
 
   If Error.Code <> SP_ERR_OK then Exit; // This should not be called on badly formed code
 
+  WasChanged := False;
   LastRefWasConst := False;
-  Changed := False;
   pStatement := 1;
 
   Idx := 1;
@@ -963,7 +989,7 @@ Begin
 
                     // Now convert to two aFloats and insert into the CASE line!
 
-                    Changed := True;
+                    WasChanged := True;
                     cIdx2 := Idx;
                     Dec(cIdx2, SizeOf(TToken) + SizeOf(aFloat));
                     Dbl := cLine.Statement;
@@ -982,7 +1008,7 @@ Begin
                 Begin
                   Inc(kwPtr);
                   kwPtr^ := $80808080;
-                  Changed := True;
+                  WasChanged := True;
                 End;
 
             End;
@@ -1090,8 +1116,8 @@ Begin
                         CreateToken(SP_NUMCONST, 0, SizeOf(aFloat) + Length (Name)) + aFloatToString(Constants[Idx2].Val) + Name +
                         Copy(Tokens, Idx + Integer(Tkn^.TokenLen), Length(Tokens));
               TLen := (SizeOf(aFloat) + Length(Name)) - TLen;
-              FixStatements(Idx, TLen);
-              Changed := True;
+              SP_FixTokenDisplacement(Tokens, lIdx, Idx, TLen);
+              WasChanged := True;
               Inc(Idx, SizeOf(aFloat) + Length(Name));
             End Else Begin
               LastRefWasConst := False;
@@ -1110,8 +1136,8 @@ Begin
               Tokens := Copy(Tokens, 1, TokenPos -1) +
                         CreateToken(SP_STRCONST, Length(Constants[Idx2].Str), Length(Constants[Idx2].Str) + Length(Name)) + Constants[Idx2].Str + Name +
                         Copy(Tokens, Idx + Integer(Tkn^.TokenLen), Length(Tokens));
-              FixStatements(Idx, Length(Tokens) - TLen);
-              Changed := True;
+              SP_FixTokenDisplacement(Tokens, lIdx, Idx, Length(Tokens) - TLen);
+              WasChanged := True;
               Inc(Idx, Length(Constants[Idx2].Str) + Length(Name));
             End Else Begin
               LastRefWasConst := False;
@@ -1129,17 +1155,17 @@ Begin
             If Idx2 < NUMCONSTS Then Begin
               If Not Preserve Then Begin
                 WriteaFloat(@Tokens[Idx], Constants[Idx2].Val);
-                Changed := True;
+                WasChanged := True;
               End;
               Inc(Idx, Tkn^.TokenLen);
             End Else Begin
               // No longer exists - probably been removed by the user. Convert back to a NUMVAR.
               Idx2 := Length(Tokens);
               Tokens := Copy(Tokens, 1, TokenPos -1) + CreateToken(SP_NUMVAR_EVAL, 0, (SizeOf(LongWord) * 2) + Length(Name)) + LongWordToString(0) + LongWordToString(Length(Name)) + Name + Copy(Tokens, Idx + Integer(Tkn^.TokenLen), Length(Tokens));
-              FixStatements(Idx, Length(Tokens) - Idx2);
+              SP_FixTokenDisplacement(Tokens, lIdx, Idx, Length(Tokens) - Idx2);
               Inc(Idx, SizeOf(LongWord) + Length(Name));
               LastRefWasConst := False;
-              Changed := True;
+              WasChanged := True;
             End;
           End;
 
@@ -1153,18 +1179,18 @@ Begin
               If Not Preserve Then Begin
                 TLen := Length(Tokens);
                 Tokens := Copy(Tokens, 1, TokenPos -1) + CreateToken(SP_STRCONST, Length(Constants[Idx2].Str), Length(Constants[Idx2].Str) + Length(Name)) + Constants[Idx2].Str + Name + Copy(Tokens, Idx + Integer(Tkn^.TokenLen), Length(Tokens));
-                FixStatements(Idx, Length(Tokens) - TLen);
+                SP_FixTokenDisplacement(Tokens, lIdx, Idx, Length(Tokens) - TLen);
                 Inc(Idx, Length(Constants[Idx2].Str) + Length(Name));
-                Changed := True;
+                WasChanged := True;
               End;
             End Else Begin
               Name := Copy(Name, 1, Length(Name) -1);
               Idx2 := Length(Tokens);
               Tokens := Copy(Tokens, 1, TokenPos -1) + CreateToken(SP_STRVAR_EVAL, 0, (SizeOf(LongWord) * 2) + Length(Name)) + LongWordToString(0) + LongWordToString(Length(Name)) + Name + Copy(Tokens, Idx + Integer(Tkn^.TokenLen), Length(Tokens));
-              FixStatements(Idx, Length(Tokens) - Idx2);
+              SP_FixTokenDisplacement(Tokens, lIdx, Idx, Length(Tokens) - Idx2);
               Inc(Idx, SizeOf(LongWord) + Length(Name));
               LastRefWasConst := False;
-              Changed := True;
+              WasChanged := True;
             End;
           End;
 
@@ -1241,9 +1267,9 @@ Begin
                               // OMG, we can't use these with strings! Both sides have to be evaluated!
                               // It's OK, Just remove the token at Idx and bail.
                               Tokens := Copy(Tokens, 1, TokenPos -1) + Copy(Tokens, Idx + TokenLen);
-                              FixStatements(TokenPos, -(((Idx + TokenLen)-TokenPos)));
+                              SP_FixTokenDisplacement(Tokens, lIdx, TokenPos, -(((Idx + TokenLen)-TokenPos)));
                               Dec(Idx, SizeOf(TToken) + TokenLen);
-                              Changed := True;
+                              WasChanged := True;
                               Break;
                             End Else
                               Inc(Idx2, TknLen2);
@@ -1258,8 +1284,8 @@ Begin
                               // Remove the AND and fill the original token's value with the current position.
                               Tokens := Copy(Tokens, 1, Idx3 -1) + Copy(Tokens, Idx2 + TknLen2);
                               pLongWord(@Tokens[Idx])^ := Idx3 - Idx;
-                              FixStatements(Idx3, -(SizeOf(TToken) + TknLen2));
-                              Changed := True;
+                              SP_FixTokenDisplacement(Tokens, lIdx, Idx3, -(SizeOf(TToken) + TknLen2));
+                              WasChanged := True;
                               Break;
                             End Else
                               Inc(Idx2, TknLen2);
@@ -1274,8 +1300,8 @@ Begin
                               // Remove the OR and fill the original token's value with the current position.
                               Tokens := Copy(Tokens, 1, Idx3 -1) + Copy(Tokens, Idx2 + TknLen2);
                               pLongWord(@Tokens[Idx])^ := Idx3 - Idx;
-                              FixStatements(Idx3, -(SizeOf(TToken) + TknLen2));
-                              Changed := True;
+                              SP_FixTokenDisplacement(Tokens, lIdx, Idx3, -(SizeOf(TToken) + TknLen2));
+                              WasChanged := True;
                               Break;
                             End Else
                               Inc(Idx2, TknLen2);
@@ -1308,8 +1334,189 @@ Begin
 
     End;
 
-    If Changed Then SP_AddHandlers(Tokens);
+    If WasChanged Then SP_AddHandlers(Tokens);
 
+  End;
+
+End;
+
+Procedure SP_FoldConstExprs(Var Tokens: aString; lIdx: Integer; Var Error: TSP_ErrorCode);
+Var
+  Idx, Idx2, Idx3, tStart, tLen, Displacement: Integer;
+  AnyFolded, ShouldStrip: Boolean;
+  Tkn, Tkn2, Tkn3: pToken;
+  TestTokens: aString;
+  tPos: Integer;
+Label
+  Restart;
+Begin
+
+  // Narrow second-pass constant folder.
+  // Called after SP_TestConsts has substituted NUMCONST/STRCONST tokens.
+  // Handles patterns the peephole could not see in pass 1 because the
+  // constants had not yet been substituted.
+  //
+  // Patterns handled:
+  //   NUMCONST VALUE SYMBOL        -> constant fold
+  //   VALUE NUMCONST SYMBOL        -> constant fold
+  //   NUMCONST NUMCONST SYMBOL     -> constant fold (belt+braces)
+  //   NUMCONST SPECIAL_SYMBOL      -> unary fold
+  //   STRCONST STRCONST SYMBOL(+)  -> string concat fold
+  //   COMPOUND_NNO/NVO/VNO where both operands now NUMCONST -> remove compound, fold
+  //
+  // For each fold: calls SP_FixTokenDisplacement to keep statement list valid.
+
+  AnyFolded := False;
+
+  Restart:
+
+  // Skip line number header and statement list
+  Idx := 1;
+  If Idx <= Length(Tokens) Then Begin
+    If Byte(Tokens[Idx]) = SP_LINE_NUM Then Inc(Idx, 1 + SizeOf(LongWord));
+    If Byte(Tokens[Idx]) = SP_STATEMENTS Then
+      Idx := pLongWord(@Tokens[Idx + 1 + SizeOf(LongWord)])^;
+  End;
+
+  While Idx <= Length(Tokens) Do Begin
+    Tkn := pToken(@Tokens[Idx]);
+    If Tkn^.Token = SP_TERMINAL Then Break;
+
+    // Pattern: COMPOUND_NXX where first operand is now NUMCONST
+    // ? strip the compound marker (it will be wrong after fold anyway)
+
+    If Byte(Tkn^.Token) in [SP_COMPOUND_NNO..SP_COMPOUND_VNO] Then Begin
+      Idx2 := Idx + SizeOf(TToken);
+      If Idx2 <= Length(Tokens) Then Begin
+        Tkn2 := pToken(@Tokens[Idx2]);
+
+        // For NNO and NVO: first operand should be NUMVAR - strip if it's now NUMCONST
+        // For VNO: first operand is VALUE (fine), second should be NUMVAR - check that
+        ShouldStrip := False;
+        Case Tkn^.Token of
+          SP_COMPOUND_NNO,
+          SP_COMPOUND_NVO:
+            ShouldStrip := Tkn2^.Token = SP_NUMCONST;
+          SP_COMPOUND_VNO: Begin
+            // Skip past the VALUE operand to check the second operand
+            Idx3 := Idx2 + SizeOf(TToken) + Integer(Tkn2^.TokenLen);
+            If Idx3 <= Length(Tokens) Then
+              ShouldStrip := pToken(@Tokens[Idx3])^.Token = SP_NUMCONST;
+          End;
+        End;
+
+        If ShouldStrip Then Begin
+          Displacement := -SizeOf(TToken);
+          Tokens := Copy(Tokens, 1, Idx-1) + Copy(Tokens, Idx + SizeOf(TToken), Length(Tokens));
+          SP_FixTokenDisplacement(Tokens, lIdx, Idx, Displacement);
+          AnyFolded := True;
+          Goto Restart;
+        End;
+      End;
+      Inc(Idx, SizeOf(TToken) + Tkn^.TokenLen);
+      Continue;
+    End;
+
+    // Pattern: NUMCONST [VALUE|NUMCONST] SYMBOL
+    If Byte(Tkn^.Token) in [SP_NUMCONST, SP_VALUE] Then Begin
+      tStart := Idx;
+      Idx2 := Idx + SizeOf(TToken) + Integer(Tkn^.TokenLen);
+      If Idx2 <= Length(Tokens) Then Begin
+        Tkn2 := pToken(@Tokens[Idx2]);
+        If Byte(Tkn2^.Token) in [SP_NUMCONST, SP_VALUE] Then Begin
+          Idx2 := Idx2 + SizeOf(TToken) + Integer(Tkn2^.TokenLen);
+          If Idx2 <= Length(Tokens) Then Begin
+            Tkn3 := pToken(@Tokens[Idx2]);
+            If Tkn3^.Token = SP_SYMBOL Then Begin
+              // At least one must be NUMCONST, otherwise pass 1 already folded it
+              If ((Tkn^.Token = SP_NUMCONST) Or (Tkn2^.Token = SP_NUMCONST) Or AnyFolded) Then Begin
+                tLen := (Idx2 + SizeOf(TToken) + Integer(Tkn3^.TokenLen)) - tStart;
+                TestTokens := Copy(Tokens, tStart, tLen);
+                // Normalise any NUMCONST to VALUE for SP_OptimiseStack
+                // (pToken tag only - the float payload is identical)
+                If pToken(@TestTokens[1])^.Token = SP_NUMCONST Then
+                  pToken(@TestTokens[1])^.Token := SP_VALUE;
+                If pToken(@TestTokens[1 + SizeOf(TToken) + Tkn^.TokenLen])^.Token = SP_NUMCONST Then
+                  pToken(@TestTokens[1 + SizeOf(TToken) + Tkn^.TokenLen])^.Token := SP_VALUE;
+                tPos := tStart;
+                SP_OptimiseStack(TestTokens, tPos, Error);
+                If Error.Code = SP_ERR_OK Then Begin
+                  Displacement := Length(TestTokens) - tLen;
+                  Tokens := Copy(Tokens, 1, tStart-1) + TestTokens
+                          + Copy(Tokens, tStart + tLen, Length(Tokens));
+                  SP_FixTokenDisplacement(Tokens, lIdx, tStart + Length(TestTokens), Displacement);
+                  SP_AddHandlers(Tokens);
+                  AnyFolded := True;
+                  Goto Restart;
+                End;
+                Error.Code := SP_ERR_OK;
+              End;
+            End;
+          End;
+        End;
+      End;
+    End;
+
+    // Pattern: NUMCONST SPECIAL_SYMBOL (unary minus/plus/NOT on a constant)
+    If Tkn^.Token = SP_NUMCONST Then Begin
+      Idx2 := Idx + SizeOf(TToken) + Integer(Tkn^.TokenLen);
+      If Idx2 <= Length(Tokens) Then Begin
+        Tkn2 := pToken(@Tokens[Idx2]);
+        If Tkn2^.Token = SP_SPECIAL_SYMBOL Then Begin
+          tLen := SizeOf(TToken) + Tkn^.TokenLen + SizeOf(TToken) + Tkn2^.TokenLen;
+          TestTokens := Copy(Tokens, Idx, tLen);
+          pToken(@TestTokens[1])^.Token := SP_VALUE; // normalise
+          tPos := Idx;
+          SP_OptimiseStack(TestTokens, tPos, Error);
+          If Error.Code = SP_ERR_OK Then Begin
+            Displacement := Length(TestTokens) - tLen;
+            Tokens := Copy(Tokens, 1, Idx-1) + TestTokens
+                    + Copy(Tokens, Idx + tLen, Length(Tokens));
+            SP_FixTokenDisplacement(Tokens, lIdx, Idx + Length(TestTokens), Displacement);
+            SP_AddHandlers(Tokens);
+            AnyFolded := True;
+            Goto Restart;
+          End;
+          Error.Code := SP_ERR_OK;
+        End;
+      End;
+    End;
+
+    // Pattern: STRCONST STRCONST SYMBOL(+) - string concat fold
+    If Tkn^.Token = SP_STRCONST Then Begin
+      Idx2 := Idx + SizeOf(TToken) + Integer(Tkn^.TokenLen);
+      If Idx2 <= Length(Tokens) Then Begin
+        Tkn2 := pToken(@Tokens[Idx2]);
+        If Tkn2^.Token = SP_STRCONST Then Begin
+          Idx2 := Idx2 + SizeOf(TToken) + Integer(Tkn2^.TokenLen);
+          If Idx2 <= Length(Tokens) Then Begin
+            Tkn3 := pToken(@Tokens[Idx2]);
+            If (Tkn3^.Token = SP_SYMBOL) And
+               (Tokens[Idx2 + SizeOf(TToken)] = '+') Then Begin
+              tLen := (Idx2 + SizeOf(TToken) + Integer(Tkn3^.TokenLen)) - Idx;
+              TestTokens := Copy(Tokens, Idx, tLen);
+              // Normalise STRCONST ? SP_STRING for OptimiseStack
+              pToken(@TestTokens[1])^.Token := SP_STRING;
+              pToken(@TestTokens[1 + SizeOf(TToken) + Tkn^.TokenLen])^.Token := SP_STRING;
+              tPos := Idx;
+              SP_OptimiseStack(TestTokens, tPos, Error);
+              If Error.Code = SP_ERR_OK Then Begin
+                Displacement := Length(TestTokens) - tLen;
+                Tokens := Copy(Tokens, 1, Idx-1) + TestTokens
+                        + Copy(Tokens, Idx + tLen, Length(Tokens));
+                SP_FixTokenDisplacement(Tokens, lIdx, Idx + Length(TestTokens), Displacement);
+                SP_AddHandlers(Tokens);
+                AnyFolded := True;
+                Goto Restart;
+              End;
+              Error.Code := SP_ERR_OK;
+            End;
+          End;
+        End;
+      End;
+    End;
+
+    Inc(Idx, SizeOf(TToken) + Tkn^.TokenLen);
   End;
 
 End;

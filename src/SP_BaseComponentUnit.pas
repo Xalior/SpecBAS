@@ -18,7 +18,7 @@ Type
 
   SP_BaseEvent = Procedure(Sender: SP_BaseComponent) of Object;
   SP_MouseEvent = Procedure(Sender: SP_BaseComponent; Mx, My, Button: Integer) of Object;
-  SP_MouseWheelEvent = Procedure(Sender: SP_BaseComponent; Mx, My, Button, Delta: Integer) of Object;
+  SP_MouseWheelEvent = Procedure(Sender: SP_BaseComponent; Mx, My, Button, Delta: Integer; Var Handled: Boolean) of Object;
   SP_KeyEvent = Procedure(Sender: SP_BaseComponent; Key: Integer; Down: Boolean; Var Handled: Boolean) of Object;
   SP_PaintEvent = Procedure(Control: SP_BaseComponent) of Object;
   SP_ResizeEvent = Procedure(Sender: SP_BaseComponent) of Object;
@@ -70,6 +70,10 @@ SP_BaseComponent = Class
     fLeft, fTop, fWidth, fHeight: Integer;
     fAnchors: SP_AnchorSet;
     fAlign: Integer;
+    fPaddingLeft:   Integer;
+    fPaddingTop:    Integer;
+    fPaddingRight:  Integer;
+    fPaddingBottom: Integer;
     fOwnerIndex: Integer;
     fOnMouseMove,
     fOnMouseDown,
@@ -249,7 +253,7 @@ SP_BaseComponent = Class
     Procedure MouseDown(Sender: SP_BaseComponent; X, Y, Btn: Integer); Virtual;
     Procedure MouseUp(Sender: SP_BaseComponent; X, Y, Btn: Integer); Virtual;
     Procedure MouseMove(Sender: SP_BaseComponent; X, Y, Btn: Integer); Virtual;
-    Procedure MouseWheel(Sender: SP_BaseComponent; X, Y, Btn, Delta: Integer); Virtual;
+    Procedure MouseWheel(Sender: SP_BaseComponent; X, Y, Btn, Delta: Integer; Var Handled: Boolean); Virtual;
     Procedure DoubleClick(X, Y, Btn: Integer); Virtual;
     Function  ClientToScreen(p: TPoint): TPoint;
     Function  ScreenToClient(p: TPoint): TPoint;
@@ -266,6 +270,8 @@ SP_BaseComponent = Class
     Function  GetParentWindowID: Integer;
     Function  IsLocked: Boolean;
     Procedure ChangeParent(NewParent: SP_BaseComponent);
+    Procedure CancelKeyRepeat;
+    Procedure SetPadding(Value: Integer);
 
     Procedure RegisterMethod(Name, Params: aString; MethodHandler: SP_MethodHandler);
     Procedure DoMethod(Name: aString; Params: Array of aString; Var Error: TSP_ErrorCode);
@@ -397,6 +403,11 @@ SP_BaseComponent = Class
     Property Tag:           Integer             read fTag             write fTag;
     Property Locked:        Boolean             read IsLocked;
     Property TypeName:      aString             read fTypeName;
+    Property Padding:       Integer             read fPaddingLeft     write SetPadding;
+    Property PaddingLeft:   Integer             read fPaddingLeft     write fPaddingLeft;
+    Property PaddingTop:    Integer             read fPaddingTop      write fPaddingTop;
+    Property PaddingRight:  Integer             read fPaddingRight    write fPaddingRight;
+    Property PaddingBottom: Integer             read fPaddingBottom   write fPaddingBottom;
 
     Constructor Create(Owner: SP_BaseComponent);
     Destructor  Destroy; Override;
@@ -619,6 +630,15 @@ Begin
 
 End;
 
+Procedure SP_BaseComponent.SetPadding(Value: Integer);
+Begin
+  fPaddingLeft   := Value;
+  fPaddingTop    := Value;
+  fPaddingRight  := Value;
+  fPaddingBottom := Value;
+  Paint;
+End;
+
 Procedure SP_BaseComponent.SetChainControl(c: SP_BaseComponent);
 Begin
 
@@ -688,70 +708,66 @@ Var
   i, l, t, w, h: Integer;
 Begin
 
-  Aligning := True;
-  If fParentType = spWindow Then Begin
+  If Aligning Then
+    Exit
+  Else
+    Aligning := True;
+
+  If (fParentType = spWindow) And (fParentControl = nil) Then Begin
     SP_GetWindowDetails(fParentWindowID, Win, Error);
-    pRect := Rect(0, 0, Win^.Width, Win^.Height);
+    pRect := Rect(0, 0, Round(Win^.Width / iSX), Round(Win^.Height / iSY));
     If Win^.CaptionHeight > 0 Then
-      pRect := Rect(pRect.Left +1, pRect.Top + Win^.CaptionHeight, pRect.Width -2, pRect.Height -2);
+      pRect := Rect(pRect.Left + 1, pRect.Top + Win^.CaptionHeight, Round(Win^.Width / iSX) - 1, Round(Win^.Height / iSY) - 1);
   End Else
     pRect := Rect(0, 0, Width, Height);
 
+  pRect := Rect(pRect.Left + fPaddingLeft, pRect.Top + fPaddingTop, pRect.Right - fPaddingRight, pRect.Bottom - fPaddingBottom);
+
+  // Pass 1 - Left/Right/Top/Bottom controls consume space first.
   For i := 0 To Length(fComponentList) -1 Do
     With fComponentList[i] Do
-      If fVisible Then Begin
+      If fVisible And (fAlign In [SP_AlignLeft, SP_AlignRight,
+                                   SP_AlignTop,  SP_AlignBottom]) Then Begin
         Aligning := True;
         l := Left; t := Top; w := Width; h := Height;
         Case fAlign of
-          SP_AlignNone:
-            Begin
-              L := fLeft;
-              T := fTop;
-              W := fWidth;
-              H := fHeight;
-            End;
           SP_AlignLeft:
             Begin
-              L := pRect.Left;
-              T := pRect.Top;
-              W := fWidth;
-              H := pRect.Bottom;
+              L := pRect.Left; T := pRect.Top;
+              W := fWidth;     H := pRect.Bottom - pRect.Top;
               Inc(pRect.Left, fWidth);
             End;
           SP_AlignTop:
             Begin
-              L := pRect.Left;
-              T := pRect.Top;
-              W := pRect.Right;
-              H := fHeight;
+              L := pRect.Left; T := pRect.Top;
+              W := pRect.Right - pRect.Left; H := fHeight;
               Inc(pRect.Top, fHeight);
             End;
           SP_AlignRight:
             Begin
-              L := pRect.Right - fWidth;
-              T := pRect.Top;
-              W := fWidth;
-              H := pRect.Bottom;
+              L := pRect.Right - fWidth; T := pRect.Top;
+              W := fWidth; H := pRect.Bottom - pRect.Top;
               Dec(pRect.Right, fWidth);
             End;
           SP_AlignBottom:
             Begin
-              L := pRect.Left;
-              W := pRect.Right;
-              T := pRect.Bottom - fHeight +1;
-              H := fHeight;
+              L := pRect.Left; W := pRect.Right - pRect.Left;
+              T := pRect.Bottom - fHeight + 1; H := fHeight;
               Dec(pRect.Bottom, fHeight);
-            End;
-          SP_AlignAll:
-            Begin
-              L := pRect.Left;
-              T := pRect.Top;
-              W := pRect.Right;
-              H := pRect.Bottom;
-              pRect := Rect(fWidth, fHeight, 0, 0);
             End;
         End;
         SetBounds(L, T, W, H);
+        Aligning := False;
+      End;
+
+  // Pass 2 - AlignAll fills remaining space.
+  For i := 0 To Length(fComponentList) -1 Do
+    With fComponentList[i] Do
+      If fVisible And (fAlign = SP_AlignAll) Then Begin
+        Aligning := True;
+        SetBounds(pRect.Left, pRect.Top,
+                  pRect.Right  - pRect.Left,
+                  pRect.Bottom - pRect.Top);
         Aligning := False;
       End;
 
@@ -1526,6 +1542,10 @@ Begin
     fHighlightClr := Owner.fHighlightClr;
   End;
   fShadow := False;
+  fPaddingLeft := 0;
+  fPaddingTop := 0;
+  fPaddingRight := 0;
+  fPaddingBottom := 0;
   fShadowClr := 238;
   fColour := SP_UIBtnBack;
   fTransparent := False;
@@ -1572,11 +1592,12 @@ Begin
   // And ensure that mouse and keyboard events don't try to reference this control
 
 
-  If CaptureControl = Self Then
-    CaptureControl := nil;
+  If CaptureControl = Self Then CaptureControl := nil;
+  If FocusedControl = Self Then FocusedControl := nil;
 
-  If FocusedControl = Self Then
-    FocusedControl := nil;
+  fPrevFocus := nil;
+  If Assigned(FocusedControl) And (FocusedControl.fPrevFocus = Self) Then
+    FocusedControl.fPrevFocus := nil;
 
   If MouseControl = Self Then
     MouseControl := nil;
@@ -1831,7 +1852,6 @@ Var
   c: SP_BaseComponent;
   ParentCanFocus: Boolean;
 Begin
-
   If Enabled Then
 
     If b Then Begin
@@ -1847,33 +1867,50 @@ Begin
 
       If fEnabled Then Begin
         c := FocusedControl;
-        fPrevFocus := c;
-        If Assigned(FocusedControl) And (FocusedControl <> Self) And b Then
-          FocusedControl.SetFocus(False);
-        If b Then
-          FocusedControl := Self
-        Else
-          FocusedControl := nil;
-        If (fFocused <> b) or (c <> FocusedControl) then Begin
-          fFocused := b;
+
+        If (c <> nil) And (c <> Self) Then Begin
+          If (c.TypeName = 'spSubMenu') And (Self.TypeName <> 'spSubMenu') Then
+            { Do nothing }
+          Else
+            fPrevFocus := c;
+        End;
+
+        FocusedControl := Self;
+
+        // Now tell the old control to visually deactivate
+        If Assigned(c) And (c <> Self) Then
+          c.SetFocus(False);
+
+        If Not fFocused Then Begin
+          fFocused := True;
           Paint;
         End;
         If b And Assigned(fOnFocus) then
-          fOnFocus(Self, b);
+          fOnFocus(Self, True);
       End;
 
     End Else Begin
 
-      If fFocused <> b then Begin
-        fFocused := b;
+      If fFocused Then Begin
+        { Cancel any in-flight key repeat when this control loses focus }
+        If cKeyRepeat >= 0 Then Begin
+          RemoveTimer(cKeyRepeat);
+          cKeyRepeat := -1;
+        End;
+        fFocused := False;
         Paint;
-        If b And Assigned(fOnFocus) then
-          fOnFocus(Self, b);
-        FocusedControl := nil;
+        If Assigned(fOnFocus) then
+          fOnFocus(Self, False);
+
+        If (FocusedControl = nil) Or (FocusedControl = Self) Then Begin
+          FocusedControl := nil;
+          If Assigned(fPrevFocus) And SP_IsInRegistry(fPrevFocus) Then
+            fPrevFocus.SetFocus(True);
+          fPrevFocus := nil;
+        End;
       End;
 
     End;
-
 End;
 
 Procedure SP_BaseComponent.Paint;
@@ -2052,9 +2089,8 @@ Begin
 
     DisplaySection.Leave;
 
-    Paint;
-
     DoResize(Width - OldWidth, 0);
+    Paint;
   End;
 
 End;
@@ -2087,9 +2123,8 @@ Begin
 
     DisplaySection.Leave;
 
-    Paint;
-
     DoResize(0, Height - OldHeight);
+    Paint;
   End;
 
 End;
@@ -2351,10 +2386,10 @@ Begin
       End;
     End;
     If fShadow Then Begin
-      x1 := fLeft + fWidth;
+      x1 := fLeft + fWidth - fPaddingRight;
       x2 := x1;
-      y1 := fTop +1;
-      y2 := fTop + fHeight;
+      y1 := fTop +1 + fPaddingTop;
+      y2 := fTop + fHeight - fPaddingBottom;
       If SP_LineClip(x1, y1, x2, y2, 0, 0, DW, DH) Then Begin
         Inc(PtrA, (dW * y1) + x1);
         While y1 <> y2 do begin
@@ -2364,9 +2399,9 @@ Begin
         End;
         PtrA^ := fShadowClr;
       End;
-      x1 := fLeft + 1;
-      x2 := fLeft + fWidth -1;
-      y1 := fTop + fHeight;
+      x1 := fLeft + 1 + fPaddingLeft;
+      x2 := fLeft + fWidth -1 - fPaddingRight;
+      y1 := fTop + fHeight - fPaddingBottom;
       y2 := y1;
       If SP_LineClip(x1, y1, x2, y2, 0, 0, DW, DH) Then Begin
         Inc(PtrB, (dW * y1) + x1);
@@ -2404,7 +2439,12 @@ begin
     End;
   End;
 
+  Aligning := False;  // clear so AlignChildren can cascade into our own children
   AlignChildren;
+  // If this component has an alignment, its parent needs to re-layout
+  // so sibling AlignAll controls resize to fill remaining space.
+  If (fAlign <> SP_AlignNone) And Assigned(fParentControl) Then
+    fParentControl.AlignChildren;
 
   HasSized;
 
@@ -2634,8 +2674,19 @@ Var
   b: Boolean;
 Begin
 
+  { Safety net: if the key is no longer physically held (dropped KeyUp, focus
+    change during keypress, etc.) cancel the timer and stop repeating. }
+  If pSP_TimerEvent(p)^.ID <> cKeyRepeat Then
+    Exit;
+
+  If cKEYSTATE[fLastKey] = 0 Then Begin
+    RemoveTimer(cKeyRepeat);
+    cKeyRepeat := -1;
+    Exit;
+  End;
+
   cLastKeyChar := fLastKeyChar;
-  cLastKey := fLastKey;
+  cLastKey     := fLastKey;
 
   PerformKeyDown(b);
 
@@ -2711,8 +2762,10 @@ Begin
 
   If fCanClick Then Begin
     fCanClick := False;
-    If Assigned(OnClick) And Not Assigned(fOnDblClick) Then
+    If Assigned(OnClick) And Not Assigned(fOnDblClick) Then Begin
       OnClick(Self);
+      If Not fValidCanvas Then Exit;  { Self was freed inside OnClick }
+    End;
     If Not IsLocked And (Compiled_OnClick <> '') Then
       SP_AddOnEvent(Compiled_OnClick);
   End;
@@ -2721,7 +2774,6 @@ Begin
     fOnMouseUp(Self, X, Y, Btn);
   If Not IsLocked And (Compiled_OnMouseUp <> '') Then
     SP_AddOnEvent(Compiled_OnMouseUp);
-
 
 End;
 
@@ -2749,16 +2801,13 @@ Begin
 
 End;
 
-Procedure SP_BaseComponent.MouseWheel(Sender: SP_BaseComponent; X, Y, Btn, Delta: Integer);
+Procedure SP_BaseComponent.MouseWheel(Sender: SP_BaseComponent; X, Y, Btn, Delta: Integer; Var Handled: Boolean);
 Begin
 
-  Inherited;
-
   If Assigned(fOnMouseWheel) Then
-    fOnMouseWheel(Self, X, Y, Btn, Delta);
+    fOnMouseWheel(Self, X, Y, Btn, Delta, Handled);
   If Not IsLocked And (Compiled_OnMouseWheel <> '') Then
     SP_AddOnEvent(Compiled_OnMouseWheel);
-
 
 End;
 
@@ -2831,6 +2880,14 @@ Begin
   NewParent.Paint;
   Paint;
 
+End;
+
+Procedure SP_BaseComponent.CancelKeyRepeat;
+Begin
+  If cKeyRepeat >= 0 Then Begin
+    RemoveTimer(cKeyRepeat);
+    cKeyRepeat := -1;
+  End;
 End;
 
 // Property getters and setters

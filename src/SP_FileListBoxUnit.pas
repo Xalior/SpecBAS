@@ -22,7 +22,7 @@ SP_FileListBox = Class(SP_ListBox)
     fFilterList: TAnsiStringlist;
     fHasContentFilter: Boolean;
     fMaxContentLen: Integer;
-    fChangeTimer: pSP_TimerEvent;
+    fChangeTimer: Integer;
     Procedure Populate;
     Procedure AddEntry(Filename: aString; Obj: Pointer; SizeInfo: aString; Size: Int64);
     Procedure SetDirectory(s: aString);
@@ -90,7 +90,7 @@ Begin
   fGotFileList := False;
   fCacheFiles := TStringList.Create;
   fCacheFileSizes := TStringList.Create;
-  fChangeTimer := AddTimer(Self, Round(FPS), ChangeTimer, False, False);
+  fChangeTimer := AddTimer(Self, Round(FPS), ChangeTimer, False, False)^.ID;
 
 End;
 
@@ -100,7 +100,7 @@ Begin
   fFilterList.Free;
   fCacheFiles.Free;
   fCacheFileSizes.Free;
-  RemoveTimer(fChangeTimer^.ID);
+  RemoveTimer(fChangeTimer);
 
   Inherited;
 

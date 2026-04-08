@@ -406,6 +406,8 @@ Procedure SP_Interpret_FN_BINV(Var Info: pSP_iInfo);
 Procedure SP_Interpret_FN_BREV(Var Info: pSP_iInfo);
 Procedure SP_Interpret_FN_INTERP(Var Info: pSP_iInfo);
 Procedure SP_Interpret_FN_PAR(Var Info: pSP_iInfo);
+Procedure SP_Interpret_FN_TRANSLATES(Var Info: pSP_iInfo);
+Procedure SP_Interpret_FN_THREADCOUNT(Var Info: pSP_iInfo);
 
 Procedure SP_FlushCentreBuffer(Var Info: pSP_iInfo);
 Procedure SP_FlushOUTBuffer(Var Info: pSP_iInfo);
@@ -856,6 +858,8 @@ Procedure SP_Interpret_KW_MEMWRITEQ(Var Info: pSP_iInfo);
 Procedure SP_Interpret_KW_MEMWRITEF(Var Info: pSP_iInfo);
 Procedure SP_Interpret_KW_MEMWRITES(Var Info: pSP_iInfo);
 Procedure SP_Interpret_KW_CLS_ALPHA(Var Info: pSP_iInfo);
+Procedure SP_Interpret_KW_SAY(Var Info: pSP_iInfo);
+Procedure SP_Interpret_THREAD(Var Info: pSP_iInfo);
 
 Function  SP_SetUpPROC(CALLType: Byte; Var CacheVal: LongWord; Var Error: TSP_ErrorCode): Integer;
 
@@ -983,31 +987,33 @@ Procedure SP_Interpret_SP_RESTORECOLOURS(Var Info: pSP_iInfo);
 
 Var
 
+  SP_ProcsList: Array [0..MAXDEPTH -1] of TSP_ProcItem;
+  SP_ProcsListPtr: Integer;
+  SP_SourceBreakpointList,
+  SP_ConditionalBreakPointList: Array of TSP_BreakpointInfo;
+  SP_WatchList: Array of TSP_WatchInfo;
+  Il, Nl: LongWord;
+  DummyToken: TToken;
+  InterpretProcs: Array[0..9999] of pSP_InterpretProc;
+  ONCtrlLock: TCriticalSection;
+
+
+ThreadVar
+
+  SP_StackPtr, SP_StackStart: pSP_StackItem;
   SP_ONCtrlList: Array[0..MAXDEPTH -1] of aString;
   SP_ONCtrlListPtr: Integer;
   SP_CaseList: Array[0..MAXDEPTH -1] of TSP_CaseItem;
   SP_CaseListPtr: Integer;
-  SP_ProcsList: Array [0..MAXDEPTH -1] of TSP_ProcItem;
-  SP_ProcsListPtr: Integer;
-  SP_Stack: Array [0..MAXDEPTH -1] of SP_StackItem;
-  SP_StackPtr, SP_StackStart: pSP_StackItem;
   SP_EveryItems: Array of TSP_EveryItem;
-  SP_EveryCount: Integer = 0;
+  SP_EveryCount: Integer;
   SP_FnList: Array of SP_Function_Record;
   SP_IncludeList: Array of SP_IncludedFile;
-  SP_SourceBreakpointList,
-  SP_ConditionalBreakPointList: Array of TSP_BreakpointInfo;
-  SP_WatchList: Array of TSP_WatchInfo;
-  IgnoreEvery: Boolean = False;
-  EveryEnabled: Boolean = True;
-  ReEnableEvery: Boolean = False;
-  IgnoreColours: Boolean = False;
-  Il, Nl: LongWord;
   gbIndices, gbKey, Indices, Str1, Str2, ValTokens: aString;
-  DummyToken: TToken;
-
-  InterpretProcs: Array[0..9999] of pSP_InterpretProc;
-
+  IgnoreEvery: Boolean;
+  EveryEnabled: Boolean;
+  ReEnableEvery: Boolean;
+  IgnoreColours: Boolean;
   ERROR_LineNum, ERROR_Statement, ERROR_St: Integer;
   COLLIDE_LineNum, COLLIDE_Statement, COLLIDE_St: Integer;
   MOUSEDOWN_LineNum, MOUSEDOWN_Statement, MOUSEDOWN_St: Integer;
@@ -1023,10 +1029,11 @@ Var
   OnActive: Word;
   LastRand: aFloat;
   FN_Recursion_Count: LongWord;
-  ONCtrlLock: TCriticalSection;
   DoingOnCtrl: Boolean;
 
 Const
+
+  SP_SECONDARY_STACK_DEPTH = 4096;
 
   OnError:      Word = 1;
   OnEvery:      Word = 2;
@@ -1054,7 +1061,8 @@ Const
 
 implementation
 
-Uses SP_Compiler, SP_Main, SP_Editor, SP_FPEditor, SP_DebugPanel, RunTimeCompiler, SP_Util2, SP_Display, SP_BaseComponentUnit, SP_Graphics32Alpha;
+Uses SP_Compiler, SP_Main, SP_Editor, SP_FPEditor, SP_DebugPanel, RunTimeCompiler, SP_Util2, SP_Display, SP_BaseComponentUnit, SP_Graphics32Alpha,
+     SP_Narrator, SP_NarratorTranslator, SP_BASICInterpreter;
 
 Procedure SP_Execute_Compiled(Line: aString; InitInterpreter: Boolean; Var Error: TSP_ErrorCode);
 Var
@@ -1071,6 +1079,10 @@ Begin
   COMMAND_TOKENS := Line;
   NXTSTATEMENT := -1;
   NXTLINE := -1;
+  While NativeUInt(SP_StackPtr) > NativeUInt(SP_StackStart) Do Begin
+    SP_StackPtr^.Str := '';
+    Dec(SP_StackPtr);
+  End;
   SP_StackPtr := SP_StackStart;
   If InitInterpreter Then
     SP_PreParse(True, True, Error, Tokens^);
@@ -1163,10 +1175,13 @@ Begin
     Inc(NXTLINE);
     If NXTLINE <> 0 Then Begin
       Error.Line := CurLine;
+      While NativeUInt(SP_StackPtr) > NativeUInt(SP_StackStart) Do Begin
+        SP_StackPtr^.Str := '';
+        Dec(SP_StackPtr);
+      End;
       SP_StackPtr := SP_StackStart;
       Error.Code := PreParseErrorCode;
       SP_Interpret(Tokens, Error.Position, Error);
-
       If DEBUGGING Then Begin
         If STEPMODE = SM_Single Then
           Exit;
@@ -1231,6 +1246,11 @@ var
   //s: TFileStream;
   {$ENDIF}
 Begin
+
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
 
   // Create an executable with the current program as a payload.
 
@@ -1345,6 +1365,7 @@ Var
   s: aString;
   l: Integer;
   Error: TSP_ErrorCode;
+  change: Boolean;
 Begin
 
   // Add a new watch (if Index is -1) or replace an existing watch.
@@ -1362,7 +1383,7 @@ Begin
     s := SP_TokeniseLine(Expression, True, False) + #255;
     s := SP_Convert_Expr(s, Error.Position, Error, -1) + #255;
     SP_RemoveBlocks(s);
-    SP_TestConsts(s, 1, Error, False);
+    SP_TestConsts(s, 1, Error, False, change);
     SP_AddHandlers(s);
     Compiled_Expression := #$F + s;
   End;
@@ -1399,7 +1420,7 @@ Var
   s: aString;
   i, l: Integer;
   Error: TSP_ErrorCode;
-  Found, isHidden: Boolean;
+  Found, isHidden, change: Boolean;
 Begin
 
   // Toggles a breakpoint in the internal list used during pre-parsing.
@@ -1444,7 +1465,7 @@ Begin
   s := SP_TokeniseLine(Condition, True, False) + #255;
   s := SP_Convert_Expr(s, Error.Position, Error, -1) + #255;
   SP_RemoveBlocks(s);
-  SP_TestConsts(s, 1, Error, False);
+  SP_TestConsts(s, 1, Error, False, change);
   SP_AddHandlers(s);
 
   SP_SourceBreakPointList[i].PassNum := Passes;
@@ -1460,6 +1481,7 @@ Var
   l: Integer;
   s: aString;
   Error: TSP_ErrorCode;
+  change: Boolean;
 Begin
 
   // Adds a conditional breakpoint to the current list of breakpoints.
@@ -1482,7 +1504,7 @@ Begin
   s := SP_TokeniseLine(Condition, True, False) + #255;
   s := SP_Convert_Expr(s, Error.Position, Error, -1) + #255;
   SP_RemoveBlocks(s);
-  SP_TestConsts(s, 1, Error, False);
+  SP_TestConsts(s, 1, Error, False, change);
   SP_AddHandlers(s);
 
   If IsData Then
@@ -7272,6 +7294,7 @@ Procedure SP_Interpret_FN_VALS(Var Info: pSP_iInfo);
 Var
   ValPosition: Integer;
   ValTkn: paString;
+  change: Boolean;
 Begin
 
   ValPosition := 1;
@@ -7281,7 +7304,8 @@ Begin
     Str1 := SP_TokeniseLine(SP_StackPtr^.Str, True, False) + #255;
     ValTokens := SP_Convert_Expr(Str1, ValPosition, Info^.Error^, -1) + #255;
     SP_RemoveBlocks(ValTokens);
-    SP_TestConsts(ValTokens, 1, Info^.Error^, False);
+    SP_TestConsts(ValTokens, 1, Info^.Error^, False, change);
+    If Change Then SP_FoldConstExprs(ValTokens, 1, Info^.Error^);
     SP_AddHandlers(ValTokens);
   End;
   Dec(SP_StackPtr);
@@ -7428,6 +7452,7 @@ Procedure SP_Interpret_FN_VAL(Var Info: pSP_iInfo);
 Var
   ValPosition: Integer;
   ValTkn: paString;
+  change: Boolean;
 Label
   RunIt;
 Begin
@@ -7440,7 +7465,8 @@ Begin
       Str1 := SP_TokeniseLine(SP_StackPtr^.Str, True, False) + #255;
       ValTokens := SP_Convert_Expr(Str1, ValPosition, Info^.Error^, -1) + #255;
       SP_RemoveBlocks(ValTokens);
-      SP_TestConsts(ValTokens, 1, Info^.Error^, False);
+      SP_TestConsts(ValTokens, 1, Info^.Error^, False, change);
+      If Change Then SP_FoldConstExprs(ValTokens, 1, Info^.Error^);
       SP_AddHandlers(ValTokens);
     End;
   End Else Begin
@@ -8366,6 +8392,7 @@ Procedure SP_Interpret_FN_TOKENS(Var Info: pSP_iInfo);
 Var
   KeyWordID: Integer;
   nError: TSP_ErrorCode;
+  change: Boolean;
 Begin
   With Info^ Do Begin
     With SP_StackPtr^ Do Begin
@@ -8388,18 +8415,21 @@ Begin
             nError.Code := SP_ERR_OK;
             Str := SP_Convert_Expr(Str, nError.Position, nError, -1) + #255;
             SP_RemoveBlocks(Str);
-            SP_TestConsts(Str, 1, Info^.Error^, False);
+            SP_TestConsts(Str, 1, Info^.Error^, False, change);
+            If Change Then SP_FoldConstExprs(Str, 1, Info^.Error^);
             SP_AddHandlers(Str);
             Str := #$F + Str;
           End Else If nError.Code = SP_ERR_OK Then Begin
-            SP_TestConsts(Str, 1, Info^.Error^, False);
+            SP_TestConsts(Str, 1, Info^.Error^, False, change);
+            If Change Then SP_FoldConstExprs(Str, 1, Info^.Error^);
             SP_AddHandlers(Str);
           End Else
             Error^.Code := nError.Code;
         End Else Begin
           Str := SP_Convert_Expr(Str, nError.Position, nError, -1) + #255;
           SP_RemoveBlocks(Str);
-          SP_TestConsts(Str, 1, Info^.Error^, False);
+          SP_TestConsts(Str, 1, Info^.Error^, False, change);
+          If Change Then SP_FoldConstExprs(Str, 1, Info^.Error^);
           SP_AddHandlers(Str);
           Str := #$F + Str;
         End;
@@ -10341,6 +10371,11 @@ Label
   RunIt;
 Begin
 
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   OnActive := 0;
   If Not SP_CheckProgram(True) Then Begin
     Info^.Error^.Code := SP_ERR_SYNTAX_ERROR;
@@ -10489,6 +10524,11 @@ Var
   Token: pToken;
 Begin
 
+If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   If (CONTLINE >= 0) And (CONTLINE < SP_Program_Count) Then Begin
     NXTLINE := CONTLINE;
     If CONTSTATEMENT = 0 Then Inc(CONTSTATEMENT);
@@ -10582,7 +10622,13 @@ End;
 Procedure SP_Interpret_STOP(Var Info: pSP_iInfo);
 Begin
 
-  Info^.Error^.Code := SP_ERR_STOP;
+  // On a secondary thread, STOP terminates only that thread cleanly
+  // by setting BREAKSIGNAL - the secondary loop checks this each iteration.
+  // On the primary, STOP raises SP_ERR_STOP as normal.
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then
+    BREAKSIGNAL := True
+  Else
+    Info^.Error^.Code := SP_ERR_STOP;
 
 End;
 
@@ -11528,11 +11574,11 @@ Begin
     Delay := FRAMES + Delay;
     Repeat
       CB_YIELD(FRAME_MS);
-    Until (FRAMES >= Delay) or (Length(ActiveKeys) <> 0) or QUITMSG;
+    Until (FRAMES >= Delay) or (Length(ActiveKeys) <> 0) or QUITMSG or BREAKSIGNAL;
   End Else
     Repeat
       CB_YIELD(FRAME_MS);
-    Until (Length(ActiveKeys) <> 0) or QUITMSG;
+    Until (Length(ActiveKeys) <> 0) or QUITMSG or BREAKSIGNAL;
 
   If KEYSTATE[K_ESCAPE] = 1 Then BreakSignal := True;
 
@@ -12463,6 +12509,11 @@ Var
   LineStart: Integer;
 Begin
 
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   Filename := SP_StackPtr^.Str;
   Dec(SP_StackPtr);
   If SP_StackPtr <> SP_StackStart then Begin
@@ -12487,6 +12538,11 @@ Var
   Filename: aString;
   LineStart: LongWord;
 Begin
+
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
 
   Filename := SP_StackPtr^.Str;
   Dec(SP_StackPtr);
@@ -12574,6 +12630,11 @@ Var
   Filename: aString;
 Begin
 
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   Filename := SP_StackPtr^.Str;
   Dec(SP_StackPtr);
 
@@ -12595,12 +12656,8 @@ Begin
     If Filename <> 's:autosave' Then
       SP_CLS(CPAPER);
     If EDITORREADY Then Begin
-      SP_FPWrapProgram;
       Listing.FPCLine := 0;
       Listing.FPCPos := 1;
-      FPScrollBars[SP_FindScrollBar(FPVertSc)].Position := 0;
-      SP_ScrollInView(True);
-      SP_ClearEditorMarks;
     End;
   End Else
     LASTFILENAME := '';
@@ -12611,6 +12668,11 @@ Procedure SP_Interpret_MERGE(Var Info: pSP_iInfo);
 Var
   Filename: aString;
 Begin
+
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
 
   Filename := SP_StackPtr^.Str;
   Dec(SP_StackPtr);
@@ -14628,9 +14690,19 @@ Var
   Dir: aString;
 Begin
 
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   With Info^ Do Begin
 
     DoAutoSave(True);
+
+    // Drain any running secondary threads before modifying SP_Program.
+    BREAKSIGNAL := True;
+    SP_WaitForSecondaries;
+    BREAKSIGNAL := False;
 
     SP_DeleteIncludes;
     If PackageIsOpen Then SP_ClosePackage;
@@ -14677,6 +14749,7 @@ Begin
     MATHMODE := 0;
     FILECHANGED := False;
     SP_MakeSystemSounds;
+    SP_SetCurrentWindowSettings;
     Error.Code := SP_EXIT;
 
   End;
@@ -14687,6 +14760,11 @@ Procedure SP_Interpret_ON(Var Info: pSP_iInfo);
 Var
   Condition: aString; Every: Integer;
 Begin
+
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
 
   Condition := SP_StackPtr^.Str;
   Dec(SP_StackPtr);
@@ -14724,6 +14802,11 @@ End;
 Procedure SP_Interpret_ON_COLLIDE(Var Info: pSP_iInfo);
 Begin
 
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   With Info^ Do Begin
     COLLIDE_LineNum := Error^.Line;
     COLLIDE_Statement := Error^.Position;
@@ -14737,7 +14820,12 @@ End;
 Procedure SP_Interpret_ON_MOUSEDOWN(Var Info: pSP_iInfo);
 Begin
 
-  With Info^ Do Begin
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
+   With Info^ Do Begin
     MOUSEDOWN_LineNum := Error^.Line;
     MOUSEDOWN_Statement := Error^.Position;
     MOUSEDOWN_St := Error^.Statement;
@@ -14749,6 +14837,11 @@ End;
 
 Procedure SP_Interpret_ON_MOUSEMOVE(Var Info: pSP_iInfo);
 Begin
+
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
 
   With Info^ Do Begin
     MOUSEMOVE_LineNum := Error^.Line;
@@ -14763,6 +14856,11 @@ End;
 Procedure SP_Interpret_ON_MOUSEUP(Var Info: pSP_iInfo);
 Begin
 
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   With Info^ Do Begin
     MOUSEUP_LineNum := Error^.Line;
     MOUSEUP_Statement := Error^.Position;
@@ -14775,6 +14873,11 @@ End;
 
 Procedure SP_Interpret_ON_KEYDOWN(Var Info: pSP_iInfo);
 Begin
+
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
 
   With Info^ Do Begin
     KEYDOWN_LineNum := Error^.Line;
@@ -14789,6 +14892,11 @@ End;
 Procedure SP_Interpret_ON_KEYUP(Var Info: pSP_iInfo);
 Begin
 
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   With Info^ Do Begin
     KEYUP_LineNum := Error^.Line;
     KEYUP_Statement := Error^.Position;
@@ -14802,6 +14910,11 @@ End;
 Procedure SP_Interpret_ON_WHEELUP(Var Info: pSP_iInfo);
 Begin
 
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   With Info^ Do Begin
     WHEELUP_LineNum := Error^.Line;
     WHEELUP_Statement := Error^.Position;
@@ -14814,6 +14927,11 @@ End;
 
 Procedure SP_Interpret_ON_WHEELDOWN(Var Info: pSP_iInfo);
 Begin
+
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
 
   With Info^ Do Begin
     WHEELDOWN_LineNum := Error^.Line;
@@ -14852,6 +14970,11 @@ End;
 Procedure SP_Interpret_ON_MENU_SHOW(Var Info: pSP_iInfo);
 Begin
 
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   With Info^ Do Begin
     MENUSHOW_LineNum := Error^.Line;
     MENUSHOW_Statement := Error^.Position;
@@ -14865,6 +14988,11 @@ End;
 Procedure SP_Interpret_ON_MENU_HIDE(Var Info: pSP_iInfo);
 Begin
 
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   With Info^ Do Begin
     MENUHIDE_LineNum := Error^.Line;
     MENUHIDE_Statement := Error^.Position;
@@ -14877,6 +15005,11 @@ End;
 
 Procedure SP_Interpret_ON_MENUITEM(Var Info: pSP_iInfo);
 Begin
+
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
 
   With Info^ Do Begin
     MENUITEM_LineNum := Error^.Line;
@@ -15915,6 +16048,7 @@ Begin
   If Info^.Error.Code = SP_ERR_OK Then Begin
     CFONT := FontID;
     T_FONT := FontID;
+    SP_GetFontCharMetrics(FontID);
   End;
 
 End;
@@ -16224,6 +16358,11 @@ Var
   Size: Integer;
 Begin
 
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   If SP_StackPtr^.OpType <> SP_NUMVAR Then
     Size := Round(SP_StackPtr^.Val)
   Else Begin
@@ -16239,6 +16378,11 @@ Procedure SP_Interpret_BANK_SIZE(Var Info: pSP_iInfo);
 Var
   ID, Size: Integer;
 Begin
+
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
 
   ID := Round(SP_StackPtr^.Val);
   Dec(SP_StackPtr);
@@ -16258,6 +16402,11 @@ Var
   ID: Integer;
 Begin
 
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   ID := Round(SP_StackPtr^.Val);
   Dec(SP_StackPtr);
 
@@ -16274,6 +16423,11 @@ Var
   Idx: Integer;
 Begin
 
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   Idx := 0;
   While Idx < Length(SP_BankList) Do
     If Not pSP_Bank(SP_BankList[Idx])^.Protection Then
@@ -16287,6 +16441,11 @@ Procedure SP_Interpret_BANK_COPY(Var Info: pSP_iInfo);
 Var
   SrcID, DstID: Integer;
 Begin
+
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
 
   SrcID := Round(SP_StackPtr^.Val);
   Dec(SP_StackPtr);
@@ -16309,6 +16468,11 @@ Procedure SP_Interpret_BANK_COPY_EX(Var Info: pSP_iInfo);
 Var
   SrcID, DstID, Start, Len, Offset: Integer;
 Begin
+
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
 
   SrcID := Round(SP_StackPtr^.Val);
   Dec(SP_StackPtr);
@@ -16610,14 +16774,39 @@ Var
   NewError: TSP_ErrorCode;
   LineItem: TSP_GOSUB_Item;
   pTokens: paString;
-  OldCommand, Tkns: aString;
-  CurLine: Integer;
-  NextStatement: Boolean;
+  OldCommand, Tkns, Payload: aString;
+  CurLine, oldStepMode: Integer;
+  NextStatement, change, IsAsync: Boolean;
 Begin
 
   // Stack our current position in the program, so we can return later
 
   If SP_StackPtr^.Str = '' Then Exit;
+
+  // Check for ASYNC flag - emitted as a numeric 1.0 on the stack by
+  // SP_Convert_EXECUTE when the ASYNC keyword follows the string expr.
+  IsAsync := False;
+  If SP_StackPtr^.OpType = SP_VALUE Then Begin
+    IsAsync := SP_StackPtr^.Val = 1.0;
+    Dec(SP_StackPtr);
+    If SP_StackPtr^.Str = '' Then Exit;
+  End;
+
+  // ASYNC: tokenise, compile, and hand off to a new secondary thread.
+  If IsAsync Then Begin
+    Payload := SP_StackPtr^.Str;
+    Dec(SP_StackPtr);
+    If Payload[1] <> aChar($0E) Then Begin
+      Payload := SP_TokeniseLine(Payload, False, False) + SP_TERMINAL_SEQUENCE;
+      SP_Convert_ToPostFix(Payload, NewError.Position, NewError);
+      If NewError.Code <> SP_ERR_OK Then Begin
+        CopyMem(@Info^.Error^.Line, @NewError.Line, SizeOf(TSP_ErrorCode));
+        Exit;
+      End;
+    End;
+    SP_LaunchSecondary(Payload);
+    Exit;
+  End;
 
   With Info^ Do Begin
 
@@ -16660,7 +16849,8 @@ Begin
             Str := Copy(Str, 1, newError.Position) + LongWordToString(SP_KW_PRINT) + Copy(Str, newError.Position + 2);
           End;
           SP_Convert_ToPostFix(Str, NewError.Position, NewError);
-          SP_TestConsts(Str, 1, NewError, False);
+          SP_TestConsts(Str, 1, NewError, False, change);
+          If Change Then SP_FoldConstExprs(Str, 1, Info^.Error^);
           If NewError.Code <> SP_ERR_OK Then Begin
             CopyMem(@Error^.Line, @NewError.Line, SizeOf(TSP_ErrorCode));
             Dec(SP_GOSUB_STACKPTR);
@@ -16685,7 +16875,10 @@ Begin
         NextStatement := False;
 
         pTokens := @Tkns;
+        oldStepMode := StepMode;
+        StepMode := SM_None;
         SP_InterpretCONTSafe(pTokens, NewError.Position, NewError);
+        StepMode := oldStepMode;
 
         // If the code caused an Error, then bail now and remove the return address from the stack
 
@@ -17737,6 +17930,11 @@ Var
   Ptr: pLongWord;
 Begin
 
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   If SP_StackPtr^.OpType = SP_NUMVAR Then Begin
     Name := SP_StackPtr^.Str;
     Ptr := SP_StackPtr^.Ptr;
@@ -17928,6 +18126,11 @@ Var
   BankID: Integer;
 Begin
 
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   BankID := Round(SP_StackPtr^.Val);
   Dec(SP_StackPtr);
   If SP_Bank_Protect(BankID, False) < 0 Then
@@ -17939,6 +18142,11 @@ Procedure SP_Interpret_BANK_DEPROTECT(Var Info: pSP_iInfo);
 Var
   BankID: Integer;
 Begin
+
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
 
   BankID := Round(SP_StackPtr^.Val);
   Dec(SP_StackPtr);
@@ -19931,6 +20139,11 @@ Var
   Start, Finish, Line, Step: Integer;
 Begin
 
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
   Step := Round(SP_StackPtr^.Val);
   Dec(SP_StackPtr);
 
@@ -19953,6 +20166,11 @@ Procedure SP_Interpret_ERASE_LINES(Var Info: pSP_iInfo);
 Var
   Start, Finish, ProgLen: Integer;
 Begin
+
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
 
   Finish := Round(SP_StackPtr^.Val);
   Dec(SP_StackPtr);
@@ -27795,6 +28013,78 @@ Begin
 
 End;
 
+Procedure SP_Interpret_KW_SAY(Var Info: pSP_iInfo);
+Var
+  Phonemes: aString;
+  Params:   TNarratorParams;
+  Async:    Boolean;
+Begin
+  SP_NarratorDefaultParams(Params);
+
+  Phonemes      := SP_StackPtr^.Str;
+  Dec(SP_StackPtr);
+
+  Params.Pitch  := Round(SP_StackPtr^.Val);
+  Dec(SP_StackPtr);
+
+  Params.Rate   := Round(SP_StackPtr^.Val);
+  Dec(SP_StackPtr);
+
+  Params.Sex    := Round(SP_StackPtr^.Val);
+  Dec(SP_StackPtr);
+
+  Async         := SP_StackPtr^.Val <> 0;
+  Dec(SP_StackPtr);
+
+  SP_Say(Phonemes, Params, Async);
+End;
+
+Procedure SP_Interpret_FN_TRANSLATES(Var Info: pSP_iInfo);
+Begin
+  SP_StackPtr^.Str := SP_NarratorTranslate(SP_StackPtr^.Str);
+End;
+
+Procedure SP_Interpret_THREAD(Var Info: pSP_iInfo);
+Var
+  Flag: Integer;
+Begin
+
+  // Dispatched by SP_Convert_THREAD.  Flag on stack:
+  //   1 = THREAD WAIT  - block until all secondaries done (no forced stop)
+  //   2 = THREAD STOP  - set BREAKSIGNAL, wait, clear BREAKSIGNAL
+  //   3 = THREAD COUNT - unused as statement; here for completeness
+
+  Flag := Round(SP_StackPtr^.Val);
+  Dec(SP_StackPtr);
+
+  // THREAD WAIT and THREAD STOP are primary-only.
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
+  Case Flag Of
+    1: SP_WaitForSecondaries;
+    2: Begin
+         BREAKSIGNAL := True;
+         SP_WaitForSecondaries;
+         BREAKSIGNAL := False;
+       End;
+  End;
+
+End;
+
+Procedure SP_Interpret_FN_THREADCOUNT(Var Info: pSP_iInfo);
+Begin
+
+  // THREAD COUNT - returns the number of currently live secondary threads.
+  // Available on any thread (primary or secondary).
+  Inc(SP_StackPtr);
+  SP_StackPtr^.Val    := SP_SecondaryCount;
+  SP_StackPtr^.OpType := SP_VALUE;
+
+End;
+
 Initialization
 
   ONCtrlLock := TCriticalSection.Create;
@@ -28302,6 +28592,8 @@ Initialization
   InterpretProcs[SP_KW_CTRL_UNLOCK] := @SP_Interpret_CTRL_UNLOCK;
   InterpretProcs[SP_KW_CTRL_LIST] := @SP_Interpret_CTRL_LIST;
   InterpretProcs[SP_KW_CTRL_ERASE] := @SP_Interpret_CTRL_ERASE;
+  InterpretProcs[SP_KW_SAY] := @SP_Interpret_KW_SAY;
+  InterpretProcs[SP_KW_THREAD] := @SP_Interpret_THREAD;
 
   // Functions
 
@@ -28580,6 +28872,8 @@ Initialization
   InterpretProcs[SP_FN_PAR] := @SP_Interpret_FN_PAR;
   InterpretProcs[SP_FN_FILEREQ] := @SP_Interpret_FN_FILEREQ;
   InterpretProcs[SP_FN_CTRLATTR] := @SP_Interpret_FN_CTRLATTR;
+  InterpretProcs[SP_FN_TRANSLATES] := @SP_Interpret_FN_TRANSLATES;
+  InterpretProcs[SP_FN_THREADCOUNT] := @SP_Interpret_FN_THREADCOUNT;
 
   // Tokens
 
@@ -28723,11 +29017,6 @@ Initialization
   DummyToken.Handler := nil;
   DummyToken.TokenPos := 0;
   DummyToken.TokenLen := 0;
-
-  SP_StackStart := @SP_Stack[0];
-  Dec(SP_StackStart);
-
-  SP_StackPtr := SP_StackStart;
 
 Finalization
 

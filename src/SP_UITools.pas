@@ -5,24 +5,34 @@ unit SP_UITools;
 interface
 
 Uses Types, SysUtils, Math, SyncObjs, SP_Tokenise, SP_Components, SP_Util, SP_BankFiling, SP_Errors, SP_SysVars, SP_Graphics, SP_FileIO, SP_BankManager, SP_Package,
-     SP_ButtonUnit, SP_RadioGroupUnit, SP_BaseComponentUnit, SP_CheckBoxUnit, SP_ComboBoxUnit, SP_LabelUnit, SP_FileListBoxUnit, SP_EditUnit, SP_ContainerUnit;
+     SP_ButtonUnit, SP_RadioGroupUnit, SP_BaseComponentUnit, SP_CheckBoxUnit, SP_ComboBoxUnit, SP_LabelUnit, SP_FileListBoxUnit, SP_EditUnit, SP_ContainerUnit,
+     SP_BASICEditorUnit;
 
 Type
 
+  SP_About = Class
+    Procedure Open(Animate: Boolean = False);
+    Procedure DoAnim(Control: SP_BaseComponent);
+    Procedure OnKeyDown(Sender: SP_BaseComponent; Key: Integer; Down: Boolean; Var Handled: Boolean);
+    Procedure OnMouseDown(Sender: SP_BaseComponent; Mx, My, Button: Integer);
+  End;
+
   SP_FindReplace = Class
     FindMode: Boolean;
+    Editor: SP_BASICEditor;
     okBtn, allBtn, caBtn: SP_Button;
     dirGroup, originGroup: SP_RadioGroup;
     caseChk, wholeChk, inselChk, expChk: SP_CheckBox;
     searchEdt, replaceEdt: SP_ComboBox;
     searchLbl, replaceLbl: SP_Label;
-    Function Open(Mode: Boolean): Integer;
+    Function  Open(Mode: Boolean; Editor: SP_BASICEditor): Integer;
     Procedure OkBtnClick(Sender: SP_BaseComponent);
     Procedure CancelBtnClick(Sender: SP_BaseComponent);
     Procedure searchEdtChange(Sender: SP_BaseComponent; Text: aString);
     Procedure Accept(Sender: SP_BaseComponent; s: aString);
     Procedure Abort(Sender: SP_BaseComponent);
     Procedure expChkChange(Sender: SP_BaseComponent);
+    Function  OnEvalExpr(Sender: SP_BaseComponent; Const Expr: aString; Var Error: TSP_ErrorCode): aString;
   end;
 
   SP_FileRequester = Class
@@ -78,7 +88,8 @@ Type
     Procedure Abort(Sender: SP_BaseComponent);
   End;
 
-  Function OpenFileReq(Caption, Filename, Filter: aString; Save: Boolean; Var Error: TSP_ErrorCode): aString;
+  Procedure ShowAboutDialog(Animate: Boolean = False);
+  Function  OpenFileReq(Caption, Filename, Filter: aString; Save: Boolean; Var Error: TSP_ErrorCode): aString;
 
 Const
 
@@ -93,11 +104,12 @@ Const
 
 Var
 
+  preToolWindow: Integer;
   DefaultWindow: Integer;
 
 implementation
 
-Uses SP_Main, SP_FPEditor, SP_Input, MainForm, SP_Interpret_PostFix, SP_MenuActions;
+Uses SP_Main, SP_FPEditor, SP_Input, MainForm, SP_Interpret_PostFix, SP_MenuActions, SP_MemoUnit, SP_BASICEditorHostUnit, SP_Sound;
 
 Var
 
@@ -105,22 +117,42 @@ Var
   SearchHistory: TStringlist;
   ReplaceHistory: TStringlist;
 
+Procedure RestoreEditorFocus;
+Begin
+  SwitchFocusedWindow(preToolWindow);
+  if preToolWindow = fwEditor Then
+  Begin
+    If Assigned(FPBASICEditor) Then
+      FPBASICEditor.SetFocus(True);
+  End Else
+    If preToolWindow = fwDirect Then
+      If Assigned(DWBASICEditor) Then
+        DWBASICEditor.SetFocus(True);
+End;
+
 Procedure WaitForDialog;
 Var
   Locked, Mouse: Boolean;
 Begin
 
   SP_ClearAllKeys;
+  RemoveTimerByProc(@SP_BaseComponent.KeyRepeat);
+
   Mouse := MOUSEVISIBLE;
   Locked := SCREENLOCK;
   SCREENLOCK := False;
   MOUSEVISIBLE := True;
+
   While Not ToolWindowDone And Not QUITMSG Do Begin
     SP_WaitForSync;
     DoTimerEvents;
   End;
+  SP_ClearAllKeys;   // ensure no key-down state leaks after dialog closes
+
   SCREENLOCK := Locked;
   MOUSEVISIBLE := Mouse;
+  RestoreEditorFocus;
+  SP_SetDrawingWindow(PreToolWindow);
 
 End;
 
@@ -131,6 +163,7 @@ Var
   Error: TSP_ErrorCode;
 Begin
 
+  preToolWindow := FocusedWindow;
   DefaultWindow := SCREENBANK;
   FPEditorDRPOSX := DRPOSX;
   FPEditorDRPOSY := DRPOSY;
@@ -153,10 +186,8 @@ Begin
 
   For Idx := 0 To 255 Do Win^.Palette[Idx] := DefaultPalette[Idx];
 
-  SP_Decorate_Window(Result, Caption, True, False, True);
-
-  SP_SetPixelClr(Win^.Width -2, Win^.Height -2, 0);
-  SP_SetPixelClr(1, Win^.Height -2, 0);
+  If Caption <> '' Then
+    SP_Decorate_Window(Result, Caption, True, False, True);
 
   DRPOSX := FPEditorDRPOSX;
   DRPOSY := FPEditorDRPOSY;
@@ -164,7 +195,6 @@ Begin
   PRPOSY := FPEditorPRPOSY;
   COVER := FPEditorOVER;
   T_OVER := COVER;
-  SP_SetDrawingWindow(DefaultWindow);
 
   MODALWINDOW := Result;
 
@@ -427,8 +457,6 @@ Begin
   pBtn.Paint;
   okBtn.Paint;
 
-  SP_SetDrawingWindow(DefaultWindow);
-
   DisplaySection.Leave;
 
   // Spin, waiting for the tool to finish.
@@ -448,13 +476,12 @@ End;
 
 // Find Dialog
 
-Function SP_FindReplace.Open(Mode: Boolean): Integer;
+Function SP_FindReplace.Open(Mode: Boolean; Editor: SP_BASICEditor): Integer;
 Var
   FW, FH, w, h, tp, cw, nBW, nBH: Integer;
   Caption: aString;
   Win: pSP_Window_Info;
   Error: TSP_ErrorCode;
-  Sel: SP_SelectionInfo;
 Begin
 
   Result := -1;
@@ -478,6 +505,8 @@ Begin
   FindMode := Mode;
   If FindMode Then Caption := 'Find...' else Caption := 'Replace...';
 
+  Self.Editor := Editor;
+
   w := 38 * FW; h := FPFh + 23 + (10 * FH) + (Ord(Not FindMode) * (nbh + FH)) + (5 * nbh) + 8;
   FDWindowID := CreateToolWindow(Caption, (DISPLAYWIDTH - w) Div 2, (DISPLAYHEIGHT - h) Div 2, w, h);
   Dec(w, 1); // Account for the one-pixel border around the window when placing items
@@ -499,6 +528,7 @@ Begin
     searchEdt.SetBounds(searchLbl.Left + searchLbl.Width + nbw, searchLbl.Top -2, w - (searchLbl.Left + searchLbl.Width + (nbw * 2)) +1, searchLbl.Height);
     searchEdt.Editable := True;
     tp := searchEdt.Top + searchEdt.Height + nbh;
+    LastFindwasReplace := False;
   End Else Begin
     searchLbl.Caption := 'Replace:';
     searchLbl.SetBounds(nBw +1, FPCaptionHeight + 2 + nBh, FW * Length(searchLbl.Caption), FH);
@@ -522,6 +552,7 @@ Begin
     replaceEdt.ChainControl := searchEdt;
     searchEdt.ChainControl := replaceEdt;
     tp := replaceEdt.Top + replaceEdt.Height + nbh;
+    LastFindwasReplace := True;
   End;
   searchEdt.OnAccept := Accept;
   searchEdt.OnAbort := Abort;
@@ -607,12 +638,8 @@ Begin
 
   // Now run the dialog
 
-  SP_SetDrawingWindow(DefaultWindow);
-  SP_DisplayFPListing(-1);
-
-  SP_GetSelectionInfo(Sel);
-  inSelChk.Enabled := Sel.Active;
-  inSelChk.Checked := Sel.Active;
+  inSelChk.Enabled := Assigned(Editor) And Editor.HasSelection;
+  inSelChk.Checked := inSelChk.Enabled;
 
   If Not FindMode Then Begin
     okBtn.Enabled := searchEdt.Text <> '';
@@ -664,9 +691,7 @@ Begin
     allBtn.Enabled := OkBtn.Enabled;
   End;
 
-  If (OkBtn.Enabled or (SearchEdt.Text = '')) And FPSearchPanel.Visible Then
-    FPSearchBox.Text := SearchEdt.Text;
-
+  //* set search text in control if visible
 
 End;
 
@@ -675,6 +700,11 @@ Begin
 
   searchEdtChange(nil, searchEdt.Text);
 
+End;
+
+Function SP_FindReplace.OnEvalExpr(Sender: SP_BaseComponent; Const Expr: aString; Var Error: TSP_ErrorCode): aString;
+Begin
+  Result := SP_FPExecuteAnyExpression(Expr, Error);
 End;
 
 Procedure SP_FindReplace.OkBtnClick(Sender: SP_BaseComponent);
@@ -718,6 +748,12 @@ Begin
     End;
 
   FPSearchOptions := sOpt;
+  // Run the search directly on the component.
+  // soExpression evaluation is wired via OnEval to SP_FPExecuteAnyExpression.
+  If FindMode Then
+    Editor.BASICFindAll(FPSearchTerm, sOpt, OnEvalExpr)
+  Else
+    Editor.BASICReplaceAll(FPSearchTerm, FPReplaceTerm, sOpt, OnEvalExpr);
   ToolWindowDone := True;
 
 End;
@@ -799,8 +835,6 @@ Begin
   // Now run the dialog
 
   SwitchFocusedWindow(-1);
-  SP_DisplayFPListing(-1);
-  SP_SetDrawingWindow(DefaultWindow);
 
   DisplaySection.Leave;
 
@@ -841,7 +875,6 @@ Var
   Error: TSP_ErrorCode;
   s, l, lineTxt, statementTxt: aString;
   b: Boolean;
-  searchOpt: SP_SearchOptions;
   Found: TPoint;
   line, statement: aFloat;
   i: Integer;
@@ -871,11 +904,8 @@ Begin
       i := 1;
       b := b And SP_GetNumber(s, i, statement, True);
 
-      If Not b Then Begin
-        searchOpt := [soForward, soCondenseSpaces];
-        Found := SP_FindText('LABEL @'+lineEdt.Text, 0, 1, searchOpt);
-        b := Found.y >= 0;
-      End;
+      If Not b Then
+        b := Assigned(FPBASICEditor) And FPBASICEditor.LabelExists(lineEdt.Text);
 
     End Else Begin
 
@@ -1037,8 +1067,6 @@ begin
 
   Accepted := False;
   SwitchFocusedWindow(-1);
-  SP_DisplayFPListing(-1);
-  SP_SetDrawingWindow(DefaultWindow);
 
   DisplaySection.Leave;
 
@@ -1069,7 +1097,6 @@ begin
 
   SP_SetSystemFont(Font, Error);
   SP_DeleteWindow(FDWindowID, Error);
-  SP_DisplayFPListing(-1);
   SP_InvalidateWholeDisplay;
   Free;
 
@@ -1143,7 +1170,6 @@ Var
   Error: TSP_ErrorCode;
   Line, Statement: aFloat;
   LineTxt, StatementTxt, Text, s, l: aString;
-  searchOpt: SP_SearchOptions;
   b, b2, b3: Boolean;
 Begin
 
@@ -1184,11 +1210,8 @@ Begin
     i := 1;
     b := b And SP_GetNumber(s, i, statement, True) and (st <> MAXINT) and (st > 0);
 
-    If Not b Then Begin
-      searchOpt := [soForward, soCondenseSpaces];
-      Found := SP_FindText('LABEL @'+edtLine.Text, 0, 1, searchOpt);
-      b := Found.y >= 0;
-    End;
+    If Not b Then
+      b := Assigned(FPBASICEditor) And FPBASICEditor.LabelExists(EdtLine.Text);
 
     If not b Then
       lblLine.FontClr := 2
@@ -1269,6 +1292,212 @@ Begin
 
   ToolWindowDone := True;
 
+End;
+
+Procedure ShowAboutDialog(Animate: Boolean);
+Var
+  aboutDialog: SP_About;
+Begin
+
+  aboutDialog := SP_About.Create;
+  aboutDialog.Open(Animate);
+
+End;
+
+Procedure SP_About.Open(Animate: Boolean);
+Var
+  ctr: SP_Container;
+  Error: TSP_ErrorCode;
+  win: pSP_Window_Info;
+  Text, StripeText: aString;
+  Font, w, h, x, cnt: Integer;
+Const
+  stClrRed = #10;
+  stClrYellow = #14;
+  stClrGreen = #12;
+  stClrCyan = #5;
+  stClrBlue = #9;
+Begin
+
+  DisplaySection.Enter;
+
+  ToolWindowDone := False;
+
+  Font := SP_SetFPEditorFont;
+  If SYSTEMSTATE in [SS_EDITOR, SS_DIRECT, SS_NEW, SS_ERROR] Then Begin
+    FW := Trunc(FONTWIDTH * EDFONTSCALEX);
+    FH := Trunc(FONTHEIGHT * EDFONTSCALEY);
+  End Else Begin
+    FH := FONTHEIGHT;
+    FW := FONTWIDTH;
+  End;
+
+  W := Min(Fw * 48, DISPLAYWIDTH);
+  H := Fh * 14;
+
+  FDWindowID := CreateToolWindow('', (DISPLAYWIDTH - w) Div 2, (DISPLAYHEIGHT - h) Div 2, w, h);
+  SP_GetWindowDetails(FDWindowID, Win, Error);
+  SP_SetDrawingWindow(FDWindowID);
+
+  Text := #32#32#32#32#32#32#32#32#32#32#32#32#32#32#32#32#32#32#32#138#13+
+          #32#32#139#131#131#131#133#131#131#131#138#139#131#131#135#133#131#131#131#130#139#131#131#135#129#131#131#131#138#139#131#131#131#13+
+          #32#32#131#131#131#135#133#131#131#131#130#139#131#131#131#133#32#32#32#32#138#32#32#133#133#131#131#131#138#131#131#131#135#13+
+          #32#32#131#131#131#131#129#32#32#32#32#131#131#131#131#129#131#131#131#130#131#131#131#131#129#131#131#131#130#131#131#131#131;
+  StripeText := #16+stClrRed+#0#0#0#255#16+stClrYellow+#0#0#0#17+stClrRed+#0#0#0#255#16+stClrGreen+#0#0#0#17+stClrYellow+#0#0#0#255#16+stClrCyan+#0#0#0#17+stClrGreen+#0#0#0#255#16#0#0#0#0#17+stClrCyan+#0#0#0#255;
+
+  ctr := SP_Container.Create(Win^.Component);
+  ctr.Transparent := False;
+  ctr.BackgroundClr := 0;
+  ctr.Border := False;
+  ctr.Proportional := False;
+  ctr.Align := SP_AlignAll;
+  ctr.OnMouseDown := OnMouseDown;
+  ctr.OnKeyDown := OnKeyDown;
+  ctr.SetFocus(True);
+  CaptureControl := ctr;
+  ForceCapture := True;
+
+  ctr.PRINT(8, 8, Text, 2, 0, 1, 1, False, False, False, False);
+  ctr.PRINT(16, 40, 'Version ' + BuildStr, 7, 0, 1, 1, False, False, False, False);
+
+  DisplaySection.Leave;
+
+  If Animate Then
+    DoAnim(ctr);
+
+  Cnt := H - 4;
+  x := 48;
+  While x > 0 Do Begin
+    Ctr.PRINT(W - x, Cnt, StripeText, 0, 0, 1, 2, False, False, False, False);
+    Dec(Cnt, 16); Dec(x, 8);
+  End;
+  ctr.PRINT(16, H - 22, #127+' '+IntToString(CurrentYear)+' ZX Development Ltd.', 232, 0, 1, 1, False, False, False, False);
+
+  SP_InvalidateWholeDisplay;
+  SP_WaitForSync;
+
+  // Now run the dialog
+
+  SwitchFocusedWindow(-1);
+
+  WaitForDialog;
+
+  ctr.SetFocus(False);
+  CaptureControl := nil;
+  ForceCapture := False;
+
+  SP_SetSystemFont(Font, Error);
+  SP_DeleteWindow(FDWindowID, Error);
+  SP_InvalidateWholeDisplay;
+  ForceCapture := False;
+  Free;
+
+End;
+
+Procedure SP_About.DoAnim(Control: SP_BaseComponent);
+Var
+  TargetTicks: aFloat;
+  Error: TSP_ErrorCode;
+  WinW, WinH, sz, x, cnt, ofs, ink: Integer;
+
+  Procedure Update;
+  Begin
+    SP_InvalidateWholeDisplay;
+    SP_NeedDisplayUpdate := True;
+  End;
+
+Begin
+  WinW := Control.Width;
+  WinH := Control.Height;
+
+  Delay(250);
+  SP_PlaySignature;
+
+  // If the sample bank is playing, then start drawing loading stripes
+
+  If SIGSAMPLEBANK > -1 Then Begin
+
+    // Red border
+    For x := 16 To WinW -16 Do
+      Control.DrawLine(x, WinH - 32, x, WinH -16, 2);
+    TargetTicks := CB_GetTicks + 35;
+    Update;
+    Repeat
+      SP_WaitForSync;
+    Until CB_GetTicks >= TargetTicks;
+    // Cyan border
+    For x := 16 To WinW -16 Do
+      Control.DrawLine(x, WinH - 32, x, WinH -16, 5);
+    TargetTicks := CB_GetTicks + 65;
+    Update;
+    Repeat
+      SP_WaitForSync;
+    Until CB_GetTicks >= TargetTicks;
+
+    // Red/Cyan pilot tone
+    TargetTicks := CB_GetTicks + 500;
+    ofs := 65536;
+    While CB_GetTicks < TargetTicks Do Begin
+      For x := 16 To WinW -16 Do Begin
+        If (x+ofs) mod 16 < 8 + (Random(4) -2) Then ink := 5 Else ink := 2;
+        Control.DrawLine(x, WinH - 32, x, WinH -16, ink);
+        Dec(Ofs, 2);
+      End;
+      Update;
+      SP_WaitForSync;
+    End;
+    // Yellow/Blue data burst
+    Cnt := 0;
+    TargetTicks := CB_GetTicks + 160;
+    While CB_GetTicks < TargetTicks Do Begin
+      x := 16; Sz := 0; Ofs := 0;
+      While x < WinW - 16 Do Begin
+        If Sz = 0 Then Begin
+          If Ofs = 0 Then Begin
+            If Random(32)>16 Then
+              Sz := 4
+            Else
+              Sz := 8;
+            Inc(Sz, Random(4) -2);
+            Cnt := Sz;
+            Ofs := 1;
+          End Else Begin
+            Ofs := 0;
+            Sz := Cnt;
+          End;
+        End;
+        If Ofs = 0 Then ink := 1 Else ink := 6;
+        Control.DrawLine(x, WinH - 32, x, WinH -16, ink);
+        Inc(x);
+        Dec(Sz);
+      End;
+      Update;
+      SP_WaitForSync;
+    End;
+    // Clear the stripes
+    Control.FillRect(16, WinH - 32, WinW - 16, WinH - 16, 0);
+    Update;
+    SP_WaitForSync;
+  End Else
+    SP_WaitForSync;
+
+  SP_Stop_Sound;
+  If SIGSAMPLEBANK > -1 Then Begin
+    SP_DeleteBank(SIGSAMPLEBANK, Error);
+    SIGSAMPLEBANK := -1;
+  End;
+
+End;
+
+Procedure SP_About.OnKeyDown(Sender: SP_BaseComponent; Key: Integer; Down: Boolean; Var Handled: Boolean);
+Begin
+  Handled := True;
+  ToolWindowDone := True;
+End;
+
+Procedure SP_About.OnMouseDown(Sender: SP_BaseComponent; Mx, My, Button: Integer);
+Begin
+  ToolWindowDone := True;
 End;
 
 

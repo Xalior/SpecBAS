@@ -45,7 +45,7 @@ Type
 
   paChar = ^aChar;
   paString = ^aString;
-  aFloat = Extended;
+  aFloat = Double;
   paFloat = ^aFloat;
 
 Procedure LogError(const Msg: string);
@@ -128,6 +128,10 @@ Procedure Swap(Var a, b: Integer);
 Function  Limited(v, a, b: Integer): Integer;
 Procedure RevString(var s: aString);
 Function  SP_MakePretty(Expr: aString): aString;
+Function  SP_CompareText(const s1, s2: aString): Integer;
+Function  SP_Trim(const s: aString): aString;
+Function  SP_TrimRight(const s: aString): aString;
+Function  SP_TrimLeft(const s: aString): aString;
 
 Var
 
@@ -904,15 +908,6 @@ Begin
     Inc(p);
   End;
 
-{  Ps := 1;
-  While Ps <= Length(Text) Do Begin
-     If Text[Ps] in ['a'..'z'] Then
-        Result[Ps] := aChar(Ord(Text[Ps])-32)
-     Else
-        Result[Ps] := Text[Ps];
-     Inc(Ps);
-  End;}
-
 End;
 
 Function StringToLong(Str: aString): LongWord; inline;
@@ -1581,14 +1576,13 @@ Begin
 
   End Else Begin
 
-    Result := 1;
+    Result := StartAt;
+    l1 := Length(s);
     pd := pByte(pNativeUInt(@SubStr)^);
     ps := pByte(pNativeUInt(@s)^);
+    l := NativeUInt(ps) + l1;
     Inc(ps, StartAt -1);
     pdb := pd;
-
-    l1 := Length(s);
-    l := NativeUInt(ps) + l1;
 
     If l2 + StartAt -1 > l1 Then Begin
       Result := 0;
@@ -1597,7 +1591,7 @@ Begin
       While NativeUint(ps) < l Do Begin
         If ps^ = pd^ Then Begin
           psb := ps;
-          While (NativeUInt(psb) <= l) and (psb^ = pd^) Do Begin
+          While (NativeUInt(psb) < l) and (psb^ = pd^) Do Begin
             Inc(psb);
             Inc(pd);
             If NativeUInt(pd) = NativeUInt(pdb) + l2 Then
@@ -1749,6 +1743,55 @@ Begin
       s := s + '"';
     Result := s;
   End;
+End;
+
+Function SP_CompareText(const s1, s2: aString): Integer;
+Begin
+  If s1 = s2 Then
+    Result := 0
+  Else
+    If s1 < s2 Then
+      Result := -1
+    Else
+      Result := 1;
+End;
+
+Function SP_Trim(const s: aString): aString;
+Var
+  st, ed: Integer;
+Begin
+  Result := '';
+  If s <> '' Then Begin
+    st := 1;
+    ed := Length(s);
+    While (st <= ed) And (s[st] <= ' ') Do Inc(st);
+    While (ed > 1) And (s[ed] <= ' ') Do Dec(ed);
+    Result := Copy(s, st, ed - st + 1);
+  End;
+End;
+
+Function SP_TrimRight(const s: aString): aString;
+Var
+  i: Integer;
+Begin
+  Result := '';
+  If s = '' Then Exit;
+  i := Length(s);
+  While (i > 1) And (s[i] <= ' ') Do
+    Dec(i);
+  Result := Copy(s, 1, i);
+End;
+
+Function SP_TrimLeft(const s: aString): aString;
+Var
+  i: Integer;
+Begin
+  Result := '';
+  If s = '' Then Exit;
+  i := 1;
+  While (i < Length(s)) And (s[i] <= ' ') Do
+    inc(i);
+  Result := Copy(s, i);
 End;
 
 Initialization

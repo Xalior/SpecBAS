@@ -1,3 +1,4 @@
+
 // Copyright (C) 2010 By Paul Dunn
 //
 // This file is part of the SpecBAS BASIC Interpreter, which is in turn
@@ -69,7 +70,7 @@ Var
   WINFLIPPED:               Boolean;      // Are the origin or scaling of a window active?
   NUMSPRITES:               Integer;      // Global number of sprites defined.
   PROGNAME:                 aString;      // Name of current program
-  FILENAMED:                Boolean;      // The current program has a filename (ie, it's been saved).
+  HELPFILE:                 aString;      // Path to the AmigaGuide help file; empty = no help loaded.
   TIMERES:                  Integer;      // The timer resolution
   MOUSESPRITE:              Integer;      // The sprite used by the mouse
   MOUSEVISIBLE:             Boolean;      // Is the mouse pointer visible?
@@ -156,10 +157,6 @@ Var
   NUMSTREAMS:               Integer;      // The number of streams allocated
   NUMCONSTS:                Integer;      // The number of constants currently allocated
 
-  PROGBANK:                 Integer;      // The Bank ID of the program bank.
-  COMMANDBANK:              Integer;      // The Bank ID of the bank which holds direct commands.
-  CURPROGBANK:              Integer;      // The currently executing bank - usually the same as one of the above.
-
   EDITORREADY:              Boolean;      // Has the editor been set up yet?
   FOCUSED:                  Boolean;      // SpecBAS itself has focus?
   FILECHANGED:              Boolean;
@@ -189,16 +186,11 @@ Var
   ERRORSTATE:               Boolean;      // Indicates an error state in the edit line
   LINK:                     Integer;      // The colour of the INK used in the lower screen for editing. Not user-changeable.
   SCREENLOCK:               Boolean;      // True if the screen is locked and cannot be redrawn.
-  LASTERROR:                Integer;      // The last error code produced - 0 if the line executed successfully else see sp_errors.pas
   LASTERRORLINE:            Integer;      // The line that the last error occurred on
   LASTERRORSTATEMENT:       Integer;      // The statement within the line that the last error occurred on
   CONTLINE:                 Integer;      // Line that CONTINUE jumps to
   CONTSTATEMENT:            Integer;      // Statement that CONTINUE jumps to
-  COMMAND_TOKENS:           aString;      // The current command line.
   PROGSTATE:                Integer;      // Program state - running, or editing.
-  IGNORE_ON_ERROR:          Boolean;      // If an ON ERROR command is run, then allow errors in the handler.
-  INCLUDEFROM:              Integer;      // The line number that INCLUDEs are appended from, if present (-1 if not)
-  INPROC:                   Integer;      // Are we executing code inside a PROC?
 
   OSD:                      aString;      // User definable on-screen display
   MAXOSDLEN:                Integer;
@@ -218,11 +210,10 @@ Var
   FLASHFRAME:               Boolean;      // Is this frame a flash transition?
   EDITERROR:                Boolean;      // True if the syntax check caught an editing error
   EDITERRORPOS:             Integer;      // Position in the EDITLINE aString of the error
+  EDITRESULT:               Boolean;      // SHowing a result?
   PROGLINE:                 Integer;      // The currently selected line in the listing
   SHOWLINE:                 Integer;      // The top line of an AUTOLIST
   LASTINKEYFRAME:           Integer;      // The last frame number that INKEY$ yielded CPU
-  STEPMODE:                 Integer;      // Is single-step (or Step over) mode active?
-  STEPADDR:                 NativeUInt;   // Pointer to the end of the current statement for single-stepping
 
   DBGSTR:                   aString;      // Debugging purposes
   FPS:                      aFloat;       // Frames per second - default 50.
@@ -237,7 +228,6 @@ Var
   NUMLOCK:                  Integer;      // State of the NUMLOCK key
   INSERT:                   Boolean;      // State of the Insert/Overwrite flag
   BREAKSIGNAL:              Boolean;      // BREAK pressed?
-  BPSIGNAL:                 Boolean;      // Breakpoint triggered, or impending Single-step event
   KEYSTATE:   array[0..255] of Byte;      // The state of the keyboard
   LASTKEYFLAG:              Byte;         // For the last key pressed, these are its flags (currently KF_NOCLICK possible)
   REPDEL:                   Integer;      // The delay in frames before a key repeats when held down
@@ -324,8 +314,6 @@ Var
   HELPBANK:                 Integer;      // The Bank-ID of the help file.
   HELPWINDOW:               Integer;      // The Window-ID of the help window in the editor.
 
-  LASTFILENAME:             aString;      // The last file that was opened for loading or saving
-
   BackClr:                  aString;
   noClr:                    aString;
   kwdClr:                   aString;
@@ -378,7 +366,6 @@ Var
   debugChg:                 Integer;
 
   TEMPDIR:                  aString;      // the location of the TEMP directory in the host filesystem.
-  ERRStr:                   aString;      // Extra info for errors - like variable name for example
 
   ENUMBASE:                 aFloat;
 
@@ -421,30 +408,6 @@ Var
   CBOLD:                    Integer;
   CFONT:                    Integer;
   SKIPFIRSTPOINT:           Boolean;      // Flag that the current DRAW position has been PLOTted
-  T_PAPER:                  LongWord;     // Temporary PAPER used by PRINT and INPUT colour items
-  T_INK:                    LongWord;     // Temporary INK
-  T_INVERSE:                Integer;      // Temporary INVERSE
-  T_OVER:                   Integer;      // Temporary OVER
-  T_CLIPX1:                 Integer;      // Temporary cliprect
-  T_CLIPY1:                 Integer;
-  T_CLIPX2:                 Integer;
-  T_CLIPY2:                 Integer;
-  T_OUTEXPR:                aString;
-  T_OUTASSIGN:              aString;
-  T_OUTMODE:                Integer;
-  T_OUTSTRM:                Integer;
-  T_SCALEX:                 aFloat;
-  T_SCALEY:                 aFloat;
-  T_ITALIC:                 Integer;
-  T_BOLD:                   Integer;
-  T_USINGMASK:              aString;
-  T_TRANSPARENT:            Boolean;
-  T_CENTRE:                 Boolean;
-  T_CENTRETEXT:             aString;
-  T_CENTRE_Y:               Integer;
-  T_STROKE:                 aFloat;
-  T_FONT:                   Integer;
-  T_PROP:                   Integer;
   OUTBUFFER:                aString;
   OUTSET:                   Boolean;
   OUTWORKSP:                aString;
@@ -452,20 +415,11 @@ Var
   COUTMODE:                 Integer;      // OUT redirects to screen (0), variable (1) or stream (2)
   CHSPACE:                  Integer;      // Padding between characters in pixels for proportional fonts.
 
-  DRPOSX:                   aFloat;       // The x-coordinate of the last point plotted
-  DRPOSY:                   aFloat;       // The y-coordinate of the last point plotted
-  DRHEADING:                aFloat;       // The heading of the "turtle", in whichever angular system is in use (deg, rad)
   XORG:                     Integer;      // The x-coordinate (in screen space) of the graphics origin
   YORG:                     Integer;      // As above, but for y.
-  PRPOSX:                   aFloat;       // The X-Coordinate of the PRINT position
-  PRPOSY:                   aFloat;       // The Y Coordinate of the PRINT position
   TABSIZE:                  Integer;      // The size in characters of tab stops, starting at the far left of the screen.
   EDTABSIZE:                Integer;      // Editor tab size.
   SCROLLCNT:                Integer;      // The scroll counter - when this reaches the bottom of the screen, the "Scroll?" message is triggered.
-  NXTLINE:                  Integer;      // The next line to be executed. If 0, then stop.
-  NXTSTATEMENT:             Integer;      // The statement to be executed. Used by the RETURN and NEXT commands.
-  NXTST:                    Integer;      // Used by CALL, the next statement number, as opposed to the above index
-  MATHMODE:                 Integer;      // 0 - Radians, 1 - Degrees, 2 - Turns, 3 - Gradians
   BASE:                     LongWord;     // The base of arrays. Default to 1.
   UPDATENOW:                Boolean;      // Set to TRUE for an immediate screen update.
   INTSCALING:               Boolean;      // Use integer pre-scaling for high res displays?
@@ -491,6 +445,57 @@ Var
 
 
   NEWPROGNAME:              aString;      // The default project name
+
+ThreadVar
+
+  LASTFILENAME:             aString;      // The last file that was opened for loading or saving
+  FILENAMED:                Boolean;      // The current program has a filename (ie, it's been saved).
+  PROGBANK:                 Integer;      // The Bank ID of the program bank.
+  COMMANDBANK:              Integer;      // The Bank ID of the bank which holds direct commands.
+  CURPROGBANK:              Integer;      // The currently executing bank - usually the same as one of the above.
+  LASTERROR:                Integer;      // The last error code produced - 0 if the line executed successfully else see sp_errors.pas
+  COMMAND_TOKENS:           aString;      // The current command line.
+  ERRStr:                   aString;      // Extra info for errors - like variable name for example
+  IGNORE_ON_ERROR:          Boolean;      // If an ON ERROR command is run, then allow errors in the handler.
+  INCLUDEFROM:              Integer;      // The line number that INCLUDEs are appended from, if present (-1 if not)
+  INPROC:                   Integer;      // Are we executing code inside a PROC?
+  STEPMODE:                 Integer;      // Is single-step (or Step over) mode active?
+  STEPADDR:                 NativeUInt;   // Pointer to the end of the current statement for single-stepping
+  BPSIGNAL:                 Boolean;      // Breakpoint triggered, or impending Single-step event
+  NXTLINE:                  Integer;      // The next line to be executed. If 0, then stop.
+  NXTSTATEMENT:             Integer;      // The statement to be executed. Used by RETURN and NEXT.
+  NXTST:                    Integer;      // Used by CALL, the next statement number.
+  MATHMODE:                 Integer;      // 0=Radians, 1=Degrees, 2=Turns, 3=Gradians
+  PRPOSX:                   aFloat;       // The X-Coordinate of the PRINT position
+  PRPOSY:                   aFloat;       // The Y Coordinate of the PRINT position
+  DRPOSX:                   aFloat;       // The x-coordinate of the last point plotted
+  DRPOSY:                   aFloat;       // The y-coordinate of the last point plotted
+  DRHEADING:                aFloat;       // The heading of the turtle
+
+  T_PAPER:                  LongWord;     // Temporary PAPER used by PRINT and INPUT colour items
+  T_INK:                    LongWord;     // Temporary INK
+  T_INVERSE:                Integer;      // Temporary INVERSE
+  T_OVER:                   Integer;      // Temporary OVER
+  T_CLIPX1:                 Integer;      // Temporary cliprect
+  T_CLIPY1:                 Integer;
+  T_CLIPX2:                 Integer;
+  T_CLIPY2:                 Integer;
+  T_OUTMODE:                Integer;
+  T_OUTSTRM:                Integer;
+  T_SCALEX:                 aFloat;
+  T_SCALEY:                 aFloat;
+  T_ITALIC:                 Integer;
+  T_BOLD:                   Integer;
+  T_TRANSPARENT:            Boolean;
+  T_CENTRE:                 Boolean;
+  T_CENTRE_Y:               Integer;
+  T_STROKE:                 aFloat;
+  T_FONT:                   Integer;
+  T_PROP:                   Integer;
+  T_OUTEXPR:                aString;
+  T_OUTASSIGN:              aString;
+  T_USINGMASK:              aString;
+  T_CENTRETEXT:             aString;
 
 Const
 
@@ -1499,8 +1504,10 @@ Const
    spWindowMenu = 12;
    spPopUpMenu = 13;
    spSlider = 14;
+   spMemo = 15;
+   spBASIC = 16;
 
-   SP_Constants: Array[0..132] of TConstant =
+   SP_Constants: Array[0..134] of TConstant =
    ((Name: 'TRUE'; Value: 1),
     (Name: 'FALSE'; Value: 0),
 
@@ -1639,10 +1646,12 @@ Const
     (Name: 'SPSCROLLBAR'; Value: spScrollBar),
     (Name: 'SPMENU'; Value: spWindowMenu),
     (Name: 'SPSUBMENU'; Value: spPopUpMenu),
-    (Name: 'SPSLIDER'; Value: spSlider)
+    (Name: 'SPSLIDER'; Value: spSlider),
+    (Name: 'SPMEMO'; Value: spMemo),
+    (Name: 'SPBASIC'; Value: spBASIC)
     );
 
-  SysVars: Array[0..258] of TSysVar =
+  SysVars: Array[0..259] of TSysVar =
   ((Name: 'BUILDSTR'; svType: svString; Size: 0; Data: @BUILDSTR),
    (Name: 'SCROLLBTNS'; svType: svBoolean; Size: 1; Data: @SCROLLBTNS),
    (Name: 'ANIMSPEED'; svType: svLongWord; Size: 4; Data: @ANIMSPEED),
@@ -1906,6 +1915,7 @@ Const
    (Name: 'FPSSTR'; svType: svString; Size: 0; Data: @FPSSTRING),
    (Name: 'OSD'; svType: svString; Size: 0; Data: @OSD),
    (Name: 'CAPTION'; svType: svString; Size: 0; Data: @WCAPTION),
+   (Name: 'FOCUSED'; svType: svBoolean; Size: 1; Data: @FOCUSED),
 
    (Name: 'LASTFILENAME'; svType: svString; Size: 0; Data: @LASTFILENAME));
 

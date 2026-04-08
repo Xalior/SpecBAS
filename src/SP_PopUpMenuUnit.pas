@@ -782,22 +782,27 @@ End;
 Procedure SP_PopUpMenu.Close;
 Var
   i: Integer;
+  tmpPrev: SP_BaseComponent;
 Begin
-
   If MouseControl = Self Then
     MouseControl := nil;
 
   For i := 0 To Length(fItems) -1 Do
     if Assigned(fItems[i].SubMenu) And fItems[i].SubMenu.Visible Then
       fItems[i].SubMenu.Close;
+
   Visible := False;
-  ForceCapture := False;
+
   If Assigned(fParentMenu) Then Begin
-    fParentMenu.SetFocus(True)
-  End Else
+    // PRESERVE the parent's original fPrevFocus so it doesn't forget the Editor!
+    tmpPrev := fParentMenu.fPrevFocus;
+    fParentMenu.SetFocus(True);
+    fParentMenu.fPrevFocus := tmpPrev;
+  End Else Begin
+    ForceCapture := False;
     If Assigned(PrevFocusedControl) Then
       PrevFocusedControl.SetFocus(True);
-
+  End;
 End;
 
 Procedure SP_PopUpMenu.MouseDown(Sender: SP_BaseComponent; X, Y, Btn: Integer);
@@ -851,30 +856,59 @@ End;
 Procedure SP_PopUpMenu.CloseAll;
 Var
   mnu: SP_PopUpMenu;
+  menuWasOpen: Boolean;
+  TargetFocus: SP_BaseComponent;
 Begin
+  // 1. Find the root popup menu in the chain
+  mnu := Self;
+  While Assigned(mnu.fParentMenu) And Not (SP_BaseComponent(mnu.fParentMenu) is SP_WindowMenu) Do Begin
+    mnu := SP_PopupMenu(mnu.fParentMenu);
+  End;
 
+  // 2. Guard against keyboard shortcuts executing on a closed menu
+  menuWasOpen := mnu.Visible;
+  If SP_BaseComponent(mnu.fParentMenu) is SP_WindowMenu Then
+    menuWasOpen := menuWasOpen Or SP_WindowMenu(mnu.fParentMenu).Activated;
+
+  If Not menuWasOpen Then Exit;
+
+  // 3. Extract the target explicitly before clearing anything
+  If SP_BaseComponent(mnu.fParentMenu) is SP_WindowMenu Then
+    TargetFocus := SP_WindowMenu(mnu.fParentMenu).fPrevFocus
+  Else
+    TargetFocus := mnu.fPrevFocus;
+
+  // 4. Hide all submenus from the leaf back up
   mnu := Self;
   While Assigned(mnu.fParentMenu) And Not (SP_BaseComponent(mnu.fParentMenu) is SP_WindowMenu) Do Begin
     mnu.Visible := False;
+    mnu.fFocused := False;
     mnu := SP_PopupMenu(mnu.fParentMenu);
   End;
   mnu.Visible := False;
+  mnu.fFocused := False;
+
+  // 5. Clear globals safely
   ForceCapture := False;
-  FocusedControl := nil;
   CaptureControl := nil;
+  FocusedControl := nil;
   SP_InvalidateWholeDisplay;
+
   If cKeyRepeat <> -1 Then
     RemoveTimer(cKeyRepeat);
 
+  // 6. Deactivate the root WindowMenu (if applicable)
   If SP_BaseComponent(mnu.fParentMenu) is SP_WindowMenu Then
     With SP_WindowMenu(mnu.fParentMenu) Do Begin
       CancelSelection;
       fActivated := False;
       If Not Permanent Then Visible := False;
+      fFocused := False;
     End;
 
-  SetFocus(False);
-
+  // 7. EXPLICITLY restore focus to the target control!
+  If Assigned(TargetFocus) Then
+    TargetFocus.SetFocus(True);
 End;
 
 Procedure SP_PopUpMenu.MouseUp(Sender: SP_BaseComponent; X, Y, Btn: Integer);

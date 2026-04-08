@@ -658,7 +658,7 @@ Procedure SP_WaitForSync;
 const
   SYNC_TIMEOUT_MS = 500; // e.g., 500ms
 Begin
-  if SP_Display.IsPerformingDisplayChange or QUITMSG then
+  if SP_Display.IsPerformingDisplayChange or QUITMSG or BREAKSIGNAL then
   begin
     CB_YIELD(1); // Interpreter thread just yields a bit, doesn't get stuck
     Exit;
@@ -3109,7 +3109,7 @@ End;
 
 Procedure SP_SetPixel(X, Y: aFloat); Inline;
 Var
-  xr, yr: Integer;
+  xr, yr: Int64;
   Ink: Byte;
   Ptr: pByte;
 Begin

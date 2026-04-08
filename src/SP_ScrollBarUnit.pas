@@ -92,7 +92,7 @@ SP_ScrollBar = Class(SP_BaseComponent)
     Procedure MouseDown(Sender: SP_BaseComponent; X, Y, Btn: Integer); Override;
     Procedure MouseUp(Sender: SP_BaseComponent; X, Y, Btn: Integer); Override;
     Procedure MouseMove(Sender: SP_BaseComponent; X, Y, Btn: Integer); Override;
-    Procedure MouseWheel(Sender: SP_BaseComponent; Mx, My, Btn, Delta: Integer); Override;
+    Procedure MouseWheel(Sender: SP_BaseComponent; Mx, My, Btn, Delta: Integer; Var Handled: Boolean); Override;
 
     Constructor Create(Owner: SP_BaseComponent);
     Destructor  Destroy; Override;
@@ -225,7 +225,7 @@ Begin
 
   fTargetPos := Math.Min(Math.Max(0, p), fMax - fPageSize);
   If fScrollTimer = -1 Then Begin
-    e := AddTimer(Self, 1, ScrollTimer, True, False);
+    e := AddTimer(Self, 1, ScrollTimer, False, False);
     fScrollTimer := e^.ID;
   End;
 
@@ -343,7 +343,7 @@ Begin
 
   Result := False;
   op := fPosition;
-  fRange := (fMax - fMin) -1;
+  fRange := Math.Max(0, (fMax - fMin) -1);
   fPageSize := Math.Min(fPageSize, fRange);
   fPosition := Math.Min(Math.Max(fPosition, fMin), fMax - fPageSize);
   fUpEnabled := fPosition > fMin;
@@ -418,6 +418,11 @@ Begin
         SP_AddOnEvent(Compiled_OnScroll);
     End;
 
+  End Else Begin
+    fThumbSize := 0;
+    fThumbPos := 0;
+    fThumbRect := Rect(fTrackRect.Left, fTrackRect.Top, fTrackRect.Right, fTrackRect.Bottom);
+    Paint;
   End;
 
 End;
@@ -490,15 +495,17 @@ Begin
       r.Bottom := fTrackRect.Bottom;
     End;
     FillRect(r, fTrackClr);
-    If fKind = spHorizontal Then Begin
-      r.Left := fThumbRect.Left;
-      r.Right := fThumbRect.Right;
-    End Else Begin
-      r.Top := fThumbRect.Top;
-      r.Bottom := fThumbRect.Bottom;
+    If fPageSize < fRange Then Begin
+        If fKind = spHorizontal Then Begin
+          r.Left := fThumbRect.Left;
+          r.Right := fThumbRect.Right;
+        End Else Begin
+          r.Top := fThumbRect.Top;
+          r.Bottom := fThumbRect.Bottom;
+        End;
+      If fUpEnabled or fDownEnabled Then
+        FillRect(r, fThumbClr);
     End;
-    If fUpEnabled or fDownEnabled Then
-      FillRect(r, fThumbClr);
   End;
 
 End;
@@ -518,6 +525,11 @@ Begin
       Else
         fThumbGrabPos := X;
       fGrabPos := fPosition;
+
+      // Cancel any in-progress smooth scroll so it can't fight the drag
+      fTargetPos := fPosition;
+      RemoveTimer(fScrollTimer);
+      fScrollTimer := -1;
 
     End Else Begin
 
@@ -562,6 +574,7 @@ Begin
     End;
     m := m/(fRange);
     fPosition := fGrabPos + Trunc(Delta/m);
+    fTargetPos := fPosition;
     If Not SetUIElements Then Begin
       If Assigned(fOnScroll) Then
         fOnScroll(Delta, fPosition);
@@ -599,10 +612,11 @@ Begin
 
 End;
 
-Procedure SP_ScrollBar.MouseWheel(Sender: SP_BaseComponent; MX, MY, Btn, Delta: Integer);
+Procedure SP_ScrollBar.MouseWheel(Sender: SP_BaseComponent; MX, MY, Btn, Delta: Integer; Var Handled: Boolean);
 Begin
 
   Pos := fTargetPos + (Delta * fWheelStep);
+  Handled := True;
 
 End;
 

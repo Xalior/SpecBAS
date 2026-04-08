@@ -422,7 +422,7 @@ Var
   Channel: HChannel;
 Begin
 
-  If SoundEnabled Then
+  If SoundEnabled Then Begin
     If SIGSAMPLEBANK = -1 Then Begin
       SIGSAMPLEBANK := SP_Sample_Create(44100, 8, 0, Length(LoadingTones) Div 2, Error);
       dPtr := @SP_BankList[SP_FindBankID(SIGSAMPLEBANK)]^.Memory[0];
@@ -443,13 +443,14 @@ Begin
         oVal := Val;
         Inc(dPtr);
       End;
-      Channel := SP_Sample_Play(SIGSAMPLEBANK, -1, '', 0, CLICKVOL, 0, Error);
-      SoundEnabled := (BASS_ErrorGetCode = 0) And SoundEnabled;
-      If SoundEnabled Then
-        Repeat
-          CB_YIELD(0.1);
-        Until BASS_ChannelGetPosition(Channel, BASS_POS_BYTE) >= 0;
     End;
+    Channel := SP_Sample_Play(SIGSAMPLEBANK, -1, '', 0, CLICKVOL, 0, Error);
+    SoundEnabled := (BASS_ErrorGetCode = 0) And SoundEnabled;
+    If SoundEnabled Then
+      Repeat
+        CB_YIELD(0.1);
+      Until BASS_ChannelGetPosition(Channel, BASS_POS_BYTE) >= 0;
+  End;
 
 End;
 

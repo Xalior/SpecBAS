@@ -69,6 +69,7 @@ Procedure SP_ClearLabels;
 Function  SP_LIST(Start, Finish: Integer): aString;
 Procedure SP_SetFPS(Value: aFloat);
 Function  SP_GetLineNumber(Index: Integer): Integer;
+Procedure SP_FinalizeThreadVars;
 
 Var
 
@@ -82,11 +83,7 @@ Var
   CB_ReleaseSticks: TCB_ReleaseSticks;
   CB_MouseMove: TCB_MouseMove;
   CB_PauseDisplay, CB_ResumeDisplay: TCB_GeneralProc;
-  SP_GOSUB_Stack: Array of TSP_GOSUB_Item;
-  SP_GOSUB_StackPtr,
-  SP_GOSUB_StackLen,
   AutoFrameCount: Integer;
-  SP_LabelList: Array of TSP_Label;
   SP_Interpreter_Ready: Boolean = False;
   CauseUpdate: Boolean = False;
   FrameElapsed: Boolean = False;
@@ -94,9 +91,16 @@ Var
   SP_KeyWordID: LongWord;
   DisplaySection: TCriticalSection;
 
+ThreadVar
+
+  SP_GOSUB_Stack: Array of TSP_GOSUB_Item;
+  SP_GOSUB_StackPtr,
+  SP_GOSUB_StackLen: Integer;
+  SP_LabelList: Array of TSP_Label;
+
 implementation
 
-Uses SP_Package, SP_Streams;
+Uses SP_Package, SP_Streams, SP_BASICInterpreter;
 
 Procedure SP_SetFPS(Value: aFloat);
 Begin
@@ -244,8 +248,58 @@ Begin
   SP_EditLoop(Error);
 
   AUTOSAVE := False;
+  BREAKSIGNAL := True;          // ensure secondaries exit their loops
+  SP_WaitForSecondaries;        // block until all secondary threads are gone
   SP_CleanUp;
   SP_DeleteAllBanks(True);
+  SP_FinalizeThreadVars;
+
+
+End;
+
+Procedure SP_FinalizeThreadVars;
+Var
+  SPtr: pSP_StackItem;
+Begin
+
+  SP_GOSUB_Stack  := Nil;
+  SP_LabelList    := Nil;
+  LASTFILENAME    := '';
+
+  COMMAND_TOKENS  := '';
+  ERRStr          := '';
+  OUTBUFFER       := '';
+  T_CENTRETEXT    := '';
+  INPUTBACK       := '';
+  T_OUTEXPR       := '';
+  T_OUTASSIGN     := '';
+  T_USINGMASK     := '';
+  OUTWORKSP       := '';
+  COUTEXPR        := '';
+
+  Finalize(SP_ONCtrlList);
+  Finalize(SP_CaseList);
+  SP_EveryItems   := Nil;
+  SP_FnList       := Nil;
+  SP_IncludeList  := Nil;
+  gbIndices       := '';
+  gbKey           := '';
+  Indices         := '';
+  Str1            := '';
+  Str2            := '';
+  ValTokens       := '';
+
+  Constants       := Nil;
+
+  // Release any AnsiString values live on the evaluation stack.
+  If Assigned(SP_StackStart) Then Begin
+    SPtr := SP_StackStart;
+    Inc(SPtr);
+    While NativeUInt(SPtr) <= NativeUInt(SP_StackPtr) Do Begin
+      SPtr^.Str := '';
+      Inc(SPtr);
+    End;
+  End;
 
 End;
 
