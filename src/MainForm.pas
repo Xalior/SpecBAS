@@ -977,6 +977,7 @@ procedure TMain.FormMouseWheelDown(Sender: TObject; Shift: TShiftState; MousePos
 Var
   p: TPoint;
   Win: Pointer;
+  cp: pSP_BaseComponent;
   Ctrl: SP_BaseComponent;
   X, Y, Btn, ID: Integer;
 begin
@@ -994,14 +995,17 @@ begin
   End Else Begin
     Win := WindowAtPoint(X, Y, ID);
     If Assigned(Win) Then Begin
-      Ctrl := ControlAtPoint(Win, X, Y)^;
-      While Assigned(Ctrl) And Not Handled Do Begin
-        Ctrl.MouseWheel(Ctrl, X, Y, Btn, 1, Handled);
-        If Not Handled Then
-          If Ctrl.fParentType = spWindow Then
-            Ctrl := Nil
-          Else
-            Ctrl := Ctrl.GetParentControl;
+      cp := ControlAtPoint(Win, X, Y);
+      If Assigned(cp) Then Begin
+        Ctrl := cp^;
+        While Assigned(Ctrl) And Not Handled Do Begin
+          Ctrl.MouseWheel(Ctrl, X, Y, Btn, 1, Handled);
+          If Not Handled Then
+            If Ctrl.fParentType = spWindow Then
+              Ctrl := Nil
+            Else
+              Ctrl := Ctrl.GetParentControl;
+        End;
       End;
     End;
   End;
@@ -1019,6 +1023,7 @@ procedure TMain.FormMouseWheelUp(Sender: TObject; Shift: TShiftState; MousePos: 
 Var
   p: TPoint;
   Win: Pointer;
+  cp: pSP_BaseComponent;
   Ctrl: SP_BaseComponent;
   X, Y, Btn, ID: Integer;
 begin
@@ -1036,14 +1041,17 @@ begin
   End Else Begin
     Win := WindowAtPoint(X, Y, ID);
     If Assigned(Win) Then Begin
-      Ctrl := ControlAtPoint(Win, X, Y)^;
-      While Assigned(Ctrl) And not Handled Do Begin
-        Ctrl.MouseWheel(Ctrl, X, Y, Btn, -1, Handled);
-        If Not Handled Then
-          If Ctrl.fParentType = spWindow Then
-            Ctrl := Nil
-          Else
-            Ctrl := Ctrl.GetParentControl;
+      cp := ControlAtPoint(Win, X, Y);
+      If Assigned(cp) Then Begin
+        Ctrl := cp^;
+        While Assigned(Ctrl) And not Handled Do Begin
+          Ctrl.MouseWheel(Ctrl, X, Y, Btn, -1, Handled);
+          If Not Handled Then
+            If Ctrl.fParentType = spWindow Then
+              Ctrl := Nil
+            Else
+              Ctrl := Ctrl.GetParentControl;
+        End;
       End;
     End;
   End;

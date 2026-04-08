@@ -265,22 +265,22 @@ Begin
 
   fBackBtn := SP_Button.Create(fNavBar);
   fBackBtn.Caption := #254;
-  fBackBtn.SetBounds(2, 2, 12, 12); fBackBtn.CentreCaption;
+  fBackBtn.SetBounds(2, 2, Round(fW * iSX + 4), Round(fH * iSY + 4)); fBackBtn.CentreCaption;
   fBackBtn.OnClick := NavBarBackClick;
 
   fFwdBtn := SP_Button.Create(fNavBar);
   fFwdBtn.Caption := #253;
-  fFwdBtn.SetBounds(16, 2, 12, 12); fFwdBtn.CentreCaption;
+  fFwdBtn.SetBounds(16, 2, Round(fW * iSX + 4), Round(fH * iSY + 4)); fFwdBtn.CentreCaption;
   fFwdBtn.OnClick := NavBarFwdClick;
 
   fContentsBtn := SP_Button.Create(fNavBar);
   fContentsBtn.Caption := 'Contents';
-  fContentsBtn.SetBounds(32, 2, 80, 12); fContentsBtn.CentreCaption;
+  fContentsBtn.SetBounds(32, 2, Round(fW * iSX * 10 + 4), Round(fH * iSY + 4)); fContentsBtn.CentreCaption;
   fContentsBtn.OnClick := NavBarContentsClick;
 
   fIndexBtn := SP_Button.Create(fNavBar);
   fIndexBtn.Caption := 'Index';
-  fIndexBtn.SetBounds(116, 2, 56, 12); fIndexBtn.CentreCaption;
+  fIndexBtn.SetBounds(116, 2, Round(fW * iSX * 7 + 4), Round(fH * iSY + 4)); fIndexBtn.CentreCaption;
   fIndexBtn.OnClick := NavBarIndexClick;
 
   fPageLabel := SP_Label.Create(fNavBar);
@@ -290,12 +290,12 @@ Begin
 
   fPrevNodeBtn := SP_Button.Create(fNavBar);
   fPrevNodeBtn.Caption := #254;
-  fPrevNodeBtn.SetBounds(2, 2, 12, 12); fPrevNodeBtn.CentreCaption;
+  fPrevNodeBtn.SetBounds(2, 2, Round(fW * iSX + 4), Round(fH * iSY + 4)); fPrevNodeBtn.CentreCaption;
   fPrevNodeBtn.OnClick := NavBarPrevNodeClick;
 
   fNextNodeBtn := SP_Button.Create(fNavBar);
   fNextNodeBtn.Caption := #253;
-  fNextNodeBtn.SetBounds(16, 2, 12, 12); fNextNodeBtn.CentreCaption;
+  fNextNodeBtn.SetBounds(16, 2, Round(fW * iSX + 4), Round(fH * iSY + 4)); fNextNodeBtn.CentreCaption;
   fNextNodeBtn.OnClick := NavBarNextNodeClick;
 
   fSearchEdit := SP_Edit.Create(fNavBar);
@@ -324,7 +324,7 @@ Begin DestroyButtons; FreeNodes; Inherited; End;
 
 Function SP_AmigaGuide.NavBarH: Integer;
 Begin
-  Result := 35;
+  Result := (Round(4 + fH * iSY) * 2) + (3 * 2) + 5;
 End;
 
 // All content below the navbar accounts for its height via GetTopOffset.
@@ -352,10 +352,11 @@ End;
 
 Procedure SP_AmigaGuide.ResizeNavBar;
 Const
-  BtnH = 12; BtnW1 = 12; BtnY = 2; BtnGap = 2;
+  BtnY = 2; BtnGap = 2;
 Var
-  x, btnW, labelW, rightX, row2Y: Integer;
+  x, btnW, labelW, rightX, row2Y, BtnH, BtnW1: Integer;
 Begin
+  BtnH := Round(4 + iSY * fH); BtnW1 := Round(4 + iSX * fW);
   fNavBar.SetBounds(fPaddingLeft + Ord(fBorder),
                     fPaddingTop  + Ord(fBorder),
                     fWidth - fPaddingLeft - fPaddingRight - (Ord(fBorder) * 2),
@@ -394,8 +395,7 @@ Begin
 
   row2Y := BtnY + BtnH + BtnGap + 2;
   btnW  := (Length(fSearchBtn.Caption) + 2) * Max(1, Round(iFW * iSX));
-  fSearchEdit.SetBounds(BtnGap, row2Y,
-                        fNavBar.Width - BtnGap * 3 - btnW, BtnH);
+  fSearchEdit.SetBounds(BtnGap, row2Y, fNavBar.Width - BtnGap * 3 - btnW, BtnH);
   fSearchBtn.SetBounds(fNavBar.Width - BtnGap - btnW, row2Y, btnW, BtnH);
   fSearchBtn.CentreCaption;
 

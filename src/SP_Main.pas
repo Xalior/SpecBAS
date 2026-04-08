@@ -254,7 +254,6 @@ Begin
   SP_DeleteAllBanks(True);
   SP_FinalizeThreadVars;
 
-
 End;
 
 Procedure SP_FinalizeThreadVars;

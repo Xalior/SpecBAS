@@ -715,9 +715,9 @@ Begin
 
   If (fParentType = spWindow) And (fParentControl = nil) Then Begin
     SP_GetWindowDetails(fParentWindowID, Win, Error);
-    pRect := Rect(0, 0, Round(Win^.Width / iSX), Round(Win^.Height / iSY));
+    pRect := Rect(0, 0, Round(Win^.Width), Round(Win^.Height));
     If Win^.CaptionHeight > 0 Then
-      pRect := Rect(pRect.Left + 1, pRect.Top + Win^.CaptionHeight, Round(Win^.Width / iSX) - 1, Round(Win^.Height / iSY) - 1);
+      pRect := Rect(pRect.Left + 1, pRect.Top + Win^.CaptionHeight, Round(Win^.Width) - 1, Round(Win^.Height) - 1);
   End Else
     pRect := Rect(0, 0, Width, Height);
 

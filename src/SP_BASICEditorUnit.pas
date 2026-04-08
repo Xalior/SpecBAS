@@ -724,7 +724,7 @@ Begin
     curChar := ' ';
   If curChar < ' ' Then curStr := aChar(#5) + curChar Else curStr := curChar;
   cx := X + blobZone + (fGutterNumChars - fLineNumLen[RawLine] + (RawCol - 1)) * 8;
-  Print(cx, Y, curStr, fCursFg, fCursBg, 1.0, 1.0, False, False, False, False);
+  Print(cx, Y, curStr, fCursFg, fCursBg, iSX, iSY, False, False, False, False);
 End;
 
 Procedure SP_BASICEditor.OnMarginClick(WrapIdx, X, Y, Btn: Integer);
@@ -2284,6 +2284,7 @@ Begin
   End;
 
   // --- Number / statement column ---
+
   If IsBreakPoint Then Begin
     nClr := 15;
     sClr := 7;
@@ -2298,7 +2299,7 @@ Begin
     If (RawLine < Length(fLineNumLen)) And (fLineNumLen[RawLine] > 0) Then Begin
       NumStr   := Copy(fLines[RawLine], 1, fLineNumLen[RawLine]);
       nx       := GutterX + blobZone + (fGutterNumChars - Length(NumStr)) * 8;
-      Print(nx, ny, NumStr, nClr, -1, 1.0, 1.0, False, False, False, False);
+      Print(nx, y, NumStr, nClr, -1, iSX, iSY, False, False, False, False);
       fPrevGutterStmt := 1;
     End Else
       If (RawLine < Length(fStatementIdx)) And
@@ -2306,7 +2307,7 @@ Begin
          (fStatementIdx[RawLine] <> fPrevGutterStmt) Then Begin
         NumStr := IntToString(fStatementIdx[RawLine]);
         nx     := GutterX + blobZone + (fGutterNumChars - Length(NumStr)) * 8;
-        Print(nx, ny, NumStr, sClr, -1, 1.0, 1.0, False, False, False, False);
+        Print(nx, y, NumStr, sClr, -1, iSX, iSY, False, False, False, False);
         fPrevGutterStmt := fStatementIdx[RawLine];
       End;
   End;

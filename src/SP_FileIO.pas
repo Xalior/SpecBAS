@@ -1561,6 +1561,7 @@ Begin
 
   Result := '';
   If Ass = '' Then Begin
+    ErrStr := '';
     Error.Code := SP_ERR_ASSIGNMENT_NOT_FOUND;
     Exit;
   End Else

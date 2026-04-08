@@ -107,7 +107,7 @@ Begin
 
   fTypeName := 'spEdit';
 
-  fMaxHeight := iFH + 4;
+  fMaxHeight := Round(iFH * iSY) + 4;
   fText := '';
   xoff := 0;
   fCursorPos := 1;

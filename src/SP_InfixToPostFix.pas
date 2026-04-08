@@ -15628,7 +15628,6 @@ Begin
 
   // THREAD WAIT  - block primary until all secondaries finish
   // THREAD STOP  - signal all secondaries, wait, then continue
-  // THREAD COUNT - expression form; handled as a zero-arg function
 
   Result := '';
 
@@ -15645,16 +15644,6 @@ Begin
     Inc(Position, 1 + SizeOf(LongWord));
     KeyWordID := SP_KW_THREAD;
     Result := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(2.0);
-  End Else
-
-  If (Byte(Tokens[Position]) = SP_KEYWORD) And
-     (pLongWord(@Tokens[Position +1])^ = SP_KW_COUNT) Then Begin
-    // COUNT used as a statement (e.g. PRINT THREAD COUNT) would have been
-    // tokenised as an expression; this branch handles the statement context.
-    // In expression context it is caught by SP_Convert_Expr as SP_FN_THREADCOUNT.
-    Inc(Position, 1 + SizeOf(LongWord));
-    KeyWordID := SP_KW_THREAD;
-    Result := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(3.0);
   End Else
 
     Error.Code := SP_ERR_SYNTAX_ERROR;
