@@ -11626,7 +11626,7 @@ SpecBAS renders to a layered stack of windows. Window 0 is the main screen and i
 
 @{CODE}
 @{fg 1}WINDOW id@{fg text}
-@{fg 1}WINDOW NEW numvar,x,y,w,h [TRANSPARENT index]@{fg text}
+@{fg 1}WINDOW NEW numvar,x,y,w,h [TRANSPARENT index] [CAPTION text]@{fg text}
 @{fg 1}WINDOW ERASE id@{fg text}
 @{fg 1}WINDOW MOVE id,x,y@{fg text}
 @{fg 1}WINDOW SIZE id,w,h@{fg text}
@@ -11646,11 +11646,13 @@ SpecBAS renders to a layered stack of windows. Window 0 is the main screen and i
 @{fg 1}WINDOW CLIP id OFF@{fg text}
 @{fg 1}WINDOW ALPHA id ON|OFF@{fg text}
 @{fg 1}WINDOW DEPTH id,bpp@{fg text}
+@{fg 1}WINDOW DECOR id,decor,sizeable,draggable@{fg text}
+@{fg 1}WINDOW CAPTION id,text@{fg text}
 @{BODY}
 
 @{b}WINDOW id@{ub} makes the specified window the active drawing target. All subsequent @{b}PRINT@{ub}, @{b}DRAW@{ub}, @{b}PLOT@{ub} and other output commands direct their output to that window until another @{b}WINDOW@{ub} command changes it.
 
-@{b}WINDOW NEW@{ub} creates a new window at position @{b}x,y@{ub} on the screen with the given width and height, storing the new window ID in the numeric variable. An optional transparent colour index causes pixels of that colour to be skipped when the window is drawn over other windows.
+@{b}WINDOW NEW@{ub} creates a new window at position @{b}x,y@{ub} on the screen with the given width and height, storing the new window ID in the numeric variable. An optional transparent colour index causes pixels of that colour to be skipped when the window is drawn over other windows. If you specify a CAPTION field, the window will be generated with a title bar, and can be moved and resized with the mouse.
 
 @{b}WINDOW ERASE id@{ub} removes the window. If it was the active drawing window, focus returns to window 0.
 
@@ -11675,6 +11677,10 @@ SpecBAS renders to a layered stack of windows. Window 0 is the main screen and i
 @{b}WINDOW ALPHA id ON|OFF@{ub} enables or disables per-pixel alpha blending for the window. This is required before using the @{b}ALPHA@{ub} drawing variants.
 
 @{b}WINDOW DEPTH id,bpp@{ub} sets the colour depth of the window in bits per pixel. 8bpp uses the palette; 32bpp enables full-colour alpha blending.
+
+@{b}WINDOW DECOR id,decor,sizeable,draggable@{ub} sets the extra window information as values 1 or 0 - if decor is set, then the window gains a titlebar and a drop shadow. Sizeable and draggable denote that the window can be resized from the edges/corners, and can be dragged by pulling with the mouse in the titlebar.
+
+@{b}WINDOW CAPTION id,text$@{ub} Sets the caption of a decorated window.
 
 @{CODE}
 @{BASIC}
