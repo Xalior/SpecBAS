@@ -25,7 +25,7 @@ unit SP_Streams;
 
 interface
 
-Uses SysUtils, SP_SysVars, SP_BankManager, SP_BankFiling, SP_FileIO, SP_Errors, Math, SP_Util;
+Uses SysUtils, SP_SysVars, SP_FileIO, SP_Errors, Math, SP_Util;
 
 Type
 
@@ -54,7 +54,7 @@ Var
 
 implementation
 
-Uses SP_Graphics;
+Uses SP_Graphics, SP_BankManager, SP_BankFiling;
 
 Function SP_NewStream(BankID: Integer; Filename: aString; Var Error: TSP_ErrorCode): Integer;
 Var

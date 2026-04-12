@@ -1308,12 +1308,26 @@ Begin
   Window^.FontTrans := False;
   Window^.CaptionHeight := 0;
   Window^.ID := Bank^.ID;
-  If Assigned(Window^.Component) then
-    Window^.Component.Free;
+  If Assigned(Window^.Component) then Window^.Component.Free;
   Window^.Component := SP_BaseComponent.Create(Nil);
   Window^.Component.WindowID := Bank^.ID;
   Window^.DropShadow := Shadow;
   Window^.ShadowSize := 0;
+  Window^.Decorated     := False;
+  Window^.Caption       := '';
+  Window^.Resizable     := False;
+  Window^.Draggable     := False;
+  Window^.Dragging      := False;
+  Window^.DragOffX      := 0;
+  Window^.DragOffY      := 0;
+  Window^.Resizing      := False;
+  Window^.ResizeEdge    := 0;
+  Window^.ResizeOrigX   := 0;
+  Window^.ResizeOrigY   := 0;
+  Window^.ResizeOrigW   := 0;
+  Window^.ResizeOrigH   := 0;
+  Window^.ResizeMouseX  := 0;
+  Window^.ResizeMouseY  := 0;
 
   SP_InvalidateWindow(Bank^.ID, Error);
 
@@ -1350,11 +1364,18 @@ Begin
 End;
 
 Procedure SwitchFocusedWindow(ID: Integer);
+Var
+  Error: TSP_ErrorCode;
 Begin
+  // Redecorate the previously-focused window (now unfocused)
+  If FocusedWindow <> ID Then
+    SP_InvalidateWindow(FocusedWindow, Error);
   FocusedWindow := ID;
   If TipWindowActive Then Exit;
   If Assigned(FPBASICEditor) And (FocusedWindow <> FPWindowID) Then
     FPBASICEditor.SetFocus(False);
+  // Redecorate the newly-focused window
+  SP_InvalidateWindow(ID, Error);
 End;
 
 Function SP_Add_Window(Left, Top, Width, Height, TransIdx, Bpp, Alpha: Integer; Var Error: TSP_ErrorCode): Integer;

@@ -74,6 +74,7 @@ Procedure SP_FinalizeThreadVars;
 Var
 
   CB_SETWINDOWCAPTION: TCB_CAPTIONPROC;
+  CB_DecorateWindow: Procedure(WindowID: Integer);
   CB_Messages: TCB_MsgProc;
   CB_Yield: TCB_YieldProc;
   CB_Quit: TCB_QuitProc;
@@ -276,7 +277,6 @@ Begin
   OUTWORKSP       := '';
   COUTEXPR        := '';
 
-  Finalize(SP_ONCtrlList);
   Finalize(SP_CaseList);
   SP_EveryItems   := Nil;
   SP_FnList       := Nil;

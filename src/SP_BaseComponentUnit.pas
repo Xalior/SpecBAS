@@ -214,6 +214,7 @@ SP_BaseComponent = Class
     Function  GetHint: aString; Virtual;
     Function  TextWidth(Text: aString): Integer;
     Procedure AlignChildren;
+    Function  GetDecorOffset(Var OX, OY: Integer): Boolean;
 
     Procedure DoErase;
     Function  DecodeKey(Var Char: Byte): Byte;
@@ -679,6 +680,22 @@ Begin
 
     Result := fParentControl;
 
+End;
+
+Function SP_BaseComponent.GetDecorOffset(Var OX, OY: Integer): Boolean;
+Var
+  Win: pSP_Window_Info;
+  Err: TSP_ErrorCode;
+Begin
+  Result := (fParentType = spWindow) And (fParentControl = Nil);
+  If Result Then Begin
+    SP_GetWindowDetails(fParentWindowID, Win, Err);
+    Result := Result And Win^.Decorated And (Win^.CaptionHeight > 0);
+    If Result Then Begin
+      OX := 1;
+      OY := Win^.CaptionHeight;
+    End;
+  End;
 End;
 
 Procedure SP_BaseComponent.SetAlign(newAlign: Integer);
@@ -2130,17 +2147,22 @@ Begin
 End;
 
 Procedure SP_BaseComponent.SetLeft(X: Integer);
+Var
+  OX, OY: Integer;
 Begin
 
   If fLeft <> X Then Begin
     DisplaySection.Enter;
 
     UpdateBackground;
+    If GetDecorOffset(OX, OY) Then
+      fLeft := X + OX
+    Else
+      fLeft := X;
   {  If aRight in fAnchors Then Begin
       fWidth := Width - (X - fLeft);
       fSetWidth := fWidth;
     End;}
-    fLeft := X;
     fSetLeft := fLeft;
     SetAlign(fAlign);
     fBoundsRect.Left := fLeft;
@@ -2153,6 +2175,8 @@ Begin
 End;
 
 Procedure SP_BaseComponent.SetTop(Y: Integer);
+Var
+  OX, OY: Integer;
 Begin
 
   If fTop <> Y Then Begin
@@ -2163,7 +2187,7 @@ Begin
       fHeight := Height - (Y - fTop);
       fSetHeight := Height;
     End; }
-    fTop := Y;
+    If GetDecorOffset(OX, OY) Then fTop := Y + OY Else fTop := Y;
     fSetTop := fTop;
     SetAlign(fAlign);
     fBoundsRect.Top := Y;
@@ -2462,7 +2486,7 @@ End;
 
 Procedure SP_BaseComponent.SetBounds(x, y, w, h: Integer);
 Var
-  OldWidth, OldHeight: Integer;
+  OldWidth, OldHeight, OX, OY: Integer;
 Begin
 
   If (fWidth <> w) or (fHeight <> h) or (fLeft <> x) or (fTop <> y) Then Begin
@@ -2474,9 +2498,13 @@ Begin
     OldWidth := Width; OldHeight := Height;
     fWidth := Min(Max(w, fMinWidth), fMaxWidth);
     fHeight := Min(Max(h, fMinHeight), fMaxHeight);
-    fLeft := x;
-    fTop := y;
-
+    If (Not Aligning) And GetDecorOffset(OX, OY) Then Begin
+      fLeft := x + OX;
+      fTop  := y + OY;
+    End Else Begin
+      fLeft := x;
+      fTop  := y;
+    End;
     fSetLeft := fLeft;
     fSetTop := fTop;
     fSetWidth := fWidth;
@@ -3331,9 +3359,14 @@ Begin
   Left := StringToInt(s, Left);
 End;
 
-Function  SP_BaseComponent.Get_Left: aString;
+Function SP_BaseComponent.Get_Left: aString;
+Var
+  OX, OY: Integer;
 Begin
-  Result := IntToString(Left);
+  If GetDecorOffset(OX, OY) Then
+    Result := IntToString(fLeft - OX)
+  Else
+    Result := IntToString(fLeft);
 End;
 
 Procedure SP_BaseComponent.Set_Top(s: aString; Var Handled: Boolean; Var Error: TSP_ErrorCode);
@@ -3341,9 +3374,14 @@ Begin
   Top := StringToInt(s, Top);
 End;
 
-Function  SP_BaseComponent.Get_Top: aString;
+Function SP_BaseComponent.Get_Top: aString;
+Var
+  OX, OY: Integer;
 Begin
-  Result := IntToString(Top);
+  If GetDecorOffset(OX, OY) Then
+    Result := IntToString(fTop - OY)
+  Else
+    Result := IntToString(fTop);
 End;
 
 Procedure SP_BaseComponent.Set_OnResize(s: aString; Var Handled: Boolean; Var Error: TSP_ErrorCode);

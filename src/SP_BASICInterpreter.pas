@@ -232,7 +232,6 @@ Begin
 
   SP_ProcStackPtr  := -1;
   SP_CaseListPtr   := -1;
-  SP_ONCtrlListPtr := -1;
 
   INPROC             := 0;
   IGNORE_ON_ERROR    := False;

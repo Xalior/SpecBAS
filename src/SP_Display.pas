@@ -1,7 +1,6 @@
 unit SP_Display;
 
 {$INCLUDE SpecBAS.inc}
-{$DEFINE SMARTBUFFER}
 
 interface
 
@@ -337,17 +336,12 @@ begin
   ReadImplementationProperties; // from dglOpenGL
   ReadExtensions;             // from dglOpenGL
 
-  {$IFDEF SMARTBUFFER}
-  If WGL_EXT_swap_control then wglSwapIntervalEXT(0);
-  VSYNCENABLED := True;
+  {$IFDEF DOUBLEBUFFER}
+  If WGL_EXT_swap_control then wglSwapIntervalEXT(1) else glFlush; // Check if extension is available
   {$ELSE}
-    {$IFDEF DOUBLEBUFFER}
-    If WGL_EXT_swap_control then wglSwapIntervalEXT(1) else glFlush; // Check if extension is available
-    {$ELSE}
-    If WGL_EXT_swap_control then wglSwapIntervalEXT(0) else glFinish;
-    {$ENDIF}
-    If WGL_EXT_swap_control then VSYNCENABLED := wglGetSwapIntervalEXT <> 0 else VSYNCENABLED := False;
+  If WGL_EXT_swap_control then wglSwapIntervalEXT(0) else glFinish;
   {$ENDIF}
+  If WGL_EXT_swap_control then VSYNCENABLED := wglGetSwapIntervalEXT <> 0 else VSYNCENABLED := False;
 
   // --- Shader Initialization ---
   ScalerProgramID := CreateShaderProgram(VertexShaderSource, FragmentShaderSource);
@@ -494,50 +488,6 @@ Begin
   FrameTimeHistoryPos := (FrameTimeHistoryPos + 1) Mod FrameTimeHistoryLength;
 End;
 
-{$IFDEF SMARTBUFFERS}
-Procedure FrameLoop;
-Var
-  CurTime, FrameDuration: aFloat;
-  SleepTime: aFloat;
-Begin
-  CurTime := CB_GETTICKS;
-
-  FRAMES := Trunc((CurTime - StartTime) / FRAME_MS);
-
-  If FRAMES <> LastFrames Then Begin
-    FrameElapsed := True;
-    LastFrames := FRAMES;
-
-    HandleMouse;
-
-    If SP_FrameUpdate Then Begin
-      If DisplaySection.TryEnter Then Begin
-        Try
-          If UpdateDisplay Then Begin
-            FrameDuration := CurTime - LastTime;
-            LastTime := CurTime;
-            AddToFrameTimeHistory(FrameDuration);
-
-            CB_Refresh_Display; // This calls SwapBuffers
-          End;
-        Finally
-          DisplaySection.Leave;
-        End;
-      End;
-    End;
-
-    NEXTFRAMETIME := StartTime + ((FRAMES + 1) * FRAME_MS);
-    SleepTime := NEXTFRAMETIME - CB_GETTICKS;
-
-    if SleepTime > 0 then
-      SmartSleep(SleepTime);
-
-  End Else Begin
-    // Not time for a frame yet, yield to OS
-    Sleep(0);
-  End;
-End;
-{$ELSE}
 Procedure FrameLoop;
 Var
   CurTime, FrameDuration: aFloat;
@@ -587,7 +537,6 @@ Begin
   End Else
     Sleep(1); // Not time for a new frame yet, sleep a bit.
 End;
-{$ENDIF}
 
 procedure SmartSleep(const AMilliseconds: aFloat);
 var
@@ -623,8 +572,8 @@ begin
 
   // If the delay is large enough (> 2ms), use standard Sleep() to bridge the gap.
   // We subtract 2ms (or more safe margin) to ensure we wake up BEFORE the target.
-  if AMilliseconds > 0.5 then
-    Sleep(Trunc(AMilliseconds - 0.5)); // Sleep uses minimal CPU
+  if AMilliseconds > 2 then
+    Sleep(Trunc(AMilliseconds - 2)); // Sleep uses minimal CPU
 
   // Spin-wait for the remaining tiny duration to achieve high precision
   // This uses CPU but only for < 2ms.

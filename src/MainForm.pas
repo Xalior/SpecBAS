@@ -118,7 +118,7 @@ Const
 implementation
 
 Uses {$IFDEF FPC}ShlObj, {$ENDIF}SP_FPEditor, SP_ToolTipWindow, SP_Display, SP_BASICEditorHostUnit, SP_WindowMenuUnit, SP_PopUpMenuUnit,
-      SP_BASICInterpreter;
+      SP_BASICInterpreter, SP_BankFiling, SP_Interpret_PostFix;
 
 {$IFDEF FPC}
   {$R *.lfm}
@@ -243,6 +243,8 @@ Var
   Btn, ID: Integer;
   p: TPoint;
   Handled: Boolean;
+  sPtr: pSP_Window_Info;
+  Edge: Integer;
 begin
 
   If ScaleMouseX > 0 Then Begin
@@ -305,26 +307,58 @@ begin
         SP_BaseComponent(CaptureControl).MouseDown(SP_BaseComponent(CaptureControl), p.X, p.Y, Btn);
       Handled := True;
     End Else Begin
-      Win := WindowAtPoint(X, Y, ID);
+      Win := WindowAtPoint(X, Y, ID);  // X, Y become window-relative after this
       If Assigned(Win) Then Begin
-        If not TestForWindowMenu(Nil, Shift) Then Begin
-          If Not (SYSTEMSTATE in [SS_EDITOR, SS_DIRECT, SS_EVALUATE]) and (MODALWINDOW = -1) Then
-            SwitchFocusedWindow(ID); // The editor handles this.
-          Win := ControlAtPoint(Win, X, Y);
-          If Assigned(Win) Then Begin
-            if pSP_BaseComponent(Win)^.Enabled Then Begin
-              CaptureControl := pSP_BaseComponent(Win)^;
-              If CaptureControl.CanFocus Then
-                CaptureControl.SetFocus(True);
-              If SP_CanInteract(CaptureControl) Then
+        sPtr := pSP_Window_Info(Win);
+        If sPtr^.Decorated And (ssLeft In Shift) Then Begin
+          Edge := 0;
+          If sPtr^.Resizable Then Begin
+            If X < 2                     Then Edge := Edge Or 1;
+            If X >= sPtr^.Width  - 2     Then Edge := Edge Or 2;
+            If Y < 2                     Then Edge := Edge Or 4;
+            If Y >= sPtr^.Height - 2     Then Edge := Edge Or 8;
+            If (X >= sPtr^.Width - 8) And
+               (Y >= sPtr^.Height - 8)   Then Edge := Edge Or 10;
+          End;
+          If (Edge = 0) And sPtr^.Draggable And (Y < sPtr^.CaptionHeight) Then Begin
+            sPtr^.Dragging  := True;
+            sPtr^.DragOffX  := MOUSEX - sPtr^.Left;
+            sPtr^.DragOffY  := MOUSEY - sPtr^.Top;
+            SwitchFocusedWindow(ID);
+            Handled := True;
+          End Else If Edge <> 0 Then Begin
+            sPtr^.Resizing    := True;
+            sPtr^.ResizeEdge  := Edge;
+            sPtr^.ResizeOrigX := sPtr^.Left;
+            sPtr^.ResizeOrigY := sPtr^.Top;
+            sPtr^.ResizeOrigW := sPtr^.Width;
+            sPtr^.ResizeOrigH := sPtr^.Height;
+            sPtr^.ResizeMouseX := MOUSEX;
+            sPtr^.ResizeMouseY := MOUSEY;
+            SwitchFocusedWindow(ID);
+            Handled := True;
+          End;
+        End;
+        If Not Handled Then Begin
+          If not TestForWindowMenu(Nil, Shift) Then Begin
+            If Not (SYSTEMSTATE in [SS_EDITOR, SS_DIRECT, SS_EVALUATE]) and (MODALWINDOW = -1) Then
+              SwitchFocusedWindow(ID); // The editor handles this.
+            Win := ControlAtPoint(Win, X, Y);
+            If Assigned(Win) Then Begin
+              if pSP_BaseComponent(Win)^.Enabled Then Begin
+                CaptureControl := pSP_BaseComponent(Win)^;
+                If CaptureControl.CanFocus Then
+                  CaptureControl.SetFocus(True);
+                If SP_CanInteract(CaptureControl) Then
+                  SP_BaseComponent(CaptureControl).MouseDown(SP_BaseComponent(CaptureControl), X, Y, Btn);
+                Handled := True;
+              End;
+            End Else Begin
+              If Assigned(CaptureControl) And SP_CanInteract(CaptureControl) Then
                 SP_BaseComponent(CaptureControl).MouseDown(SP_BaseComponent(CaptureControl), X, Y, Btn);
-              Handled := True;
+              If Assigned(FocusedControl) And (MODALWINDOW = -1) And ((FocusedControl Is SP_PopUpMenu) or (FocusedControl is SP_WindowMenu)) Then
+                FocusedControl.SetFocus(False);
             End;
-          End Else Begin
-            If Assigned(CaptureControl) And SP_CanInteract(CaptureControl) Then
-              SP_BaseComponent(CaptureControl).MouseDown(SP_BaseComponent(CaptureControl), X, Y, Btn);
-            If Assigned(FocusedControl) And (MODALWINDOW = -1) And ((FocusedControl Is SP_PopUpMenu) or (FocusedControl is SP_WindowMenu)) Then
-              FocusedControl.SetFocus(False);
           End;
         End;
       End;
@@ -345,8 +379,11 @@ procedure TMain.FormMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer
 Var
   Win: Pointer;
   p: TPoint;
-  LMenu, LItem, Btn, tX, tY, ID: Integer;
+  LMenu, LItem, Btn, tX, tY, ID, Dx, Dy, NewX, NewY, NewW, NewH: Integer;
   Handled: Boolean;
+  sPtr: pSP_Window_Info;
+  BankIdx: Integer;
+  Err: TSP_ErrorCode;
 begin
 
   If ((X = LastMouseX) And (Y = LastMouseY)) or SIZINGMAIN or (ScaleMouseX = 0) Then Exit;
@@ -370,6 +407,60 @@ begin
 
   SP_SetDirtyRect(Min(MOUSEX, MOUSESTOREX), Min(MOUSEY, MOUSESTOREY), Max(MOUSEX+MOUSEW, MOUSESTOREX+MOUSESTOREW), Max(MOUSEY+MOUSEH, MOUSESTOREY+MOUSESTOREH));
   SP_NeedDisplayUpdate := True;
+
+  // Decorated window drag/resize
+  For BankIdx := 0 To Length(SP_BankList) -1 Do Begin
+    If SP_BankList[BankIdx]^.DataType <> SP_WINDOW_BANK Then Continue;
+    sPtr := @SP_BankList[BankIdx].Info[0];
+    If sPtr^.Dragging Then Begin
+      Err.Code := SP_ERR_OK;
+      SP_MoveWindow(sPtr^.ID, MOUSEX - sPtr^.DragOffX, MOUSEY - sPtr^.DragOffY, Err);
+      SP_NeedDisplayUpdate := True;
+      Handled := True;
+      Break;
+    End;
+    If sPtr^.Resizing Then Begin
+      DX   := MOUSEX - sPtr^.ResizeMouseX;
+      DY   := MOUSEY - sPtr^.ResizeMouseY;
+      NewX := sPtr^.ResizeOrigX;
+      NewY := sPtr^.ResizeOrigY;
+      NewW := sPtr^.ResizeOrigW;
+      NewH := sPtr^.ResizeOrigH;
+      If sPtr^.ResizeEdge And 1 <> 0 Then Begin  // left edge
+        NewX := sPtr^.ResizeOrigX + DX;
+        NewW := sPtr^.ResizeOrigW - DX;
+      End;
+      If sPtr^.ResizeEdge And 2 <> 0 Then         // right edge
+        NewW := sPtr^.ResizeOrigW + DX;
+      If sPtr^.ResizeEdge And 4 <> 0 Then Begin   // top edge
+        NewY := sPtr^.ResizeOrigY + DY;
+        NewH := sPtr^.ResizeOrigH - DY;
+      End;
+      If sPtr^.ResizeEdge And 8 <> 0 Then         // bottom edge
+        NewH := sPtr^.ResizeOrigH + DY;
+      // clamp to minimum size
+      If NewW < 40 Then Begin
+        NewW := 40;
+        If sPtr^.ResizeEdge And 1 <> 0 Then
+          NewX := sPtr^.ResizeOrigX + sPtr^.ResizeOrigW - 40;
+      End;
+      If NewH < sPtr^.CaptionHeight + 10 Then Begin
+        NewH := sPtr^.CaptionHeight + 10;
+        If sPtr^.ResizeEdge And 4 <> 0 Then
+          NewY := sPtr^.ResizeOrigY + sPtr^.ResizeOrigH - (sPtr^.CaptionHeight + 10);
+      End;
+      Err.Code := SP_ERR_OK;
+      If (NewX <> sPtr^.Left) Or (NewY <> sPtr^.Top) Then
+        SP_MoveWindow(sPtr^.ID, NewX, NewY, Err);
+      If (NewW <> sPtr^.Width) Or (NewH <> sPtr^.Height) Then
+        SP_ResizeWindow(sPtr^.ID, NewW, NewH, -1, SPFULLSCREEN, False, Err);
+      If sPtr^.ID = SCREENBANK Then
+        SP_WindowResizeFlag := sPtr^.ID;
+      SP_NeedDisplayUpdate := True;
+      Handled := True;
+      Break;
+    End;
+  End;
 
   If (CURMENU <> -1) And (ssRight in Shift) And MENUSHOWING Then Begin
 
@@ -442,9 +533,10 @@ procedure TMain.FormMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShift
 Var
   mi: SP_MenuSelection;
   Win: Pointer;
-  Btn, ID: Integer;
+  Btn, ID, BankIdx: Integer;
   p: TPoint;
   Handled: Boolean;
+  sPtr: pSP_Window_Info;
 begin
 
   ReleaseCapture;
@@ -457,6 +549,17 @@ begin
   MOUSEY := Y;
 
   Btn := Integer(ssLeft in Shift) + (2 * Integer(ssRight in Shift)) + (4 * Integer(ssMiddle in Shift));
+
+  For BankIdx := 0 To Length(SP_BankList) -1 Do Begin
+    If SP_BankList[BankIdx]^.DataType <> SP_WINDOW_BANK Then Continue;
+    sPtr := @SP_BankList[BankIdx].Info[0];
+    If sPtr^.Dragging Or sPtr^.Resizing Then Begin
+      sPtr^.Dragging := False;
+      sPtr^.Resizing := False;
+//      SP_Decorate_User_Window(sPtr^.ID);
+      SP_NeedDisplayUpdate := True;
+    End;
+  End;
 
   // Menus take precedence
 
@@ -725,6 +828,7 @@ begin
 
   // Initialise callbacks
 
+  CB_DecorateWindow := SP_Decorate_User_Window;
   CB_GetKeyLockState := GetKeyState;
   CB_Refresh_Display := Refresh_Display;
   CB_Quit := MainForm.Quit;

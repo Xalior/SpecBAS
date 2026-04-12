@@ -1316,7 +1316,7 @@ End;
 
 Procedure SP_ResizeWindow(WindowID, W, H, Depth: Integer; FullScreen, AllowResize: Boolean; Var Error: TSP_ErrorCode);
 Var
-  BankIdx, Idx, Bits, NewBits: Integer;
+  BankIdx, Idx, Bits, NewBits, Paper: Integer;
   Bank: pSP_Bank;
   Window: pSP_Window_Info;
   oW, oH: Integer;
@@ -1376,6 +1376,10 @@ Begin
     Window^.clipx2 := W;
     Window^.clipy2 := H;
 
+    Paper := CPAPER;
+    If Window^.Decorated Then
+      FillMem(@Bank^.Memory[0], Length(Bank^.Memory), Paper);
+
     Bank^.Changed := True;
 
     // MUST reset the drawing window, as pointers may have changed.
@@ -1414,6 +1418,10 @@ Begin
     SCREENBANK := -1;
     SP_SetDrawingWindow(Idx);
 
+    // Restore the Paper that was overwritten earlier if this window is decorated
+    If Window^.Decorated Then
+      Window^.Paper := Paper;
+
     If WindowID = 0 Then Begin
       OldMouse := MOUSEVISIBLE;
       MOUSEVISIBLE := False;
@@ -1425,7 +1433,7 @@ Begin
       SP_CLS(CPAPER);
       MOUSEVISIBLE := OldMouse;
     End Else Begin
-      SP_CLS(CPAPER);
+      SP_CLS(Window^.Paper);
     End;
 
     {$IFDEF RefreshThread}

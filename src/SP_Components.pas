@@ -583,6 +583,7 @@ End;
 Function WindowAtPoint(Var x, y, ID: Integer): Pointer;
 Var
   Idx: Integer;
+  p: pSP_Window_Info;
 Label
   GotWindow;
 Begin
@@ -599,13 +600,14 @@ Begin
       Idx := Length(SP_BankList) -1;
       While Idx >= 0 Do Begin
         If Length(SP_BankList[Idx]^.Info) > 0 Then Begin
-          Result := @SP_BankList[Idx]^.Info[0];
           GotWindow:
-          If SP_BankList[Idx]^.DataType = SP_WINDOW_BANK then With pSP_Window_Info(Result)^ Do
-            If PtInRect(Rect(Left, Top, Left + Width, Top + Height), Point(X, Y)) Then Begin
-              Dec(X, Left);
-              Dec(Y, Top);
+          p := pSP_Window_Info(@SP_BankList[Idx]^.Info[0]);
+          If SP_BankList[Idx]^.DataType = SP_WINDOW_BANK then
+            If PtInRect(Rect(p^.Left, p^.Top, p^.Left + p^.Width, p^.Top + p^.Height), Point(X, Y)) Then Begin
+              Dec(X, p^.Left);
+              Dec(Y, p^.Top);
               ID := SP_BankList[Idx].ID;
+              Result := p;
               Exit;
             End;
         End;

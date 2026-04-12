@@ -80,7 +80,7 @@ Const
   // List of keywords that are used in statements.
   // MUST Be in this order - add new commands to the end of the list.
 
-  SP_KEYWORDS_EXTRA: Array[0..258] of aString =
+  SP_KEYWORDS_EXTRA: Array[0..260] of aString =
     ('SPECTRUM ', 'PLAY ', 'AT ', 'TAB ', 'LINE ', ' THEN ', ' TO ', ' STEP ',
      'DEF ', 'CAT ', ' FORMAT ', 'MOVE ', 'ERASE ', 'OPEN ', 'CLOSE ', 'MERGE ', 'BEEP ',
      'CIRCLE ', 'INK ', 'PAPER ', 'INVERSE ', 'OUT ', 'STOP ', 'READ ', ' DATA ',
@@ -111,7 +111,7 @@ Const
      'MEMWRT$ ', 'REPEAT', 'PARTICLE ', 'FRICTION ', 'GRAVITY ', 'FORCE ', 'INSTALL', 'MEMWRTF ',
      'PRESS', 'TURNS', 'GRADIANS', 'EGA', 'CGA', 'ADDCTRL', 'CTRL', 'PROP ', 'OLD', ' ASYNC',
      'COMPILE ', 'APPLEHGR', 'APPLELGR', 'CPC', 'ENUM ', 'STROKE ', 'LLIST ', ' TILE ', 'SAY ',
-     ' PITCH ', ' SEX ');
+     ' PITCH ', ' SEX ', 'DECOR ', ' CAPTION ');
 
   // Constants used to quickly identify keywords when in token form. Each keyword listed
   // above has a corresponding constant, which must be SP_KEYWORD_BASE + (Index of Keyword above).
@@ -377,6 +377,8 @@ Const
   SP_KW_SAY                 = 1256;
   SP_KW_PITCH               = 1257;
   SP_KW_SEX                 = 1258;
+  SP_KW_DECOR               = 1259;
+  SP_KW_CAPTION             = 1260;
 
 
   // These are meta-commands; they do not appear in listings, and are used during
@@ -762,10 +764,12 @@ Const
   SP_KW_CTRL_ERASE          = 4428;
   SP_KW_PR_PROP             = 4429;
   SP_KW_FONT_UPDATE         = 4430;
+  SP_KW_WIN_DECOR           = 4431;
+  SP_KW_WIN_CAPTION         = 4432;
 
   // Names of the above meta-keywords - for use by the DEBUG command.
 
-  SP_Keyword_Names: Array[0..379] of aString =
+  SP_Keyword_Names: Array[0..381] of aString =
     ('PR INK', 'PR PAPER', 'PR INVERSE', 'PR TAB', 'PR AT', 'PR MOVE', 'GOTO', 'GOSUB', 'PALSHIFT',
      'READ ASSIGN', 'DRAWTO', 'SCR LOCK', 'SCR UNLOCK', 'SCR UPDATE', 'SCR RES', 'WIN NEW', 'WIN DEL',
      'WIN MOVE', 'WIN SIZE', 'WIN FRONT', 'WIN BACK', 'WIN SHOW', 'WIN HIDE', 'SCR GRAB', 'WIN GRAB',
@@ -818,7 +822,8 @@ Const
      'PALETTE APPLE HGR', 'PALETTE CPC', 'STREAM READLN', 'A-RECTANGLE TO', 'A-RECTFILL TO', 'RECTANGLE TO',
      'RECTFILL TO', 'WAIT KEY UP', 'FOR EACH STRING', 'ENUM BASE', 'ORG DIM', 'DRAW GML', 'WIN ORG DIM', 'GFX ORG DIM',
      'STREAM READ FILE', 'RAINBOW HSV', 'PR STROKE', 'DRAW CDELTA', 'A-DRAW CDELTA', 'TILEMAP DRAW TILE', 'CTRL NEW',
-     'CTRL SET', 'CTRL DO', 'CTRL LOCK', 'CTRL UNLOCK', 'CTRL LIST', 'PR FONT', 'CTRL ERASE', 'PR PROP', 'FONT UPDATE');
+     'CTRL SET', 'CTRL DO', 'CTRL LOCK', 'CTRL UNLOCK', 'CTRL LIST', 'PR FONT', 'CTRL ERASE', 'PR PROP', 'FONT UPDATE',
+     'WINDOW DECOR', 'WINDOW CAPTION');
 
   // List of Functions that are used in expressions. Again, MUST be in order.
   // Functions that take only one parameter have a space at the end of their name. All others have no spaces.

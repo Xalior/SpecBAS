@@ -244,6 +244,7 @@ Begin
       SetLength(Buffer, fMaxContentLen);
 
     s := fDirectory;
+    Error.Code := SP_ERR_OK;
     Files := TStringlist.Create;
     FileSizes := TStringlist.Create;
     Changes := TStringlist.Create;

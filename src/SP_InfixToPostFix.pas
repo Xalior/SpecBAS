@@ -10143,6 +10143,8 @@ Begin
   //         DEPTH id,depth
   //         FLIP id
   //         MIRROR id
+  //         DECOR id, decorated [, resizable [, draggable]]
+  //         CAPTION id, "text"
 
   Result := '';
   If (Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position +1])^ = SP_KW_NEW) Then Begin
@@ -10215,6 +10217,21 @@ Begin
                 End;
               End Else
                 Expr := CreateToken(SP_STRING, Position, 0) + '' + Expr;
+              // Optional CAPTION "caption" — enables decoration, draggable+resizable by default
+              If (Byte(Tokens[Position]) = SP_KEYWORD) And
+                 (pLongWord(@Tokens[Position +1])^ = SP_KW_CAPTION) Then Begin
+                Inc(Position, 1 + SizeOf(LongWord));
+                Expr := Expr + SP_Convert_Expr(Tokens, Position, Error, -1); // caption string
+                If Error.Code <> SP_ERR_OK Then Exit;
+                If Error.ReturnType <> SP_STRING Then Begin
+                  Error.Code := SP_ERR_MISSING_STREXPR;
+                  Exit;
+                End;
+                Expr := Expr + CreateToken(SP_VALUE, Position, SizeOf(aFloat)) + aFloatToString(1); // decorated=1
+              End Else Begin
+                Expr := Expr + CreateToken(SP_STRING, Position, 0);                                  // caption=''
+                Expr := Expr + CreateToken(SP_VALUE, Position, SizeOf(aFloat)) + aFloatToString(0);  // decorated=0
+              End;
               Result := Expr + CreateToken(SP_KEYWORD, KeyWordPos, SizeOf(LongWord)) + LongWordToString(SP_KW_WIN_NEW) + VarResult;
               If pToken(@VarResult[1])^.Token in [SP_STRVAR_LET, SP_NUMVAR_LET] Then KeyWordID := 0 Else KeyWordID := SP_KW_LET;
               Exit;
@@ -10880,6 +10897,66 @@ Begin
     KeyWordID := SP_KW_WINDOW_MIRROR;
     Exit;
 
+  End;
+
+  If Error.Code <> SP_ERR_OK Then Exit;
+
+  // WINDOW DECOR id, decorated [, resizable [, draggable]]
+  If (Byte(Tokens[Position]) = SP_KEYWORD) And
+     (pLongWord(@Tokens[Position +1])^ = SP_KW_DECOR) Then Begin
+    Inc(Position, 1 + SizeOf(LongWord));
+    Expr := SP_Convert_Expr(Tokens, Position, Error, -1); // id
+    If Error.Code <> SP_ERR_OK Then Exit;
+    If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+    If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position +1] = ',') Then Begin
+      Inc(Position, 2);
+      Expr := SP_Convert_Expr(Tokens, Position, Error, -1) + Expr; // decorated
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+      // optional resizable
+      If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position +1] = ',') Then Begin
+        Inc(Position, 2);
+        Expr := SP_Convert_Expr(Tokens, Position, Error, -1) + Expr; // resizable
+        If Error.Code <> SP_ERR_OK Then Exit;
+        If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+        // optional draggable
+        If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position +1] = ',') Then Begin
+          Inc(Position, 2);
+          Expr := SP_Convert_Expr(Tokens, Position, Error, -1) + Expr; // draggable
+          If Error.Code <> SP_ERR_OK Then Exit;
+          If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+        End Else
+          Expr := CreateToken(SP_VALUE, Position, SizeOf(aFloat)) + aFloatToString(-1) + Expr;
+      End Else Begin
+        Expr := CreateToken(SP_VALUE, Position, SizeOf(aFloat)) + aFloatToString(-1) +
+                CreateToken(SP_VALUE, Position, SizeOf(aFloat)) + aFloatToString(-1) + Expr;
+      End;
+      Result := Expr;
+      KeyWordID := SP_KW_WIN_DECOR;
+    End Else
+      Error.Code := SP_ERR_MISSING_COMMA;
+    Exit;
+  End;
+
+  If Error.Code <> SP_ERR_OK Then Exit;
+
+  // WINDOW CAPTION id, "text"
+  If (Byte(Tokens[Position]) = SP_KEYWORD) And
+     (pLongWord(@Tokens[Position +1])^ = SP_KW_CAPTION) Then Begin
+    Inc(Position, 1 + SizeOf(LongWord));
+    Expr := SP_Convert_Expr(Tokens, Position, Error, -1); // id
+    If Error.Code <> SP_ERR_OK Then Exit;
+    If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+    If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position +1] = ',') Then Begin
+      Inc(Position, 2);
+      Expr := SP_Convert_Expr(Tokens, Position, Error, -1) + Expr; // text (pushed first ? popped last)
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_STRING Then Begin Error.Code := SP_ERR_MISSING_STREXPR; Exit; End;
+      Result := Expr;
+      KeyWordID := SP_KW_WIN_CAPTION;
+    End Else
+      Error.Code := SP_ERR_MISSING_COMMA;
+    Exit;
   End;
 
   Expr := SP_Convert_Expr(Tokens, Position, Error, -1);

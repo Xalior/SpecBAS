@@ -91,6 +91,7 @@ Procedure SP_FPCycleEditorWindows(HideMode: Integer);
 Procedure SP_FPResizeWindow(NewH: Integer);
 Procedure SP_DWResizeWindow(NewW, NewH: Integer);
 Procedure SP_Decorate_Window(WindowID: Integer; Title: aString; Clear, SizeGrip, Focused: Boolean);
+Procedure SP_Decorate_User_Window(WindowID: Integer);
 Procedure SP_DrawStripe(Dst: pByte; Width, StripeWidth, StripeHeight, BatteryLevel: Integer; Focused: Boolean);
 Function  SP_SetFPEditorFont: Integer;
 Procedure SP_SwitchFocus(FocusMode: Integer);
@@ -615,6 +616,98 @@ Begin
 
   SP_SetDirtyRect(Win^.Left, Win^.Top, Win^.Left + Win^.Width -1, Win^.Top + Win^.Height);
   SP_SetDrawingWindow(Window);
+  T_STROKE := Stroke;
+
+End;
+
+Procedure SP_Decorate_User_Window(WindowID: Integer);
+Var
+  Win: pSP_Window_Info;
+  Err: TSP_ErrorCode;
+  SaveWindow: Integer;
+  Sp, i, FB: Integer;
+  iFPFh, iFPFw: Integer;
+  iEdSc, s: aString;
+  Stroke, Scale: aFloat;
+  Focused: Boolean;
+Begin
+
+  SP_GetWindowDetails(WindowID, Win, Err);
+  If Not Assigned(Win) Or Not Win^.Decorated Then Exit;
+
+  SaveWindow := SCREENBANK;
+  Focused    := (FocusedWindow = WindowID);
+
+  If SYSTEMSTATE In [SS_EDITOR, SS_DIRECT, SS_NEW, SS_ERROR] Then Begin
+    FB    := EDITORFONT;
+    iFPFW := Trunc(EDFONTWIDTH  * EDFONTSCALEX);
+    iFPFH := Trunc(EDFONTHEIGHT * EDFONTSCALEY);
+    iEdSc := #25 + aFloatToString(EDFONTSCALEX) + aFloatToString(EDFONTSCALEY);
+    Scale := EDFONTSCALEX;
+  End Else Begin
+    FB    := FONTBANKID;
+    iFPFH := Round(FONTHEIGHT * T_SCALEY);
+    iFPFW := Round(FONTWIDTH  * T_SCALEX);
+    iEdSc := #25 + aFloatToString(T_SCALEX) + aFloatToString(T_SCALEY);
+    Scale := T_SCALEX;
+  End;
+  T_FONT := FB;
+
+  SP_SetDrawingWindow(WindowID);
+
+  T_INK    := capBack;
+  T_OVER   := 0;
+  T_BOLD   := 0;
+  T_CLIPX1 := 0;
+  T_CLIPX2 := Win^.Width;
+  T_CLIPY1 := 0;
+  T_CLIPY2 := Win^.Height;
+  Win^.Transparent := 11;
+
+  // Caption bar fill
+  SP_FillRect(0, 0, Win^.Width, iFPFH + 2, capBack);
+
+  // Truncate title to fit available width (same calc as SP_Decorate_Window)
+  Sp := Win^.Width - ((iFPFW * 4)) - iFPFH * 2 - iFPFW;
+  s  := '';
+  i  := 1;
+  While (i <= Length(Win^.Caption)) And (Round(SP_GetPropTextWidth(T_FONT, s, '') * Scale) < Sp) Do Begin
+    s := s + Win^.Caption[i];
+    Inc(i);
+  End;
+
+  Stroke   := T_STROKE;
+  T_STROKE := 1;
+
+  // Border rectangle
+  T_INK := 0;
+  SP_DrawRectangle(0, 0, Win^.Width - 1, Win^.Height - 1);
+
+  // Caption text
+  If Focused Then
+    SP_TextOut(FB, iFPFW Div 2, 1, iEdSc + s, capText,     capBack, True)
+  Else
+    SP_TextOut(FB, iFPFW Div 2, 1, iEdSc + s, capInactive, capBack, True);
+
+  // Clear top corners to transparent
+  SP_SetPixelClr(0,             0, 11);
+  SP_SetPixelClr(Win^.Width -1, 0, 11);
+
+  // Stripe
+  SP_DrawStripe(Win^.Surface, Win^.Width, iFPFW, iFPFH, 100, Focused);
+
+  // Size grip
+  If Win^.Resizable Then Begin
+    T_STROKE := Stroke;
+    SP_TextOut(FB, Win^.Width - (iFPFW + 2), Win^.Height - (iFPFH + 2),
+               #25 + aFloatToString(1) + aFloatToString(1) + #250,
+               gripClr, -1, False);
+  End;
+
+  SP_SetDirtyRect(Win^.Left, Win^.Top,
+                  Win^.Left + Win^.Width - 1, Win^.Top + Win^.Height);
+
+  SP_SetDrawingWindow(SaveWindow);
   T_STROKE := Stroke;
 
 End;

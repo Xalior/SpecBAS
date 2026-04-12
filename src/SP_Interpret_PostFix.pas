@@ -860,6 +860,8 @@ Procedure SP_Interpret_KW_MEMWRITES(Var Info: pSP_iInfo);
 Procedure SP_Interpret_KW_CLS_ALPHA(Var Info: pSP_iInfo);
 Procedure SP_Interpret_KW_SAY(Var Info: pSP_iInfo);
 Procedure SP_Interpret_THREAD(Var Info: pSP_iInfo);
+Procedure SP_Interpret_WIN_DECOR(Var Info: pSP_iInfo);
+Procedure SP_Interpret_WIN_CAPTION(Var Info: pSP_iInfo);
 
 Function  SP_SetUpPROC(CALLType: Byte; Var CacheVal: LongWord; Var Error: TSP_ErrorCode): Integer;
 
@@ -995,14 +997,14 @@ Var
   Il, Nl: LongWord;
   DummyToken: TToken;
   InterpretProcs: Array[0..9999] of pSP_InterpretProc;
+  SP_ONCtrlList: Array[0..MAXDEPTH -1] of aString;
+  SP_ONCtrlListPtr: Integer;
   ONCtrlLock: TCriticalSection;
-
+  SP_WindowResizeFlag: Integer;
 
 ThreadVar
 
   SP_StackPtr, SP_StackStart: pSP_StackItem;
-  SP_ONCtrlList: Array[0..MAXDEPTH -1] of aString;
-  SP_ONCtrlListPtr: Integer;
   SP_CaseList: Array[0..MAXDEPTH -1] of TSP_CaseItem;
   SP_CaseListPtr: Integer;
   SP_EveryItems: Array of TSP_EveryItem;
@@ -4003,9 +4005,19 @@ Begin
 End;
 
 Procedure DoPeriodicalEvents(var Error: TSP_ErrorCode);
+Var
+  Idx: Integer;
 Begin
 
   If PROGSTATE = SP_PR_RUN Then Begin
+
+    If SP_WindowResizeFlag >= 0 Then Begin
+      Idx := SCREENBANK;
+      SCREENBANK := -1;
+      SP_SetDrawingWindow(Idx);
+      SP_WindowResizeFlag := -1;
+    End;
+
     PROGSTATE := SP_PR_EVENT;
     If OnActive > 0 Then SP_CheckONConditions(Error);
     If ControlsAreInUse Then DoTimerEvents;
@@ -13871,12 +13883,16 @@ End;
 
 Procedure SP_Interpret_WIN_NEW(Var Info: pSP_iInfo);
 Var
-  i, j, w, Left, Top, Width, Height, Trans, Bpp, Alpha, cX1, cY1, cX2, cY2: Integer;
+  i, j, w, Left, Top, Width, Height, Trans, Bpp, Alpha, cX1, cY1, cX2, cY2, Decorated: Integer;
   Window: pSP_Window_Info;
   Graphic: pSP_Graphic_Info;
-  fName: aString;
+  fName, captionText: aString;
 Begin
 
+  Decorated := Round(SP_StackPtr^.Val);
+  Dec(SP_StackPtr);
+  CaptionText := SP_StackPtr^.Str;
+  Dec(SP_StackPtr);
   Left := Round(SP_StackPtr^.Val);
   Dec(SP_StackPtr);
   Top := Round(SP_StackPtr^.Val);
@@ -13923,6 +13939,20 @@ Begin
   SP_StackPtr^.OpType := SP_VALUE;
   SP_GetWindowDetails(w, Window, Info^.Error^);
   Window^.DropShadow := False;
+
+  If Decorated <> 0 Then Begin
+    Window^.Decorated    := True;
+    Window^.Caption      := CaptionText;
+    Window^.Resizable    := True;
+    Window^.Draggable    := True;
+    Window^.CaptionHeight := Trunc(EDFONTHEIGHT * EDFONTSCALEY) + 2;
+    Window^.DropShadow := True;
+    Window^.Paper := SP_UIWindowBack;
+    CPAPER := Window^.Paper;
+    FillMem(Window^.Surface, Window^.Width * Window^.Height, Window^.Paper);
+    If Assigned(CB_DecorateWindow) Then
+      CB_DecorateWindow(w);
+  End;
 
   If i <> -1 Then Begin
     cX1 := Window^.clipx1;
@@ -28052,7 +28082,6 @@ Begin
   // Dispatched by SP_Convert_THREAD.  Flag on stack:
   //   1 = THREAD WAIT  - block until all secondaries done (no forced stop)
   //   2 = THREAD STOP  - set BREAKSIGNAL, wait, clear BREAKSIGNAL
-  //   3 = THREAD COUNT - unused as statement; here for completeness
 
   Flag := Round(SP_StackPtr^.Val);
   Dec(SP_StackPtr);
@@ -28072,6 +28101,54 @@ Begin
        End;
   End;
 
+End;
+
+Procedure SP_Interpret_WIN_DECOR(Var Info: pSP_iInfo);
+Var
+  WinID, Decorated, Resizable, Draggable: Integer;
+  Win: pSP_Window_Info;
+Begin
+  WinID     := Round(SP_StackPtr^.Val); Dec(SP_StackPtr);
+  Decorated := Round(SP_StackPtr^.Val); Dec(SP_StackPtr);
+  Resizable := Round(SP_StackPtr^.Val); Dec(SP_StackPtr);
+  Draggable := Round(SP_StackPtr^.Val); Dec(SP_StackPtr);
+
+  SP_GetWindowDetails(WinID, Win, Info^.Error^);
+  If Info^.Error^.Code <> SP_ERR_OK Then Exit;
+
+  Win^.Decorated := Decorated <> 0;
+  If Resizable >= 0 Then Win^.Resizable := Resizable <> 0;
+  If Draggable >= 0 Then Win^.Draggable := Draggable <> 0;
+
+  If Win^.Decorated Then
+    Win^.CaptionHeight := Trunc(FONTHEIGHT * T_SCALEY) + 2
+  Else
+    Win^.CaptionHeight := 0;
+
+  Win^.DropShadow := True;
+  Win^.Paper := SP_UIWindowBack;
+  FillMem(Win^.Surface, Win^.Width * Win^.Height, Win^.Paper);
+
+  SP_InvalidateWindow(WinID, Info^.Error^);
+  SP_NeedDisplayUpdate := True;
+End;
+
+Procedure SP_Interpret_WIN_CAPTION(Var Info: pSP_iInfo);
+Var
+  WinID: Integer;
+  CaptionText: aString;
+  Win: pSP_Window_Info;
+Begin
+  WinID       := Round(SP_StackPtr^.Val); Dec(SP_StackPtr);
+  CaptionText := SP_StackPtr^.Str;        Dec(SP_StackPtr);
+
+  SP_GetWindowDetails(WinID, Win, Info^.Error^);
+  If Info^.Error^.Code <> SP_ERR_OK Then Exit;
+
+  Win^.Caption := CaptionText;
+
+  SP_InvalidateWindow(WinID, Info^.Error^);
+  SP_NeedDisplayUpdate := True;
 End;
 
 Procedure SP_Interpret_FN_THREADCOUNT(Var Info: pSP_iInfo);
@@ -28594,6 +28671,8 @@ Initialization
   InterpretProcs[SP_KW_CTRL_ERASE] := @SP_Interpret_CTRL_ERASE;
   InterpretProcs[SP_KW_SAY] := @SP_Interpret_KW_SAY;
   InterpretProcs[SP_KW_THREAD] := @SP_Interpret_THREAD;
+  InterpretProcs[SP_KW_WIN_DECOR]   := @SP_Interpret_WIN_DECOR;
+  InterpretProcs[SP_KW_WIN_CAPTION] := @SP_Interpret_WIN_CAPTION;
 
   // Functions
 

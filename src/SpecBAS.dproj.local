@@ -30,11 +30,17 @@
     <Transaction>2026/03/28 20:49:07.000.074,D:\Projects\SpecBAS\src\SP_Narrator.pas=D:\Projects\SpecBAS\src\Unit1.pas</Transaction>
     <Transaction>2026/03/29 00:32:27.000.611,=D:\Projects\SpecBAS\src\Unit1.pas</Transaction>
     <Transaction>2026/03/29 00:32:41.000.590,D:\Projects\SpecBAS\src\SP_NarratorTranslator.pas=D:\Projects\SpecBAS\src\Unit1.pas</Transaction>
+    <Transaction>2026/04/09 13:10:57.925,=D:\Projects\SpecBAS\src\Unit1.pas</Transaction>
+    <Transaction>2026/04/09 13:11:14.090,D:\Projects\SpecBAS\src\SP_Windows.pas=D:\Projects\SpecBAS\src\Unit1.pas</Transaction>
+    <Transaction>2026/04/09 13:32:22.148,=D:\Projects\SpecBAS\src\Unit1.pas</Transaction>
+    <Transaction>2026/04/09 13:32:34.595,D:\Projects\SpecBAS\src\SP_Sprites.pas=D:\Projects\SpecBAS\src\Unit1.pas</Transaction>
   </Transactions>
 	<ProjectSortOrder AutoSort="0" SortType="0">
     <File Path="MainForm.pas"/>
     <File Path="MainForm.dfm"/>
     <File Path="SP_Narrator.pas"/>
     <File Path="SP_NarratorTranslator.pas"/>
+    <File Path="SP_Windows.pas"/>
+    <File Path="SP_Sprites.pas"/>
   </ProjectSortOrder>
 </BorlandProject>

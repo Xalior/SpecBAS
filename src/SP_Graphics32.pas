@@ -551,6 +551,9 @@ Begin
 
     If HasFragments Then Begin
 
+      If sPtr^.Decorated And Assigned(CB_DecorateWindow) Then
+        CB_DecorateWindow(sPtr^.ID);
+
       If (sPtr^.SpriteCount > 0) or (sPtr^.Component.ControlCount > 0) Then Begin
         tw := sPtr^.Width * sPtr^.Height;
         If Length(SP_BackBuffer32) <> tw Then SetLength(SP_BackBuffer32, tw);
