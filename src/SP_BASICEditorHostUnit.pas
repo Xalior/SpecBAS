@@ -26,6 +26,7 @@ Uses
   SysUtils, Math, SyncObjs, Types,
   SP_BaseComponentUnit,
   SP_BASICEditorUnit,
+  SP_TabBarUnit,
   SP_AnsiStringlist,
   SP_SysVars,
   SP_Errors,
@@ -34,6 +35,8 @@ Uses
 Var
   // The listing editor component - accessible to SP_MenuActions, SP_DebugPanel.
   FPBASICEditor: SP_BASICEditor = nil;
+  // The tab bar docked to the bottom of the listing editor window.
+  FPTabBar:      SP_TabBar      = nil;
   // The direct command editor component.
   DWBASICEditor: SP_BASICEditor = nil;
   // Set True by the VCL thread (OnExecute) when a DW command is ready to run.
@@ -101,6 +104,7 @@ Uses
   SP_MenuActions,       // UpdateStatusLabel
   SP_ToolTipWindow,     // For the hints system
   SP_MemoUnit,          // For character heights
+  SP_EditorTabsUnit,    // Per-tab state save/restore
   SP_Tokenise;          // For SP_Program_Delete_Line
 
 // ---------------------------------------------------------------------------
@@ -394,6 +398,15 @@ End;
 Procedure EditorHost_Init(WinComponent: SP_BaseComponent);
 Begin
   Bridge := TEditorHostBridge.Create;
+
+  // Tab bar - SP_AlignBottom so AlignChildren pass 1 carves its height off the
+  // bottom of the window before FPBASICEditor (SP_AlignAll) fills the rest.
+  // Must be created before FPBASICEditor so it appears first in the component
+  // list and is therefore processed in pass 1 before any AlignAll child.
+  FPTabBar := SP_TabBar.Create(WinComponent);
+  FPTabBar.Align := SP_AlignBottom;
+  FPTabBar.Proportional := True;
+
   FPBASICEditor := SP_BASICEditor.Create(WinComponent);
   FPBASICEditor.Padding     := 4;
   FPBASICEditor.Align       := SP_AlignAll;  // fills the window client area
@@ -404,6 +417,14 @@ Begin
   FPBASICEditor.Border      := False;
   FPBASICEditor.Name        := 'Editor';
   FPBASICEditor.BackgroundClr := 7;
+  // AlignChildren has now run (triggered by SetAlign on FPBASICEditor above),
+  // giving FPTabBar its real pixel width via SetBounds.  SetupTabBar calls
+  // AddTab → LayoutTabs, which needs the correct fWidth to compute natural
+  // tab widths.  Calling it before FPBASICEditor.Create meant LayoutTabs ran
+  // with fWidth = 16px (the base constructor default), producing a narrow tab
+  // that snapped to the correct width only on the first mouse-over repaint.
+  SP_EditorTab_SetupTabBar;
+
   WireEvents;
   // Populate from whatever Listing already contains (may be empty for NEW,
   // or full if recovering from an error / returning from the runtime).
@@ -428,6 +449,8 @@ End;
 Procedure EditorHost_Destroy;
 Begin
   FreeAndNil(Bridge);
+  If Assigned(TabBridge) Then FreeAndNil(TabBridge);
+  FPTabBar      := nil;  // Freed by Win^.Component when the window is deleted
   FPBASICEditor := nil;  // Freed by Win^.Component when the window is deleted
 End;
 

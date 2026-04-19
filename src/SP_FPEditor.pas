@@ -50,7 +50,8 @@ interface
 Uses Types, Classes, SyncObjs, SysUtils, Math{$IFNDEF FPC}, Windows{$ENDIF}, SP_Graphics, SP_BankManager, SP_SysVars,
      SP_Errors, SP_Main, SP_Tokenise, SP_BankFiling, SP_UITools, SP_Input, SP_Sound, SP_InfixToPostFix, SP_Interpret_PostFix,
      SP_FileIO, SP_Package, SP_Variables, SP_Components, SP_Menu, SP_AnsiStringlist, SP_WindowMenuUnit, SP_PopUpMenuUnit,
-     SP_MenuActions, SP_Util, SP_ProgressBarUnit, SP_ToolTipWindow, SP_Compiler, SP_BASICEditorHostUnit, SP_MemoUnit;
+     SP_MenuActions, SP_Util, SP_ProgressBarUnit, SP_ToolTipWindow, SP_Compiler, SP_BASICEditorHostUnit, SP_MemoUnit,
+     SP_EditorTabsUnit;
 
 Type
 
@@ -274,6 +275,7 @@ End;
 Procedure ListingChange(Index, Operation: Integer);
 Var
   c: Boolean;
+  s: aString;
 Begin
 
   SetIsPoI(Index);
@@ -294,8 +296,11 @@ Begin
 
   c := FILECHANGED;
   FILECHANGED := True;
-  If Not c And (FPWindowID > -1) Then
-    SP_Decorate_Window(FPWindowID, 'Program listing - ' + SP_GetProgName(PROGNAME, True), False, False, FocusedWindow = fwEditor);
+  If Not c And (FPWindowID > -1) Then Begin
+    s := SP_GetProgName(PROGNAME, True);
+    SP_Decorate_Window(FPWindowID, 'Program listing - ' + s, False, False, FocusedWindow = fwEditor);
+    SP_EditorTab_SyncDisplay(s);
+  End;
 End;
 
 Procedure SP_InitFPEditor;
@@ -756,12 +761,31 @@ Begin
 
 End;
 
+// Called by SP_EditorTab_RestoreActive after every tab switch.
+// Refreshes the window title AND syncs the tab button caption and dirty dot.
+// Also registered for explicit call after EditorHost_Init (initial startup).
+Procedure FP_OnTabSwitched;
+Var displayName: aString;
+Begin
+  If FPWindowID < 0 Then Exit;
+  displayName := SP_GetProgName(PROGNAME, True);
+  SP_Decorate_Window(FPWindowID,
+    'Program listing - ' + displayName,
+    False, False, FocusedWindow = fwEditor);
+  // Sync tab caption and dirty dot from the now-stable FILECHANGED value.
+  // RestoreActive sets FILECHANGED last (after RefreshLineStates etc.), so by
+  // the time OnAfterSwitch fires here the value is correct.
+  SP_EditorTab_SyncDisplay(displayName);
+End;
+
 Procedure SP_CreateFPWindow;
 Var
   Idx: Integer;
   Error: TSP_ErrorCode;
   Win: pSP_Window_Info;
 Begin
+
+  SYSTEMSTATE := SS_EDITOR;
 
   // Create the main editor window - fullscreen (with margin/border)
 
@@ -790,7 +814,16 @@ Begin
   SP_FillRect(0, 0, FPWindowWidth, FPWindowHeight, 7);
   SP_Decorate_Window(FPWindowID, 'Program listing - ' + SP_GetProgName(PROGNAME, True), False, False, False);
 
+  // Wire the tab-switched callback so tab switches keep the window title current.
+  SP_EditorTab_OnAfterSwitch := FP_OnTabSwitched;
+
   EditorHost_Init(Win^.Component);
+
+  // Sync the initial tab name explicitly: FP_OnTabSwitched is normally fired by
+  // RestoreActive, which is NOT called on the initial startup path.  This call
+  // ensures the tab button caption matches the window title from the moment the
+  // editor opens, even when coming from a clean boot with no prior tab state.
+  FP_OnTabSwitched;
 
   If FPUserOpenedDebugPanel Then
     SP_OpenDebugPanel;
@@ -854,6 +887,10 @@ Begin
           SP_FPCycleEditorWindows(2);
         End;
         SP_Decorate_Window(FPWindowID, 'Program listing - ' + SP_GetProgName(PROGNAME, True), False, False, True);
+        // Keep the tab caption in sync with the window title that was just set.
+        // This covers the case where clicking in the editor triggers SP_SwitchFocus
+        // before any other sync point has had a chance to run.
+        SP_EditorTab_SyncDisplay(SP_GetProgName(PROGNAME, True));
         If Listing.FPCLine >= Listing.Count Then Begin
           Listing.FPCLine := Listing.Count - 1;
           Listing.FPCPos  := 1;
@@ -1043,6 +1080,7 @@ Begin
 
     ProcessNextControlMsg;
     DoTimerEvents;
+    If MOUSEBTN = 0 Then CheckForTip(MOUSEX, MOUSEY);
 
     If LocalFlashState <> FLASHSTATE Then Begin
       SP_UpdateBatteryStatus;
@@ -2351,6 +2389,9 @@ Begin
 
   SP_CloseDebugPanel;
   SP_FPCycleEditorWindows(1);
+  // Snapshot current tab state (Listing, SP_Program, editor undo/scroll/cursor)
+  // before the editor component and window are torn down.
+  SP_EditorTab_SaveActive;
   DWHost_Destroy;
   EditorHost_Destroy;
   FreeAndNil(FPDebugContainer);   // frees entire tree; SP_BaseComponent.Destroy
@@ -2395,8 +2436,18 @@ Procedure SP_CreateEditorWindows;
 Begin
 
   SP_InitDWMetrics;
-  SP_CreateFPWindow;
-  SP_CreateDirectWindow;
+  SP_CreateFPWindow;      // calls EditorHost_Init → SetupTabBar → LoadFromListing
+  SP_CreateDirectWindow;  // DW window and status bar labels must exist before RestoreActive,
+                          // because UnpackEditorState → EnsureCursorVisible → SetCursorRaw
+                          // → OnCursorMoved → UpdateStatusLabel → SP_Label.SetCaption.
+  // If content changed since SaveActive (e.g. LOAD was executed), re-snapshot
+  // the active tab from the current Listing and clear the stale EditorState so
+  // RestoreActive doesn't overwrite the newly loaded content.  Also renames the
+  // tab caption to the current program name.
+  SP_EditorTab_SyncActiveIfChanged(SP_GetProgName(PROGNAME, True));
+  // Restore the active tab's undo/scroll/cursor (and Listing/SP_Program for the
+  // unchanged-content case - redundant but harmless for the LOAD case).
+  SP_EditorTab_RestoreActive;
   SwitchFocusedWindow(fwDirect);
   SP_SwitchFocus(FocusedWindow);
   SP_FPCycleEditorWindows(2);

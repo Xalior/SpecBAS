@@ -443,13 +443,12 @@ Var
 
   CORECOUNT:                Integer;
 
-
+  FILENAMED:                Boolean;      // The current program has a filename (ie, it's been saved).
   NEWPROGNAME:              aString;      // The default project name
 
 ThreadVar
 
   LASTFILENAME:             aString;      // The last file that was opened for loading or saving
-  FILENAMED:                Boolean;      // The current program has a filename (ie, it's been saved).
   PROGBANK:                 Integer;      // The Bank ID of the program bank.
   COMMANDBANK:              Integer;      // The Bank ID of the bank which holds direct commands.
   CURPROGBANK:              Integer;      // The currently executing bank - usually the same as one of the above.

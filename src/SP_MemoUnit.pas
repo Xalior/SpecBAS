@@ -229,7 +229,13 @@ SP_Memo = Class(SP_BaseComponent)
     // -----------------------------------------------------------------------
 
     Procedure RebuildWrappedLines;
-    Function  WrapOneLine(RawIdx, MaxW: Integer): Integer;
+    Function  WrapOneLine(RawIdx, MaxW: Integer): Integer; Virtual;
+    // Returns the number of bold characters in a segment of raw line RawIdx
+    // from column SegStart to SegEnd (1-based, inclusive).  Used by WrapOneLine
+    // to subtract Round(count * iSX) from effectiveMaxW, compensating for the
+    // 1-scaled-pixel-per-bold-character overhead that Print() adds at render time.
+    // Base implementation returns 0 (no bold); subclasses override as needed.
+    Function  BoldCharsInSegment(RawIdx, SegStart, SegEnd: Integer): Integer; Virtual;
     Function  VisibleLines: Integer;
     Function  ClientW: Integer;
     Function  ClientH: Integer;
@@ -267,11 +273,13 @@ SP_Memo = Class(SP_BaseComponent)
     Procedure SetCursorLine(l: Integer);
     Procedure SetCursorCol(c: Integer);
     Function  GetLeftOffset: Integer;
-    Function  GetTopOffset: Integer; Virtual;
+
+    Function  GetTopOffset: Integer; Virtual;
     Function  GetRightOffset: Integer;
     Function  GetBottomOffset: Integer;
 
-    // -----------------------------------------------------------------------
+
+    // -----------------------------------------------------------------------
     // Search bar helpers (internal, accessible to subclasses)
     // -----------------------------------------------------------------------
     Function  SearchBarH: Integer;
@@ -300,6 +308,9 @@ SP_Memo = Class(SP_BaseComponent)
     Procedure DoubleClick(X, Y, Btn: Integer); Override;
     Procedure HasSized; Override;
     Procedure SetBounds(x, y, w, h: Integer); Override;
+
+    Function  PackEditorState: aString;
+    Procedure UnpackEditorState(Const State: aString);
 
     Procedure AddLine(const s: aString);
     Procedure InsertLine(Index: Integer; const s: aString);
@@ -493,6 +504,7 @@ Function  SP_Memo.ExtraLeftMargin: Integer;                               Begin 
 Function  SP_Memo.ExtraRightMargin: Integer;                              Begin Result := fTextMarginRight; End;
 Function  SP_Memo.GetLineNumLen(RawLine: Integer): Integer;               Begin Result := 0; End;
 Function  SP_Memo.GetLineContinuationIndent(RawIdx: Integer): Integer;    Begin Result := 0; End;
+Function  SP_Memo.BoldCharsInSegment(RawIdx, SegStart, SegEnd: Integer): Integer; Begin Result := 0; End;
 Procedure SP_Memo.OnRebuildPerLineData;                                   Begin End;
 Procedure SP_Memo.OnAfterRebuildWraps;                                    Begin End;
 Procedure SP_Memo.PreDrawVisibleLines(firstWL, lastWL, lastRaw: Integer); Begin End;
@@ -639,6 +651,10 @@ Begin
       measureStr := Copy(s, segStart, Idx - segStart + 1);
       For i := 1 To Length(measureStr) Do If measureStr[i] = #1 Then measureStr[i] := ' ';
       wLen := TextWidth(measureStr);
+      // Add bold rendering overhead: Print() advances each bold character by an
+      // extra Round(1 * ScaleX) pixel.  BoldCharsInSegment returns 0 in the base
+      // class; subclasses (SP_AmigaGuide, SP_BASICEditor) override it.
+      Inc(wLen, Round(BoldCharsInSegment(RawIdx, segStart, Idx) * iSX));
     End Else
       wLen := (Idx - segStart + 1) * cfW;
 
@@ -1226,6 +1242,93 @@ Begin
     fRedoList.Delete(fRedoList.Count - 1);
     fLastUndoOp := uoNone;
   End;
+End;
+
+// Pack the complete editor state (undo/redo stacks, scroll position, cursor,
+// selection, last-undo tracking) into a single aString for external storage.
+// fLines content is NOT included - that is handled separately by the Listing.
+// The packed string can be restored by UnpackEditorState.
+//
+// Format (all integers as 4-byte LongWord):
+//   topPixel, leftPixel, cursorLine, cursorCol, selLine, selCol,
+//   lastUndoOp, lastUndoLine, lastUndoCol,
+//   undoCount, [len, bytes] * undoCount,
+//   redoCount, [len, bytes] * redoCount
+Function SP_Memo.PackEditorState: aString;
+Var
+  i, n: Integer;
+  entry: aString;
+Begin
+  Result := LongWordToString(fTopPixel)           +
+            LongWordToString(fLeftPixel)           +
+            LongWordToString(fCursorLine)          +
+            LongWordToString(fCursorCol)           +
+            LongWordToString(fSelLine)             +
+            LongWordToString(fSelCol)              +
+            LongWordToString(Ord(fLastUndoOp))     +
+            LongWordToString(fLastUndoLine)        +
+            LongWordToString(fLastUndoCol)         +
+            LongWordToString(fUndoList.Count);
+  For i := 0 To fUndoList.Count - 1 Do Begin
+    entry  := fUndoList[i];
+    n      := Length(entry);
+    Result := Result + LongWordToString(n) + entry;
+  End;
+  Result := Result + LongWordToString(fRedoList.Count);
+  For i := 0 To fRedoList.Count - 1 Do Begin
+    entry  := fRedoList[i];
+    n      := Length(entry);
+    Result := Result + LongWordToString(n) + entry;
+  End;
+End;
+
+// Restore undo/redo stacks, scroll position, cursor, and selection from a
+// PackEditorState snapshot.  fLines must already contain the correct content
+// before calling (typically via EditorHost_LoadFromListing/SetText).
+// Safe to call immediately after SetText - it does NOT call Clear.
+Procedure SP_Memo.UnpackEditorState(Const State: aString);
+Var
+  p, i, cnt, len: Integer;
+Begin
+  // Minimum: 9 LongWords (36 bytes) for header + 2 count fields
+  If Length(State) < 40 Then Exit;
+  p := 1;
+
+  fTopPixel     := pLongWord(@State[p])^; Inc(p, 4);
+  fLeftPixel    := pLongWord(@State[p])^; Inc(p, 4);
+  CursorLine    := pLongWord(@State[p])^; Inc(p, 4);
+  CursorCol     := pLongWord(@State[p])^; Inc(p, 4);
+  fSelLine      := pLongWord(@State[p])^; Inc(p, 4);
+  fSelCol       := pLongWord(@State[p])^; Inc(p, 4);
+  fLastUndoOp   := TUndoOpType(pLongWord(@State[p])^); Inc(p, 4);
+  fLastUndoLine := pLongWord(@State[p])^; Inc(p, 4);
+  fLastUndoCol  := pLongWord(@State[p])^; Inc(p, 4);
+
+  fUndoList.Clear;
+  If p + 3 > Length(State) Then Exit;
+  cnt := pLongWord(@State[p])^; Inc(p, 4);
+  For i := 0 To cnt - 1 Do Begin
+    If p + 3 > Length(State) Then Break;
+    len := pLongWord(@State[p])^; Inc(p, 4);
+    If p + len - 1 > Length(State) Then Break;
+    fUndoList.Add(Copy(State, p, len)); Inc(p, len);
+  End;
+
+  fRedoList.Clear;
+  If p + 3 > Length(State) Then Exit;
+  cnt := pLongWord(@State[p])^; Inc(p, 4);
+  For i := 0 To cnt - 1 Do Begin
+    If p + 3 > Length(State) Then Break;
+    len := pLongWord(@State[p])^; Inc(p, 4);
+    If p + len - 1 > Length(State) Then Break;
+    fRedoList.Add(Copy(State, p, len)); Inc(p, len);
+  End;
+
+  // Sync scroll bars to restored positions
+  If fVScroll.Visible Then SP_ScrollBar(fVScroll).Pos := fTopPixel;
+  If fHScroll.Visible Then SP_ScrollBar(fHScroll).Pos := fLeftPixel;
+  EnsureCursorVisible;
+  Paint;
 End;
 
 Procedure SP_Memo.DeleteSelection;

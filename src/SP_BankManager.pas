@@ -1070,29 +1070,29 @@ End;
 Function SP_GetPropTextWidth(FontID: Integer; Text, Exclude: aString): Integer;
 Var
   Bank: pSP_Bank;
-  LiteralChar: Boolean;
-  BankID, Idx, c: Integer;
   FontInfo: pSP_Font_Info;
+  LiteralChar, isBold: Boolean;
+  BankID, Idx, ch, l: Integer;
 Begin
 
-  c := 0;
   Result := 0;
+  isBold := False;
+  l := Length(Text);
   BankID := SP_FindBankID(FontID);
   Bank := SP_BankList[BankID];
   If Bank^.DataType = SP_FONT_BANK Then Begin
     FontInfo := @Bank^.Info[0];
     Idx := 1;
     LiteralChar := False;
-    While Idx <= Length(Text) Do Begin
+    While Idx <= l Do Begin
       If LiteralChar Then Begin
-        If Pos(Text[Idx], Exclude) = 0 Then Begin
-          Inc(c);
-          Inc(Result, FontInfo^.Font_Info[Ord(Text[Idx])].Width + Ord(Text[Idx] < #128));
-        End;
+        If Pos(Text[Idx], Exclude) = 0 Then
+          Inc(Result, FontInfo^.Font_Info[Ord(Text[Idx])].Width + Ord(Text[Idx] < #128) + Ord(isBold));
         Inc(Idx);
         LiteralChar := False;
       End Else Begin
-        Case Ord(Text[Idx]) of
+        ch := Ord(Text[Idx]);
+        Case ch of
           5: // Literal char
             Begin
               LiteralChar := True;
@@ -1100,6 +1100,8 @@ Begin
             End;
           16, 17, 18, 19, 20, 26, 27, 29:
             Begin // INK, PAPER etc controls
+              If (ch = 27) and (Idx < l - 3) Then
+                isBold := pLongWord(@Text[Idx +1])^ <> 0;
               Inc(Idx, SizeOf(LongWord));
             End;
           6..13:
@@ -1124,10 +1126,8 @@ Begin
             End;
         Else
           Begin
-            If Pos(Text[Idx], Exclude) = 0 Then Begin
-              Inc(c);
-              Inc(Result, FontInfo^.Font_Info[Ord(Text[Idx])].Width + Ord(Text[Idx] < #128));
-            End;
+            If Pos(Text[Idx], Exclude) = 0 Then
+              Inc(Result, FontInfo^.Font_Info[Ord(Text[Idx])].Width + Ord(Text[Idx] < #128) + Ord(IsBold));
           End;
         End;
         Inc(Idx);

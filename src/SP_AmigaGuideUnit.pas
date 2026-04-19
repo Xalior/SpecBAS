@@ -202,6 +202,7 @@ Type
     Function  GetLineContinuationIndent(RawIdx: Integer): Integer; Override;
     Function  WantCurrentLineHighlight: Boolean; Override;
     Function  TreatsLeadingDigitsAsLineNum(RawIdx: Integer): Boolean; Override;
+    Function  BoldCharsInSegment(RawIdx, SegStart, SegEnd: Integer): Integer; Override;
 
   Public
 
@@ -1214,6 +1215,21 @@ End;
 Function SP_AmigaGuide.PropTextWidth(Const s: aString): Integer;
 Begin
   Result := Round(SP_GetPropTextWidth(FONTBANKID, s, '') * iSX);
+End;
+
+Function SP_AmigaGuide.BoldCharsInSegment(RawIdx, SegStart, SegEnd: Integer): Integer;
+Var
+  Info: TGuideLineInfo;
+  i:    Integer;
+Begin
+  Result := 0;
+  If (RawIdx < 0) Or (RawIdx >= Length(fLineInfos)) Then Exit;
+  Info := fLineInfos[RawIdx];
+  For i := 0 To Info.SpanCount - 1 Do
+    If Info.Spans[i].Bold Then
+      // Count overlap between span [ColStart..ColEnd] and segment [SegStart..SegEnd]
+      Inc(Result, Max(0, Min(Info.Spans[i].ColEnd, SegEnd)
+                        - Max(Info.Spans[i].ColStart, SegStart) + 1));
 End;
 
 Procedure SP_AmigaGuide.RepositionButtons;

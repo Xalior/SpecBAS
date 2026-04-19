@@ -5635,7 +5635,8 @@ Begin
       Error.Code := SP_ERR_SYNTAX_ERROR;
     End;
     Dec(SP_StackPtr);
-  End;
+  End Else
+    ErrStr := '';
 
   // Restore the ThreadVar slots. For the compiler thread these will go back
   // to their saved values (both nil on first call, local array on recursion).

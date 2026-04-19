@@ -548,7 +548,13 @@ begin
   MOUSEX := X;
   MOUSEY := Y;
 
-  Btn := Integer(ssLeft in Shift) + (2 * Integer(ssRight in Shift)) + (4 * Integer(ssMiddle in Shift));
+  Case Button of
+    mbLeft: Btn := 1;
+    mbMiddle: Btn := 4;
+    mbRight: Btn := 2;
+  Else
+    Btn := 0;
+  End;
 
   For BankIdx := 0 To Length(SP_BankList) -1 Do Begin
     If SP_BankList[BankIdx]^.DataType <> SP_WINDOW_BANK Then Continue;
@@ -600,7 +606,7 @@ begin
 
     // Finally, pass the mouse event to the interpreter
 
-    MOUSEBTN := Btn;
+    MOUSEBTN := MOUSEBTN And Not Btn;
     If Not Handled Then Begin
       M_UPFLAG := True;
     End;
@@ -935,6 +941,8 @@ begin
   {$ENDIF}
 
   DisplaySection.Leave;
+
+  SP_FinalizeThreadVars;
 
   TimeEndPeriod(10);
 

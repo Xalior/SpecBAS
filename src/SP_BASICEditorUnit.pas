@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2026 By Paul Dunn
+// Copyright (C) 2026 By Paul Dunn
 //
 // This file is part of the SpecBAS BASIC Interpreter, which is in turn
 // part of the SpecOS project.
@@ -160,6 +160,7 @@ SP_BASICEditor = Class(SP_Memo)
     Procedure DrawLineDecorations(WrapIdx, X, Y, H: Integer); Override;
     Procedure DrawMarginCursor(RawLine, RawCol, X, Y: Integer); Override;
     Procedure OnMarginClick(WrapIdx, X, Y, Btn: Integer); Override;
+    Function  BoldCharsInSegment(RawIdx, SegStart, SegEnd: Integer): Integer; Override;
     Function  ShouldSnapToLineStart(ch: aChar): Boolean; Override;
     Function  ComputeAutoIndent: aString; Override;
     Procedure VScrollPaintAfter(Control: SP_BaseComponent); Override;
@@ -386,6 +387,10 @@ End;
 
 Function SP_BASICEditor.GetLineNumLen(RawLine: Integer): Integer;
 Begin
+  If fMode = bemDirect Then Begin
+    Result := 0;
+    Exit;
+  End;
   If (RawLine >= 0) And (RawLine < Length(fLineNumLen)) Then
     Result := fLineNumLen[RawLine]
   Else
@@ -530,6 +535,61 @@ Begin
     Result := SP_SyntaxHighlight(fWrapped[WrapIdx].Text, fWrapped[WrapIdx].StartSyntax, False, False)
   Else
     Result := InsertLiterals(fWrapped[WrapIdx].Text);
+End;
+
+Function SP_BASICEditor.BoldCharsInSegment(RawIdx, SegStart, SegEnd: Integer): Integer;
+Var
+  highlighted, seg, startSyntax: aString;
+  fs, i: Integer;
+  inBold: Boolean;
+Begin
+  Result := 0;
+  If Not fHighlight Then Exit;
+  If (RawIdx < 0) Or (RawIdx >= fLines.Count) Then Exit;
+  If SegEnd < SegStart Then Exit;
+
+  // Seed the start syntax so highlighting is correct for continuation segments.
+  fs := fRawToFirstWrap[RawIdx];
+  startSyntax := '';
+  If fs >= 0 Then startSyntax := fWrapped[fs].StartSyntax;
+
+  // Highlight just the segment we are measuring.  HasNumber = False because
+  // a segment starting mid-line never begins with a line number.
+  seg := Copy(fLines[RawIdx], SegStart, SegEnd - SegStart + 1);
+  highlighted := SP_SyntaxHighlight(seg, startSyntax, False, False);
+
+  // Count visible characters that fall within a bold-on region.
+  // Bold control code: #27 + 4-byte LongWord; non-zero value = bold on.
+  inBold := False;
+  i := 1;
+  While i <= Length(highlighted) Do Begin
+    Case Ord(highlighted[i]) Of
+      27: Begin  // bold control: #27 + 4 bytes
+            If i + 4 <= Length(highlighted) Then
+              inBold := pLongWord(@highlighted[i+1])^ <> 0;
+            Inc(i, 5);
+          End;
+      16, 17, 18, 19, 20, 26, 29: // other colour controls: skip 4 bytes
+          Inc(i, 5);
+      5:  // literal char follows
+          Begin
+            If inBold Then Inc(Result);
+            Inc(i, 2);
+          End;
+      6..13, 28: // single-byte controls
+          Inc(i, 2);
+      21, 22: // MOVE/AT: 2 x Integer
+          Inc(i, 1 + SizeOf(Integer) * 2);
+      23, 24: // TAB/CENTRE: 1 x Integer
+          Inc(i, 1 + SizeOf(Integer));
+      25: // SCALE: 2 x aFloat
+          Inc(i, 1 + SizeOf(aFloat) * 2);
+    Else
+      // Printable character
+      If inBold Then Inc(Result);
+      Inc(i);
+    End;
+  End;
 End;
 
 Function SP_BASICEditor.GetCursorChar(RawLine, RawCol: Integer): aChar;

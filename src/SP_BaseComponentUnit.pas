@@ -770,7 +770,7 @@ Begin
             Begin
               L := pRect.Left; W := pRect.Right - pRect.Left;
               T := pRect.Bottom - fHeight + 1; H := fHeight;
-              Dec(pRect.Bottom, fHeight);
+              Dec(pRect.Bottom, fHeight - 1);  // -1 closes the 1px gap with AlignAll
             End;
         End;
         SetBounds(L, T, W, H);

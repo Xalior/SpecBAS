@@ -43,7 +43,7 @@ Var
 
 implementation
 
-Uses SP_Compiler, SP_Main, SP_Menu, SP_FPEditor, SP_PreRun, SP_Display;
+Uses SP_Compiler, SP_Main, SP_Menu, SP_FPEditor, SP_PreRun, SP_Display, SP_EditorTabsUnit;
 
 Procedure SP_DrawStripe(Dst: pByte; Width, StripeWidth, StripeHeight: Integer);
 Var
@@ -75,6 +75,10 @@ Var
   tStr: aString;
   s: aString;
   i: Integer;
+  // Multi-tab restore temporaries
+  TabFileID, TabCount, ActiveIdx, ti, p: Integer;
+  TabLine, TabFilename, dn: aString;
+  DisplayNames: Array of aString;
 //  {$IFDEF DEBUG}
 //  fs: TFileStream;
 //  {$ELSE}
@@ -148,13 +152,67 @@ Begin
       Exit;
     End Else Begin
 
-      // Now load the auto-save if it exists, and set up for a NEW error message.
+      // Load autosaved tab state if present.
+      // Multi-tab path: s:tabstate records how many tabs were open and which was active.
+      // Single-tab fallback: s:autosave (backward compat with older saves).
 
       SP_LoadRecentFiles;
 
-      If aSave And (SP_FileExists('s:autosave')) Then Begin
+      If aSave And SP_FileExists('s:tabstate') Then Begin
+
+        // ── Multi-tab restore ──────────────────────────────────────────────
+        TabFileID := SP_FileOpen('s:tabstate', False, Error);
+        TabCount  := 1;
+        ActiveIdx := 0;
+        If TabFileID > -1 Then Begin
+          TabLine := SP_FileReadLn(TabFileID, Error);
+          p := Pos('|', TabLine);
+          If p > 0 Then Begin
+            TabCount  := Max(1, StringToInt(Copy(TabLine, 1, p - 1), 1));
+            ActiveIdx := Max(0, StringToInt(Copy(TabLine, p + 1, Length(TabLine)), 0));
+          End;
+          If ActiveIdx >= TabCount Then ActiveIdx := 0;
+          SetLength(DisplayNames, TabCount);
+          For ti := 0 To TabCount - 1 Do
+            DisplayNames[ti] := SP_FileReadLn(TabFileID, Error);
+          SP_FileClose(TabFileID, Error);
+        End;
+
+        // Load each tab's autosave file and snapshot into SP_EditorTabs.
+        // Always use s:autosave_N even for tab 0: s:autosave is kept only for
+        // backward compat and always contains the *active* tab's content, not
+        // necessarily tab 0's content.
+        Error.Code := SP_ERR_OK;
+        For ti := 0 To TabCount - 1 Do Begin
+          TabFilename := 's:autosave_' + IntToString(ti);
+          If SP_FileExists(TabFilename) Then Begin
+            SP_LoadProgram(TabFilename, False, False, nil, Error);
+            If Error.Code = SP_ERR_OK Then Begin
+              dn := '';
+              If ti < Length(DisplayNames) Then dn := DisplayNames[ti];
+              If dn = '' Then dn := NEWPROGNAME;
+              SP_EditorTab_CaptureFromGlobals(ti, dn);
+            End;
+            Error.Code := SP_ERR_OK;
+          End Else Begin
+            // Tab file missing: create an empty slot.
+            SP_FPNewProgram;
+            SP_EditorTab_CaptureFromGlobals(ti, NEWPROGNAME);
+          End;
+        End;
+
+        // Set the active tab and restore its listing into globals so the
+        // editor opens with the correct content.
+        SP_ActiveTab := ActiveIdx;
+        SP_EditorTab_RestoreGlobals(ActiveIdx);
+        FILENAMED := SP_FileExists(PROGNAME);
+
+      End Else If aSave And (SP_FileExists('s:autosave')) Then Begin
+
+        // ── Single-tab fallback (existing behaviour) ───────────────────────
         SP_LoadProgram('s:autosave', False, False, nil, Error);
         FILENAMED := SP_FileExists(PROGNAME);
+
       End Else Begin
         SP_Program_Count := 0;
         Error.Line := -2;

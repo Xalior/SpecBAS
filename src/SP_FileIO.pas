@@ -1287,7 +1287,10 @@ Begin
   AutoStart   := -1;
   pName       := Filename;
   isAutoSaved := (Lower(Filename) = 's:autosave') Or
-                 (Lower(Filename) = 's:oldprog');
+                 (Lower(Filename) = 's:oldprog')  Or
+                 // Multi-tab autosaves: s:autosave_0, s:autosave_1, etc.
+                 ((Length(Filename) > 11) And
+                  (Lower(Copy(Filename, 1, 11)) = 's:autosave_'));
 
   Dir := SP_ExtractFileDir(Filename);
   If DirtyFile Then Begin

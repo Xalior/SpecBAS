@@ -38,7 +38,7 @@ Uses
   Math, Classes, SysUtils, SP_Graphics32,
   SP_Graphics, SP_SysVars, SP_Input, SP_Errors, SP_Util, SP_Tokenise,
   SP_InfixToPostFix, SP_Interpret_PostFix, SP_Variables, SP_BankManager,
-  SP_FileIO, SP_Sound, SP_Editor, SP_PreRun, SyncObjs;
+  SP_FileIO, SP_Sound, SP_Editor, SP_PreRun, SyncObjs, SP_EditorTabsUnit;
 
 Type
 
@@ -136,14 +136,63 @@ End;
 
 Procedure DoAutoSave(SaveOLD: Boolean = False);
 Var
-  Error: TSP_ERRORCODE;
+  Error:      TSP_ERRORCODE;
+  i, FileID:  Integer;
+  Filename:   aString;
+  SaveBuffer: aString;
+  StateFile:  aString;
+  TrueFalse:  Array[0..1] Of aString;
+Const
+  ASCIITAG = 'ZXASCII'#13#10;
 Begin
   If AUTOSAVE And Not PAYLOADPRESENT Then Begin
     FileSection.Enter;
     Error.Code := SP_ERR_OK;
+    TrueFalse[0] := 'FALSE';
+    TrueFalse[1] := 'TRUE';
+
+    // Snapshot the active tab before saving so its data is current.
+    SP_EditorTab_SaveActive;
+
+    // Save each tab to its own autosave file.
+    For i := 0 To Length(SP_EditorTabs) - 1 Do Begin
+      Filename := 's:autosave_' + IntToString(i);
+      If SP_FileExists(Filename) Then
+        SP_DeleteFile(Filename, Error);
+      Error.Code := SP_ERR_OK;
+      FileID := SP_FileOpen(Filename, True, Error);
+      If FileID > -1 Then Begin
+        SaveBuffer := ASCIITAG +
+                      'AUTO -1'#13#10 +
+                      'PROG '    + SP_EditorTab_GetProgName(i)                         + #13#10 +
+                      'CHANGED ' + TrueFalse[Ord(SP_EditorTab_GetFileChanged(i))]      + #13#10 +
+                      SP_EditorTab_GetListingText(i);
+        SP_FileWrite(FileID, @SaveBuffer[1], Length(SaveBuffer), Error);
+        SP_FileClose(FileID, Error);
+      End;
+    End;
+
+    // Write s:tabstate: tab count, active index, then one display name per line.
+    // Format: line 1 = "count|active_idx"
+    //         lines 2..N+1 = display name for each tab
+    Filename := 's:tabstate';
+    If SP_FileExists(Filename) Then SP_DeleteFile(Filename, Error);
+    Error.Code := SP_ERR_OK;
+    FileID := SP_FileOpen(Filename, True, Error);
+    If FileID > -1 Then Begin
+      StateFile := IntToString(Length(SP_EditorTabs)) + '|' +
+                   IntToString(SP_ActiveTab) + #13#10;
+      For i := 0 To Length(SP_EditorTabs) - 1 Do
+        StateFile := StateFile + SP_EditorTab_GetDisplayName(i) + #13#10;
+      SP_FileWrite(FileID, @StateFile[1], Length(StateFile), Error);
+      SP_FileClose(FileID, Error);
+    End;
+
+    // Also keep s:autosave in sync (backward compat: older versions read only this).
     SP_SaveProgram('s:autosave', -1, Error);
     If SaveOld Then
       SP_SaveProgram('s:oldprog', -1, Error);
+
     FileSection.Leave;
   End;
 End;
@@ -439,7 +488,11 @@ Var
   Idx: pByte;
 Begin
 
-  Tokens := @SP_Program[Line];
+  If Line < SP_Program_Count Then
+    Tokens := @SP_Program[Line]
+  Else
+    Tokens := nil;
+
   if Assigned(Tokens) Then Begin
     Idx := pByte(pNativeUInt(Tokens)^);
 

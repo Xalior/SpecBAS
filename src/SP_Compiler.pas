@@ -298,6 +298,7 @@ Begin
 
   End;
 
+  SP_FinalizeThreadVars;
   CompilerRunning := False;
 
 End;
