@@ -26,3 +26,5 @@ SpecBAS_MemoryManager_EventLog.txt
 *.zip
 specbas_gl_error.txt
 src/backup.bat
+specbas_dev_notes.txt
+specbas_log.txt

@@ -58,7 +58,8 @@ SpecBAS is a modern, extended implementation of Sinclair BASIC for the PC, desig
 @{"  Graphics Banks            " LINK Sec_Graphics}
 @{"  Tilemaps                  " LINK Sec_Tilemaps}
 @{"  Sprites                   " LINK Sec_Sprites}
-@{BODY}
+@{"  3D Graphics               " LINK Sec_3D}
+@{BODY}@{BODY}
 
 @{b}Sound@{ub}
 
@@ -76,7 +77,9 @@ SpecBAS is a modern, extended implementation of Sinclair BASIC for the PC, desig
 @{"  Time and Date             " LINK Sec_Time}
 @{"  Miscellaneous Commands    " LINK Sec_Misc}
 @{"  Memory and Low-Level      " LINK Sec_Memory}
+@{"  Sprites                   " LINK Sec_Sprites}
 @{"  Menus                     " LINK Sec_Menus}
+@{"  3D Graphics               " LINK Sec_3D}
 @{"  Multithreading            " LINK THREADS}
 @{BODY}
 
@@ -139,6 +142,17 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{b}C@{ub}
 @{CODE}
 @{"CALL            " LINK CALL}
+@{"CAMERA          " LINK CAMERA}
+@{"CAMERA FACE     " LINK CAMERA}
+@{"CAMERA MOVE     " LINK CAMERA}
+@{"CAMERA ROTATE   " LINK CAMERA}
+@{"CAMERAfov       " LINK CAMERA_FUNCS}
+@{"CAMERArx        " LINK CAMERA_FUNCS}
+@{"CAMERAry        " LINK CAMERA_FUNCS}
+@{"CAMERArz        " LINK CAMERA_FUNCS}
+@{"CAMERAx         " LINK CAMERA_FUNCS}
+@{"CAMERAy         " LINK CAMERA_FUNCS}
+@{"CAMERAz         " LINK CAMERA_FUNCS}
 @{"CASE            " LINK CASE}
 @{"CAT             " LINK CAT}
 @{"CD              " LINK CD}
@@ -154,6 +168,7 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"CLIP            " LINK CLIP}
 @{"CLS             " LINK CLS}
 @{"CODE            " LINK CODE}
+@{"COMPILE         " LINK COMPILE}
 @{"COMPSIMPSON     " LINK COMPSIMPSON}
 @{"CONST           " LINK CONST}
 @{"CONTINUE        " LINK CONTINUE}
@@ -201,7 +216,9 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"ELLIPSE         " LINK ELLIPSE}
 @{"ELSE            " LINK ELSE}
 @{"END CASE        " LINK END_CASE}
+@{"ENDIF           " LINK ENDIF}
 @{"END PROC        " LINK END_PROC}
+@{"ENUM            " LINK CONST}
 @{"ERASE           " LINK ERASE}
 @{"ERROR$          " LINK ERROR$}
 @{"ERRORLINE       " LINK ERRORLINE}
@@ -217,6 +234,7 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{b}F@{ub}
 @{CODE}
 @{"FACE            " LINK FACE}
+@{"FACEat          " LINK MODEL_INFO}
 @{"FCHR$           " LINK FCHR$}
 @{"FCODE           " LINK FCODE}
 @{"FILEEXISTS      " LINK FILEEXISTS}
@@ -230,6 +248,7 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"FNAME           " LINK FNAME}
 @{"FONT            " LINK FONT}
 @{"FOR             " LINK FOR}
+@{"FORCE           " LINK PARTICLE}
 @{"FPATH           " LINK FPATH}
 @{"FPEEK           " LINK FPEEK}
 @{"FPOKE           " LINK FPOKE}
@@ -265,6 +284,7 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{CODE}
 @{"HALT            " LINK HALT}
 @{"HEADING         " LINK HEADING}
+@{"HELP            " LINK HELP_CMD}
 @{"HEX             " LINK HEX}
 @{"HEX$            " LINK HEX$}
 @{"HIBYTE          " LINK HIBYTE}
@@ -291,6 +311,7 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"INPUT           " LINK INPUT}
 @{"INRANGE         " LINK INRANGE}
 @{"INSERT$         " LINK INSERT$}
+@{"INSTALL         " LINK INSTALL}
 @{"INT             " LINK INT}
 @{"INTERP          " LINK INTERP}
 @{"INV             " LINK INV}
@@ -310,6 +331,7 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{b}K@{ub}
 @{CODE}
 @{"KEY             " LINK KEY}
+@{"KEYBOARD        " LINK KEYBOARD}
 @{"KEY$            " LINK KEY$}
 @{"KEYST           " LINK KEYST}
 @{BODY}
@@ -325,7 +347,11 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"LEFT$           " LINK LEFT$}
 @{"LEN             " LINK LEN}
 @{"LET             " LINK LET}
+@{"LIGHT AMBIENT   " LINK LIGHT}
+@{"LIGHT FOG       " LINK LIGHT}
+@{"LIGHT TO        " LINK LIGHT}
 @{"LIST            " LINK LIST}
+@{"LLIST           " LINK LLIST}
 @{"LN              " LINK LN}
 @{"LOAD            " LINK LOAD}
 @{"LOBYTE          " LINK LOBYTE}
@@ -365,6 +391,35 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"MIN             " LINK MIN}
 @{"MINUTES         " LINK MINUTES}
 @{"MOD             " LINK MOD}
+@{"MODEL ADDFRAME  " LINK MODEL_ANIM}
+@{"MODEL ANIM      " LINK MODEL_ANIM}
+@{"MODEL AT        " LINK MODEL_AT}
+@{"MODEL BILLBOARD " LINK MODEL_SHADING}
+@{"MODEL BUILD     " LINK MODEL_VERTEX}
+@{"MODEL ERASE     " LINK MODEL_AT}
+@{"MODEL FACE      " LINK MODEL_VERTEX}
+@{"MODEL HIDE      " LINK MODEL_AT}
+@{"MODEL INK       " LINK MODEL_SHADING}
+@{"MODEL MOVE      " LINK MODEL_AT}
+@{"MODEL NEW       " LINK MODEL_NEW}
+@{"MODEL PARENT    " LINK MODEL_ANIM}
+@{"MODEL ROTATE    " LINK MODEL_AT}
+@{"MODEL SCALE     " LINK MODEL_AT}
+@{"MODEL SETVERT   " LINK MODEL_VERTEX}
+@{"MODEL SHADING   " LINK MODEL_SHADING}
+@{"MODEL SHOW      " LINK MODEL_AT}
+@{"MODEL UV        " LINK MODEL_VERTEX}
+@{"MODEL VERTEX    " LINK MODEL_VERTEX}
+@{"MODELcoll       " LINK MODEL_INFO}
+@{"MODELframe$     " LINK MODEL_INFO}
+@{"MODELplaying    " LINK MODEL_INFO}
+@{"MODELrx         " LINK MODEL_FUNCS}
+@{"MODELry         " LINK MODEL_FUNCS}
+@{"MODELrz         " LINK MODEL_FUNCS}
+@{"MODELscale      " LINK MODEL_FUNCS}
+@{"MODELx          " LINK MODEL_FUNCS}
+@{"MODELy          " LINK MODEL_FUNCS}
+@{"MODELz          " LINK MODEL_FUNCS}
 @{"MONTH           " LINK MONTH}
 @{"MONTH$          " LINK MONTH$}
 @{"MOUSE           " LINK MOUSE}
@@ -400,6 +455,7 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"OR              " LINK OR}
 @{"ORGX            " LINK ORGX}
 @{"ORGY            " LINK ORGY}
+@{"ORIGIN          " LINK ORIGIN}
 @{"OTHERWISE       " LINK OTHERWISE}
 @{"OUT             " LINK OUT}
 @{"OVER            " LINK OVER}
@@ -411,6 +467,7 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"PALETTE         " LINK PALETTE}
 @{"PAPER           " LINK PAPER}
 @{"PARAM$          " LINK PARAM$}
+@{"PARTICLE        " LINK PARTICLE}
 @{"PAUSE           " LINK PAUSE}
 @{"PEEK            " LINK PEEK}
 @{"PEEK$           " LINK PEEK$}
@@ -418,6 +475,7 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"PLAY            " LINK PLAY}
 @{"PLOT            " LINK PLOT}
 @{"POINT           " LINK POINT}
+@{"POINT3D         " LINK MODEL_INFO}
 @{"POKE            " LINK POKE}
 @{"POKE$           " LINK POKE$}
 @{"POLAR           " LINK POLAR}
@@ -435,6 +493,7 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"PROC            " LINK PROC}
 @{"PROCID          " LINK PROCID}
 @{"PROCID$         " LINK PROCID$}
+@{"PROJECT3D       " LINK TRANSFORM3D}
 @{"PTOLOGX         " LINK PTOLOGX}
 @{"PTOLOGY         " LINK PTOLOGY}
 @{"PUSH            " LINK PUSH}
@@ -457,6 +516,7 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"RADIANS         " LINK RADIANS}
 @{"RADTODEG        " LINK RADTODEG}
 @{"RANDOMIZE       " LINK RANDOMIZE}
+@{"RAINBOW         " LINK RAINBOW}
 @{"READ            " LINK READ}
 @{"RECOVER         " LINK RECOVER}
 @{"RECTANGLE       " LINK RECTANGLE}
@@ -464,6 +524,7 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"REF             " LINK REF}
 @{"REM             " LINK REM}
 @{"RENAME          " LINK RENAME}
+@{"RENDER          " LINK RENDER}
 @{"RENUMBER        " LINK RENUMBER}
 @{"REP$            " LINK REP$}
 @{"REPLACE$        " LINK REPLACE$}
@@ -493,6 +554,10 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"SAVE/LOAD       " LINK SAVE_PROG}
 @{"SAY             " LINK SAY}
 @{"SCALE           " LINK SCALE}
+@{"SCENE CLEAR     " LINK SCENE}
+@{"SCENE ERASE     " LINK SCENE}
+@{"SCENE NEW       " LINK SCENE}
+@{"SCENE USE       " LINK SCENE}
 @{"SCREEN          " LINK SCREEN}
 @{"SCREEN$         " LINK SCREEN$}
 @{"SCRh            " LINK SCRh}
@@ -500,6 +565,7 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"SEARCH          " LINK SEARCH}
 @{"SECONDS         " LINK SECONDS}
 @{"SETDIR          " LINK SETDIR}
+@{"SETNEAR         " LINK LIGHT}
 @{"SGN             " LINK SGN}
 @{"SHL             " LINK SHL}
 @{"SHR             " LINK SHR}
@@ -512,6 +578,7 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"SPCLY           " LINK SPCLY}
 @{"SPFCOUNT        " LINK SPFCOUNT}
 @{"SPFRADDR        " LINK SPFRADDR}
+@{"SETNEAR         " LINK LIGHT}
 @{"SPFRAME         " LINK SPFRAME}
 @{"SPOS            " LINK SPOS}
 @{"SPRITE          " LINK SPRITE}
@@ -560,7 +627,9 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"THREADCOUNT     " LINK THREAD_COUNT}
 @{"TOKEN$          " LINK TOKEN$}
 @{"TRANSFORM2D     " LINK TRANSFORM2D}
+@{"TRANSFORM3D     " LINK TRANSFORM3D}
 @{"TRANSLATE$      " LINK TRANSLATE$}
+@{"TRANSPARENT     " LINK OVER}
 @{"TRIM$           " LINK TRIM$}
 @{"TRUNC           " LINK TRUNC}
 @{"TURNS           " LINK TURNS}
@@ -10478,6 +10547,7 @@ SpecBAS uses a 256-colour indexed palette. Colours are specified by their palett
 @{"  INK, PAPER, OVER, INVERSE  " LINK INK}
 @{"  PALETTE                    " LINK PALETTE}
 @{"  Colour Functions           " LINK RGBTOINT}
+@{"  RAINBOW                    " LINK RAINBOW}
 @{BODY}
 
 @ENDNODE
@@ -10690,10 +10760,10 @@ Line 10 sets palette entry 1 to red. Line 20 sets entry 2 to green. Line 30 cycl
 @{"INK      " LINK INK}
 @{"RGBTOINT " LINK RGBTOINT}
 @{"RGB      " LINK RGB}
+@{"RAINBOW  " LINK RAINBOW}
 @{BODY}
 
 @ENDNODE
-
 
 ; ----------------------------------------------------------------
 ;  Colour conversion functions
@@ -13297,6 +13367,1924 @@ Error codes are returned by @{b}ERRORNUM@{ub} and @{b}ERROR$@{ub}. In messages b
 @{CODE}
 @{"Error Query Functions  " LINK ERRORNUM}
 @{"ON ERROR               " LINK ON}
+@{BODY}
+
+@ENDNODE
+
+
+; ================================================================
+;  3D Graphics -- new nodes for sb.guide
+;  Append this file to the end of sb.guide, then apply the
+;  two edits described in sb_3d_patch_instructions.md.
+; ================================================================
+
+
+; ----------------------------------------------------------------
+;  Sec_3D -- Section overview (linked from MAIN)
+; ----------------------------------------------------------------
+
+@NODE Sec_3D "3D Graphics"
+@{b}3D Graphics@{ub}
+
+SpecBAS provides a complete software 3D engine with perspective
+projection, Gouraud shading, texturing, fog, and multi-threaded
+rendering. Models are built from vertices and faces, placed as
+instances in a scene, and rendered into any window or graphic bank.
+
+@{CODE}
+@{"  3D Concepts and Coordinates      " LINK 3D_CONCEPTS}
+@{"  SCENE - Scene Management         " LINK SCENE}
+@{"  MODEL NEW - Creating Models      " LINK MODEL_NEW}
+@{"  MODEL VERTEX/FACE/BUILD          " LINK MODEL_VERTEX}
+@{"  MODEL AT/MOVE/ROTATE/SCALE       " LINK MODEL_AT}
+@{"  MODEL SHADING/INK/BILLBOARD      " LINK MODEL_SHADING}
+@{"  MODEL Animation and Parenting    " LINK MODEL_ANIM}
+@{"  CAMERA                           " LINK CAMERA}
+@{"  RENDER                           " LINK RENDER}
+@{"  LIGHT, FOG and SETNEAR           " LINK LIGHT}
+@{"  Model Instance Functions         " LINK MODEL_FUNCS}
+@{"  Model State and Picking          " LINK MODEL_INFO}
+@{"  Camera Functions                 " LINK CAMERA_FUNCS}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  3D_CONCEPTS -- Coordinate system and core concepts
+; ----------------------------------------------------------------
+
+@NODE 3D_CONCEPTS "3D Graphics - Concepts"
+@{b}3D Concepts and Coordinate System@{ub}
+
+SpecBAS uses a right-handed coordinate system. Looking along the
+negative Z axis (into the screen):
+
+@{CODE}
+  Y up
+  |
+  |
+  +----X right
+ /
+Z toward viewer
+@{BODY}
+
+@{b}X@{ub} increases to the right. @{b}Y@{ub} increases upward. @{b}Z@{ub} increases toward
+the viewer, so objects further away have smaller (more negative) Z.
+
+Rotations are in degrees about each axis. @{b}RX@{ub} tilts forward and back
+(pitch). @{b}RY@{ub} turns left and right (yaw). @{b}RZ@{ub} rolls around the
+viewing axis.
+
+@{b}Models and Instances@{ub}
+
+A @{b}model@{ub} is a reusable mesh stored in a bank. It defines the geometry
+-- vertex positions, faces, normals, UV coordinates and shading flags
+-- but has no position of its own. A model is placed into the world
+by creating an @{b}instance@{ub} with @{b}MODEL AT@{ub}. The same model can have
+many instances simultaneously, each at a different position,
+rotation and scale, at very low memory cost.
+
+@{b}Scenes@{ub}
+
+A @{b}scene@{ub} is a bank that holds a list of instances. All RENDER and
+instance-movement commands operate on whichever scene is active at
+the time. A program can maintain multiple scenes and switch between
+them with @{b}SCENE USE@{ub}; each scene stores its own camera independently.
+
+@{b}Workflow@{ub}
+
+@{CODE}
+  1. SCENE NEW s           -- create a scene bank
+  2. MODEL NEW m           -- create a model bank
+  3. MODEL VERTEX m, ...   -- add vertices
+  4. MODEL FACE m, ...     -- add faces
+  5. MODEL BUILD m         -- compile geometry
+  6. MODEL AT i, m, ...    -- place an instance
+  7. CAMERA x,y,z,rx,ry,rz -- position the camera
+  8. LIGHT TO dx,dy,dz     -- optional: set light direction
+  9. RENDER s              -- draw the scene
+@{BODY}
+
+Steps 3-5 are done once when setting up a model. Steps 6-9 are
+part of the main loop.
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"SCENE         " LINK SCENE}
+@{"MODEL NEW     " LINK MODEL_NEW}
+@{"MODEL VERTEX  " LINK MODEL_VERTEX}
+@{"MODEL AT      " LINK MODEL_AT}
+@{"CAMERA        " LINK CAMERA}
+@{"RENDER        " LINK RENDER}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  SCENE -- Scene management
+; ----------------------------------------------------------------
+
+@NODE SCENE "SCENE"
+@{b}SCENE NEW/USE/CLEAR/ERASE@{ub}
+
+@{CODE}
+@{fg 1}SCENE NEW numvar@{fg text}
+@{fg 1}SCENE USE id@{fg text}
+@{fg 1}SCENE CLEAR [id]@{fg text}
+@{fg 1}SCENE ERASE id@{fg text}
+@{BODY}
+
+@{b}SCENE NEW@{ub} creates a new, empty scene bank and assigns its bank ID
+to @{b}numvar@{ub}. The new scene becomes the active scene automatically if
+no other scene is currently active. A scene stores a list of model
+instances and its own camera position.
+
+@{b}SCENE USE@{ub} makes an existing scene the active scene. All subsequent
+@{b}MODEL AT@{ub}, @{b}MODEL MOVE@{ub}, @{b}CAMERA@{ub}, @{b}RENDER@{ub} and related commands
+operate on the active scene. Switching scenes with @{b}SCENE USE@{ub}
+automatically saves the current camera into the outgoing scene and
+restores the camera from the incoming one.
+
+@{b}SCENE CLEAR@{ub} removes all instances from a scene but leaves the scene
+bank itself intact, ready to be populated again. If @{b}id@{ub} is omitted,
+the active scene is cleared. The camera is not affected.
+
+@{b}SCENE ERASE@{ub} deletes the scene bank entirely. If the erased scene was
+active, no scene remains active until @{b}SCENE USE@{ub} or @{b}SCENE NEW@{ub} is
+called. All instances in the scene are removed but the model banks
+they referenced are not deleted.
+
+@{CODE}
+@{BASIC}
+10 REM  Two independent scenes, each with its own camera
+20 SCENE NEW sc1
+30 SCENE NEW sc2
+40 REM  Build sc1 with the camera close up
+50 SCENE USE sc1
+60 CAMERA 0,0,5, 0,0,0
+70 REM  ... add instances to sc1 ...
+80 REM  Build sc2 with a wider overview shot
+90 SCENE USE sc2
+100 CAMERA 0,10,20, -20,0,0
+110 REM  ... add instances to sc2 ...
+120 DO
+130   SCENE USE sc1 : RENDER sc1
+140   PAUSE 100
+150   SCENE USE sc2 : RENDER sc2
+160   PAUSE 100
+170 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"MODEL NEW     " LINK MODEL_NEW}
+@{"MODEL AT      " LINK MODEL_AT}
+@{"CAMERA        " LINK CAMERA}
+@{"RENDER        " LINK RENDER}
+@{"BANK          " LINK BANK}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  MODEL_NEW -- What a model is; MODEL NEW
+; ----------------------------------------------------------------
+
+@NODE MODEL_NEW "MODEL NEW"
+@{b}MODEL NEW@{ub}
+
+@{CODE}
+@{fg 1}MODEL NEW numvar@{fg text}
+@{BODY}
+
+Creates a new, empty model bank and assigns its ID to @{b}numvar@{ub}. The
+model initially has no vertices or faces. You build it by calling
+@{b}MODEL VERTEX@{ub} and @{b}MODEL FACE@{ub} as many times as needed, then finish
+with @{b}MODEL BUILD@{ub} to compile the geometry.
+
+A model bank is a reusable mesh. It has no position in the world --
+to display it, place one or more instances with @{b}MODEL AT@{ub}. Many
+instances of the same model can exist simultaneously at different
+positions, scales and rotations, sharing a single copy of the mesh
+data.
+
+Model banks can be saved and loaded with @{b}SAVE BANK@{ub} and @{b}LOAD BANK@{ub}
+in the normal way.
+
+@{CODE}
+@{BASIC}
+10 SCENE NEW sc
+20 MODEL NEW m
+30 REM  -- add vertices and faces here --
+40 MODEL BUILD m
+50 MODEL AT i, m, 0,0,-5, 0,0,0
+60 CAMERA 0,0,0, 0,0,0
+70 RENDER sc
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"MODEL VERTEX  " LINK MODEL_VERTEX}
+@{"MODEL AT      " LINK MODEL_AT}
+@{"SCENE NEW     " LINK SCENE}
+@{"BANK          " LINK BANK}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  MODEL_VERTEX -- Geometry building
+; ----------------------------------------------------------------
+
+@NODE MODEL_VERTEX "MODEL VERTEX"
+@{b}MODEL VERTEX / MODEL FACE / MODEL BUILD / MODEL SETVERT / MODEL UV@{ub}
+
+@{CODE}
+@{fg 1}MODEL VERTEX model, x, y, z [, colour]@{fg text}
+@{fg 1}MODEL VERTEX model, array()@{fg text}
+@{fg 1}MODEL FACE model, v0, v1, v2 [, v3 ...] [INK colour]@{fg text}
+@{fg 1}MODEL FACE model, v0, v1, v2 [, v3 ...] [GRAPHIC id, u0,v0, u1,v1, u2,v2 [,...]]@{fg text}
+@{fg 1}MODEL FACE model, array()@{fg text}
+@{fg 1}MODEL BUILD model@{fg text}
+@{fg 1}MODEL SETVERT model, index, x, y, z@{fg text}
+@{fg 1}MODEL UV model, face AT u0,v0, u1,v1, u2,v2@{fg text}
+@{BODY}
+
+@{b}MODEL VERTEX@{ub} adds one vertex to the model at position @{b}x@{ub},@{b}y@{ub},@{b}z@{ub}.
+The optional @{b}colour@{ub} is a palette index used for Gouraud-shaded
+rendering; if omitted it defaults to the current ink colour. The
+return value (pushed onto the stack) is the zero-based index of
+the new vertex, which is used in @{b}MODEL FACE@{ub} to reference it.
+Vertices are numbered from zero in the order they are added.
+
+The array form @{b}MODEL VERTEX model, array()@{ub} bulk-loads vertices from
+a numeric array. The array must have a second dimension of at least
+3 (x,y,z per row); a fourth element per row is treated as the
+colour index. This is the fastest way to load a large mesh.
+
+@{b}MODEL FACE@{ub} adds a polygon to the model. @{b}v0@{ub}, @{b}v1@{ub}, @{b}v2@{ub} (and any
+further @{b}vN@{ub}) are vertex indices from previous @{b}MODEL VERTEX@{ub} calls.
+At least three vertices are required. Faces with more than three
+vertices are automatically triangulated as a fan from @{b}v0@{ub}.
+
+The winding order determines which side of the face is the front
+(visible) side. Looking at the front face, vertices should be
+listed in anti-clockwise order.
+
+The optional @{b}INK colour@{ub} sets a per-face flat colour overriding any
+vertex colours. Without @{b}INK@{ub} or @{b}GRAPHIC@{ub}, the face uses vertex
+colours (Gouraud shading is enabled separately with @{b}MODEL SHADING@{ub}).
+
+The optional @{b}GRAPHIC id@{ub} clause makes the face textured. @{b}id@{ub} is the
+bank ID of an 8bpp graphic bank used as the texture. Following
+@{b}GRAPHIC id@{ub} you must supply one pair of UV coordinates (0.0 to 1.0)
+for each vertex: @{b}u0,v0, u1,v1, u2,v2@{ub} (and further pairs for
+polygons with more than three vertices). U increases left to right
+and V increases top to bottom in the texture image.
+
+The array form @{b}MODEL FACE model, array()@{ub} bulk-loads face definitions.
+Each row must contain exactly three vertex indices (triangle only).
+No colour or texture information is included; faces take vertex
+colours. The array form is fastest for importing large meshes.
+
+@{b}MODEL BUILD@{ub} compiles the model after all vertices and faces have
+been added. It computes face normals for lighting, builds the edge
+list for wireframe rendering, and calculates the bounding sphere
+used for frustum culling and collision detection. @{b}MODEL BUILD@{ub} must
+be called before the first @{b}RENDER@{ub}. If you modify vertices later
+with @{b}MODEL SETVERT@{ub}, call @{b}MODEL BUILD@{ub} again to update the normals
+and bounding sphere.
+
+@{b}MODEL SETVERT@{ub} changes the position of an existing vertex by its
+zero-based @{b}index@{ub}. Useful for morph animation without a frame system.
+Call @{b}MODEL BUILD@{ub} after modifying vertices to keep normals correct.
+
+@{b}MODEL UV@{ub} updates the texture coordinates of a specific face after
+the model has been built. @{b}face@{ub} is the zero-based face index.
+The @{b}AT@{ub} keyword is required. Coordinates are in the range 0.0 to 1.0.
+This allows scrolling or swapping UV regions at runtime without
+rebuilding the entire model.
+
+@{CODE}
+@{BASIC}
+10 REM  Build a coloured triangle
+20 SCENE NEW sc
+30 MODEL NEW m
+40 MODEL VERTEX m, -1,-1, 0, 2    : REM v0 red
+50 MODEL VERTEX m,  1,-1, 0, 6    : REM v1 yellow
+60 MODEL VERTEX m,  0, 1, 0, 1    : REM v2 blue
+70 MODEL FACE m, 0,1,2
+80 MODEL BUILD m
+90 MODEL SHADING m SMOOTH
+100 MODEL AT i, m, 0,0,-5, 0,0,0
+110 CAMERA 0,0,0, 0,0,0
+120 DO
+130   CLS
+140   MODEL ROTATE i, 0,1,0
+150   RENDER sc
+160   WAIT SCREEN
+170 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Textured quad (two triangles sharing a graphic)
+20 GRAPHIC NEW g, 0,0, 64,64      : REM load or draw texture here
+30 SCENE NEW sc
+40 MODEL NEW m
+50 MODEL VERTEX m, -1,-1, 0
+60 MODEL VERTEX m,  1,-1, 0
+70 MODEL VERTEX m,  1, 1, 0
+80 MODEL VERTEX m, -1, 1, 0
+90 MODEL FACE m, 0,1,2 GRAPHIC g, 0,1, 1,1, 1,0
+100 MODEL FACE m, 0,2,3 GRAPHIC g, 0,1, 1,0, 0,0
+110 MODEL BUILD m
+120 MODEL AT i, m, 0,0,-3, 0,0,0
+130 CAMERA 0,0,0, 0,0,0
+140 RENDER sc
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Bulk-load a mesh from arrays
+20 DIM v(8,3)                      : REM 8 vertices, x y z
+30 REM  Unit cube vertices
+40 FOR n=0 TO 7
+50   v(n,0) = (n AND 1)*2-1
+60   v(n,1) = ((n SHR 1) AND 1)*2-1
+70   v(n,2) = ((n SHR 2) AND 1)*2-1
+80 NEXT n
+90 DIM f(12,3)                     : REM 12 triangles
+100 REM  Six faces of the cube, two triangles each
+110 REM  ... fill f() with vertex indices ...
+120 MODEL NEW m
+130 MODEL VERTEX m, v()
+140 MODEL FACE m, f()
+150 MODEL BUILD m
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"MODEL NEW     " LINK MODEL_NEW}
+@{"MODEL AT      " LINK MODEL_AT}
+@{"MODEL SHADING " LINK MODEL_SHADING}
+@{"GRAPHIC       " LINK GRAPHIC}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  MODEL_AT -- Placing and moving instances
+; ----------------------------------------------------------------
+
+@NODE MODEL_AT "MODEL AT"
+@{b}MODEL AT / MODEL MOVE / MODEL ROTATE / MODEL SCALE / MODEL HIDE / MODEL SHOW / MODEL ERASE@{ub}
+
+@{CODE}
+@{fg 1}MODEL AT numvar, model, x, y, z, rx, ry, rz [, scale] [BILLBOARD] [PARENT id]@{fg text}
+@{fg 1}MODEL MOVE inst, dx, dy, dz@{fg text}
+@{fg 1}MODEL MOVE inst, TO x, y, z@{fg text}
+@{fg 1}MODEL ROTATE inst, drx, dry, drz@{fg text}
+@{fg 1}MODEL ROTATE inst, TO rx, ry, rz@{fg text}
+@{fg 1}MODEL SCALE inst, s@{fg text}
+@{fg 1}MODEL HIDE inst@{fg text}
+@{fg 1}MODEL SHOW inst@{fg text}
+@{fg 1}MODEL ERASE inst@{fg text}
+@{BODY}
+
+@{b}MODEL AT@{ub} places a new instance of @{b}model@{ub} into the active scene and
+assigns its instance ID to @{b}numvar@{ub}. @{b}x@{ub},@{b}y@{ub},@{b}z@{ub} set the world position.
+@{b}rx@{ub},@{b}ry@{ub},@{b}rz@{ub} set the rotation angles in degrees. The optional @{b}scale@{ub}
+multiplies the model's size uniformly; default is 1.0.
+
+The optional @{b}BILLBOARD@{ub} flag makes the instance always face the
+camera regardless of its @{b}ry@{ub} rotation, which is useful for
+sprites, trees, and flat decals in a 3D world.
+
+The optional @{b}PARENT id@{ub} attaches this instance to a parent instance
+so that when the parent moves or rotates, this instance moves with
+it. See @{b}MODEL PARENT@{ub} in @{"MODEL ANIM" LINK MODEL_ANIM} for further detail.
+
+@{b}MODEL MOVE@{ub} adds @{b}dx@{ub},@{b}dy@{ub},@{b}dz@{ub} to the instance's current position
+(relative move). The @{b}TO@{ub} form sets the position to an absolute
+value @{b}x@{ub},@{b}y@{ub},@{b}z@{ub} directly.
+
+@{b}MODEL ROTATE@{ub} adds @{b}drx@{ub},@{b}dry@{ub},@{b}drz@{ub} to the current rotation angles
+(relative rotate). The @{b}TO@{ub} form sets the rotation to an absolute
+value.
+
+@{b}MODEL SCALE@{ub} sets the uniform scale factor of an instance to @{b}s@{ub}.
+A value of 2 doubles the size; 0.5 halves it. Unlike MOVE and
+ROTATE there is no relative form -- the value replaces the current
+scale entirely.
+
+@{b}MODEL HIDE@{ub} makes an instance invisible without removing it from
+the scene. @{b}MODEL SHOW@{ub} makes it visible again. Hidden instances
+are still part of the scene and are included in collision and
+picking tests by default.
+
+@{b}MODEL ERASE@{ub} removes the instance from the scene permanently.
+The model bank it was built from is not affected.
+
+@{CODE}
+@{BASIC}
+10 REM  Spinning cube with keyboard control
+20 SCENE NEW sc
+30 MODEL NEW m
+40 FOR i=-1 TO 1 STEP 2
+50   FOR j=-1 TO 1 STEP 2
+60     FOR k=-1 TO 1 STEP 2
+70       MODEL VERTEX m, i*0.5, j*0.5, k*0.5
+80     NEXT k
+90   NEXT j
+100 NEXT i
+110 REM  8 vertices now indexed 0-7; add 12 triangles for a cube
+120 MODEL FACE m, 0,2,3 : MODEL FACE m, 0,3,1
+130 MODEL FACE m, 4,5,7 : MODEL FACE m, 4,7,6
+140 MODEL FACE m, 0,1,5 : MODEL FACE m, 0,5,4
+150 MODEL FACE m, 2,6,7 : MODEL FACE m, 2,7,3
+160 MODEL FACE m, 0,4,6 : MODEL FACE m, 0,6,2
+170 MODEL FACE m, 1,3,7 : MODEL FACE m, 1,7,5
+180 MODEL BUILD m
+190 MODEL SHADING m FLAT
+200 LIGHT TO 1,-1,-1
+201 LIGHT AMBIENT 0.3
+210 MODEL AT cube, m, 0,0,-4, 0,0,0
+220 CAMERA 0,0,0, 0,0,0
+230 DIM ry=0
+240 DO
+250   CLS
+260   MODEL ROTATE cube, 1, ry, 0
+270   LET ry = (ry+1) MOD 360
+280   RENDER sc
+290   WAIT SCREEN
+300 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Place 50 random instances of the same model
+20 SCENE NEW sc
+30 MODEL NEW m
+40 REM  ... build model geometry ...
+50 MODEL BUILD m
+60 DIM ids(50)
+70 FOR i=0 TO 49
+80   LET x=RND(40)-20
+90   LET y=0
+100  LET z=RND(40)-20
+110  MODEL AT ids(i), m, x,y,z, 0,RND(360),0
+120 NEXT i
+130 CAMERA 0,5,20, -10,0,0
+140 RENDER sc
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"MODEL NEW     " LINK MODEL_NEW}
+@{"MODEL VERTEX  " LINK MODEL_VERTEX}
+@{"MODEL SHADING " LINK MODEL_SHADING}
+@{"MODEL ANIM    " LINK MODEL_ANIM}
+@{"MODELx        " LINK MODEL_FUNCS}
+@{"CAMERA        " LINK CAMERA}
+@{"RENDER        " LINK RENDER}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  MODEL_SHADING -- Shading modes, colour, billboard
+; ----------------------------------------------------------------
+
+@NODE MODEL_SHADING "MODEL SHADING"
+@{b}MODEL SHADING / MODEL INK / MODEL BILLBOARD@{ub}
+
+@{CODE}
+@{fg 1}MODEL SHADING model FLAT@{fg text}
+@{fg 1}MODEL SHADING model SMOOTH@{fg text}
+@{fg 1}MODEL SHADING model WIRE [NOCULL] [SOLID]@{fg text}
+@{fg 1}MODEL INK inst, colour@{fg text}
+@{fg 1}MODEL BILLBOARD inst@{fg text}
+@{BODY}
+
+@{b}MODEL SHADING@{ub} sets the rendering mode for a model bank. The chosen
+mode applies to every instance of that model.
+
+@{b}FLAT@{ub} renders each face as a single uniform colour, lit by the scene
+light. The face colour comes from the @{b}INK@{ub} clause in @{b}MODEL FACE@{ub}, or
+from the vertex colour of the first vertex if no INK was given.
+Flat shading is the default.
+
+@{b}SMOOTH@{ub} enables Gouraud shading. Each vertex is lit independently
+and the colour is interpolated across the face. Per-vertex colours
+set in @{b}MODEL VERTEX@{ub} are used as the base material colour.
+
+@{b}WIRE@{ub} renders only the edges of the model as lines, with backfaces
+culled by default (invisible from behind). @{b}NOCULL@{ub} draws edges
+regardless of which way a face is pointing, useful for transparent
+or open structures. @{b}SOLID@{ub} draws a solid filled (flat-shaded) back
+face behind the wire edges, giving a hidden-surface wireframe.
+
+All three shading modes support textured faces as specified in
+@{b}MODEL FACE@{ub}. Textures override the flat or Gouraud colour on the
+faces that carry them; the shading mode still applies to untextured
+faces.
+
+@{b}MODEL INK@{ub} sets a colour override on a specific @{b}instance@{ub}. When a
+colour override is active every face of that instance is rendered
+in that colour regardless of per-face or per-vertex colours. This
+is useful for highlighting selected objects or tinting clones of
+a shared model differently. Set @{b}colour@{ub} to -1 to remove the
+override and restore the model's own colours.
+
+@{b}MODEL BILLBOARD@{ub} enables billboard mode on an existing @{b}inst@{ub}. A
+billboard instance always rotates to face the camera about the Y
+axis. This is equivalent to the @{b}BILLBOARD@{ub} flag in @{b}MODEL AT@{ub} but
+can be applied after placement. Billboard mode can only be turned
+on, not off, for an existing instance; erase and re-place the
+instance without the flag if needed.
+
+@{CODE}
+@{BASIC}
+10 REM  Wireframe model with solid back faces and no backface cull
+20 SCENE NEW sc
+30 MODEL NEW m
+40 REM  ... add vertices and faces ...
+50 MODEL BUILD m
+60 MODEL SHADING m WIRE NOCULL SOLID
+70 MODEL AT i, m, 0,0,-5, 0,0,0
+80 CAMERA 0,0,0, 0,0,0
+90 RENDER sc
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Tint instances of the same model different colours
+20 SCENE NEW sc
+30 MODEL NEW m
+40 REM  ... build model ...
+50 MODEL BUILD m
+60 MODEL SHADING m FLAT
+70 MODEL AT r, m, -3,0,-8, 0,0,0
+80 MODEL AT g, m,  0,0,-8, 0,0,0
+90 MODEL AT b, m,  3,0,-8, 0,0,0
+100 MODEL INK r, 2     : REM red
+110 MODEL INK g, 4     : REM green
+120 MODEL INK b, 1     : REM blue
+130 CAMERA 0,0,0, 0,0,0
+140 RENDER sc
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"MODEL VERTEX  " LINK MODEL_VERTEX}
+@{"MODEL AT      " LINK MODEL_AT}
+@{"LIGHT TO      " LINK LIGHT}
+@{"RENDER        " LINK RENDER}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  MODEL_ANIM -- Animation frames, parenting
+; ----------------------------------------------------------------
+
+@NODE MODEL_ANIM "MODEL ADDFRAME"
+@{b}MODEL ADDFRAME / MODEL ANIM / MODEL PARENT / MODEL UNPARENT@{ub}
+
+@{CODE}
+@{fg 1}MODEL ADDFRAME model, name$@{fg text}
+@{fg 1}MODEL ANIM PLAY inst, a$, b$, speed@{fg text}
+@{fg 1}MODEL ANIM STOP inst@{fg text}
+@{fg 1}MODEL ANIM FRAME inst, name$@{fg text}
+@{fg 1}MODEL PARENT inst, parent@{fg text}
+@{fg 1}MODEL UNPARENT inst@{fg text}
+@{BODY}
+
+@{b}Morph Animation@{ub}
+
+SpecBAS animates 3D models using vertex morphing: each animation
+frame stores an alternative set of vertex positions. The renderer
+interpolates smoothly between two frames as animation plays, giving
+the appearance of smooth deformation.
+
+@{b}MODEL ADDFRAME model, name$@{ub} captures the model's current vertex
+positions as a named animation frame. Build the model in one pose,
+call @{b}MODEL ADDFRAME@{ub}, then change the vertex positions with
+@{b}MODEL SETVERT@{ub}, call @{b}MODEL ADDFRAME@{ub} again with a different name,
+and so on. The model does not need to be rebuilt between frame
+captures.
+
+@{b}MODEL ANIM PLAY inst, a$, b$, speed@{ub} starts animating an instance.
+@{b}a$@{ub} and @{b}b$@{ub} are the names of the start and end frames. The
+interpolation parameter advances by @{b}speed@{ub} per frame. When it
+reaches 1.0 the animation loops back to 0.0 and continues. The
+animation advances automatically on each @{b}RENDER@{ub} call; no loop code
+is needed.
+
+@{b}MODEL ANIM STOP inst@{ub} stops the animation at its current position.
+
+@{b}MODEL ANIM FRAME inst, name$@{ub} jumps the animation to a specific
+named frame immediately, halting any playing animation.
+
+@{b}Parenting@{ub}
+
+@{b}MODEL PARENT inst, parent@{ub} attaches @{b}inst@{ub} to @{b}parent@{ub} so that the
+child inherits the parent's world transform. Moving or rotating the
+parent automatically moves and rotates the child by the same amount.
+The child's own position and rotation are relative to the parent.
+Chains of any depth are supported (child of child of parent).
+
+@{b}MODEL UNPARENT inst@{ub} detaches the instance from its parent. The
+instance's position remains at the world position it had at the
+moment of detachment.
+
+@{b}PARENT@{ub} can also be set at placement time using the @{b}PARENT@{ub} clause
+in @{b}MODEL AT@{ub}.
+
+@{CODE}
+@{BASIC}
+10 REM  Morphing sphere: build two frames and animate
+20 SCENE NEW sc
+30 MODEL NEW m
+40 DIM pi2=6.2832
+50 REM  Frame A: sphere
+60 FOR i=0 TO 31
+70   LET a=i*pi2/32
+80   MODEL VERTEX m, COS(a),SIN(a),0
+90 NEXT i
+100 MODEL ADDFRAME m, "sphere"
+110 REM  Frame B: stretch sphere to oval
+120 FOR i=0 TO 31
+130   LET a=i*pi2/32
+140   MODEL SETVERT m, i, COS(a)*2, SIN(a)*0.5, 0
+150 NEXT i
+160 MODEL ADDFRAME m, "oval"
+170 REM  Add faces (ring) -- omitted for brevity
+180 MODEL BUILD m
+190 MODEL AT inst, m, 0,0,-5, 0,0,0
+200 MODEL ANIM PLAY inst, "sphere","oval", 0.02
+210 CAMERA 0,0,0, 0,0,0
+220 DO
+230   CLS : RENDER sc : WAIT SCREEN
+240 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Solar system: planets orbit a sun
+20 SCENE NEW sc
+30 MODEL NEW msun  : REM  ... build sun mesh ...
+40 MODEL NEW mplan : REM  ... build planet mesh ...
+50 MODEL BUILD msun
+60 MODEL BUILD mplan
+70 MODEL AT sun, msun, 0,0,-10, 0,0,0
+80 MODEL AT earth, mplan, 4,0,-10, 0,0,0 PARENT sun
+90 MODEL AT moon, mplan, 6,0,-10, 0,0,0 PARENT earth
+100 MODEL SCALE moon, 0.3
+110 CAMERA 0,5,5, -30,0,0
+120 DIM t=0
+130 DO
+140   CLS
+150   MODEL ROTATE sun, 0, 1, 0
+160   MODEL ROTATE earth, 0, 2, 0   : REM orbits with sun, spins too
+170   MODEL ROTATE moon, 0, 5, 0    : REM orbits earth
+180   RENDER sc
+190   WAIT SCREEN
+200 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"MODEL VERTEX  " LINK MODEL_VERTEX}
+@{"MODEL AT      " LINK MODEL_AT}
+@{"MODELplaying  " LINK MODEL_INFO}
+@{"MODELframe$   " LINK MODEL_INFO}
+@{"MODELx        " LINK MODEL_FUNCS}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  CAMERA -- Camera control
+; ----------------------------------------------------------------
+
+@NODE CAMERA "CAMERA"
+@{b}CAMERA / CAMERA MOVE / CAMERA ROTATE / CAMERA FACE@{ub}
+
+@{CODE}
+@{fg 1}CAMERA x, y, z, rx, ry, rz [, fov]@{fg text}
+@{fg 1}CAMERA MOVE dx, dy, dz@{fg text}
+@{fg 1}CAMERA ROTATE drx, dry, drz@{fg text}
+@{fg 1}CAMERA FACE x, y, z@{fg text}
+@{fg 1}CAMERA FACE MODEL inst@{fg text}
+@{BODY}
+
+@{b}CAMERA@{ub} positions and orients the camera for the active scene.
+@{b}x@{ub},@{b}y@{ub},@{b}z@{ub} is the camera's world position. @{b}rx@{ub},@{b}ry@{ub},@{b}rz@{ub} are the
+Euler rotation angles in degrees: @{b}rx@{ub} tilts up/down (pitch), @{b}ry@{ub}
+turns left/right (yaw), @{b}rz@{ub} rolls. The optional @{b}fov@{ub} sets the
+horizontal field of view in degrees; values around 60 to 90 are
+typical. If @{b}fov@{ub} is 0 or omitted the current FOV is preserved.
+
+The camera is stored per-scene. When @{b}SCENE USE@{ub} switches to a
+different scene its saved camera is restored automatically.
+
+@{b}CAMERA MOVE@{ub} adds @{b}dx@{ub},@{b}dy@{ub},@{b}dz@{ub} to the camera's current world
+position (relative move).
+
+@{b}CAMERA ROTATE@{ub} adds @{b}drx@{ub},@{b}dry@{ub},@{b}drz@{ub} to the camera's current
+rotation angles (relative rotate).
+
+@{b}CAMERA FACE x, y, z@{ub} rotates the camera to look directly at the
+world-space point @{b}x@{ub},@{b}y@{ub},@{b}z@{ub}. The camera position is not changed.
+@{b}rx@{ub} and @{b}ry@{ub} are updated; @{b}rz@{ub} is set to zero (no roll).
+
+@{b}CAMERA FACE MODEL inst@{ub} rotates the camera to look at the current
+world position of instance @{b}inst@{ub}. Useful for tracking a moving
+object. The camera position is not changed.
+
+@{CODE}
+@{BASIC}
+10 REM  Orbit camera around the origin with mouse
+20 SCENE NEW sc
+30 REM  ... build model, place instances ...
+40 DIM camr=0, camh=5, camd=15
+50 DO
+60   CLS
+70   LET camr = camr + MOUSEdx*0.5
+80   LET camh = CLAMP(camh - MOUSEdy*0.1, 1, 20)
+90   LET cx = SIN(DEGTORAD(camr))*camd
+100  LET cz = COS(DEGTORAD(camr))*camd
+110  CAMERA cx, camh, cz, 0,0,0
+120  CAMERA FACE 0,0,0
+130  RENDER sc
+140  WAIT SCREEN
+150 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  First-person camera movement (WASD keys)
+20 SCENE NEW sc
+30 REM  ... build world geometry ...
+40 DIM cx=0, cy=1, cz=0, ry=0
+50 DO
+60   CLS
+70   IF INKEY(65)  THEN LET cx=cx-SIN(DEGTORAD(ry))*0.1 : LET cz=cz-COS(DEGTORAD(ry))*0.1
+80   IF INKEY(68)  THEN LET cx=cx+SIN(DEGTORAD(ry))*0.1 : LET cz=cz+COS(DEGTORAD(ry))*0.1
+90   IF INKEY(87)  THEN LET cx=cx+SIN(DEGTORAD(ry+90))*0.1 : LET cz=cz+COS(DEGTORAD(ry+90))*0.1
+100  IF INKEY(83)  THEN LET cx=cx-SIN(DEGTORAD(ry+90))*0.1 : LET cz=cz-COS(DEGTORAD(ry+90))*0.1
+110  LET ry = ry + MOUSEdx*0.3
+120  CAMERA cx,cy,cz, 0,ry,0
+130  RENDER sc
+140  WAIT SCREEN
+150 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"CAMERAx       " LINK CAMERA_FUNCS}
+@{"SCENE         " LINK SCENE}
+@{"RENDER        " LINK RENDER}
+@{"SETNEAR       " LINK LIGHT}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  RENDER_3D -- RENDER command
+; ----------------------------------------------------------------
+
+@NODE RENDER "RENDER"
+@{b}RENDER@{ub}
+
+@{CODE}
+@{fg 1}RENDER scene [TO winID] [ASYNC [threads]]@{fg text}
+@{fg 1}RENDER scene TO GRAPHIC id [ASYNC [threads]]@{fg text}
+@{BODY}
+
+Renders the scene identified by @{b}scene@{ub} into a window or graphic
+bank. Without @{b}TO@{ub}, the current window is used.
+
+@{b}TO winID@{ub} renders into a specific window. @{b}TO GRAPHIC id@{ub} renders
+into a graphic bank rather than a window, which is useful for
+generating textures or thumbnails at runtime.
+
+@{b}ASYNC@{ub} enables multi-threaded rendering. The frame is divided into
+horizontal bands, each rendered by a separate thread in parallel.
+Without a thread count, one extra thread is used. Specify @{b}threads@{ub}
+to control how many CPU threads to employ; sensible values are 2
+to the number of logical processors on the machine. Rendering a
+complex scene with @{b}ASYNC 4@{ub} on a quad-core machine can be two to
+three times faster than single-threaded rendering.
+
+If the target window uses 32 bits per pixel (created with
+@{b}WINDOW NEW ... 32@{ub}) the 32bpp renderer is used automatically,
+giving higher colour quality. Otherwise the 8bpp palette renderer
+is used, which is faster on software targets.
+
+@{b}RENDER@{ub} does not clear the window first. Call @{b}CLS@{ub} before @{b}RENDER@{ub}
+to erase the previous frame, or leave it out to let the 3D scene
+draw over whatever was previously on screen (useful for overlaying
+HUD elements).
+
+The call blocks until rendering is complete even when @{b}ASYNC@{ub} is
+used, so the window is ready to display as soon as @{b}RENDER@{ub} returns.
+
+@{CODE}
+@{BASIC}
+10 REM  Basic render loop at screen refresh rate
+20 SCENE NEW sc
+30 REM  ... build and place models ...
+40 DO
+50   CLS
+60   RENDER sc
+70   WAIT SCREEN
+80 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Multi-threaded render into a 32bpp window
+20 WINDOW NEW w, 0,0, SCRw,SCRh, 32
+30 WINDOW w
+40 SCENE NEW sc
+50 REM  ... build and place models ...
+60 DO
+70   WINDOW w : CLS
+80   RENDER sc TO w ASYNC 4
+90   WAIT SCREEN
+100 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"SCENE         " LINK SCENE}
+@{"CAMERA        " LINK CAMERA}
+@{"LIGHT TO      " LINK LIGHT}
+@{"MODEL AT      " LINK MODEL_AT}
+@{"WINDOW        " LINK WINDOW}
+@{"GRAPHIC       " LINK GRAPHIC}
+@{BODY}
+
+@ENDNODE
+
+; ----------------------------------------------------------------
+;  MODEL_FUNCS -- Instance position/rotation/scale readback
+; ----------------------------------------------------------------
+
+@NODE MODEL_FUNCS "MODELx"
+@{b}MODELx / MODELy / MODELz / MODELrx / MODELry / MODELrz / MODELscale@{ub}
+
+@{CODE}
+@{fg 1}MODELx(inst)@{fg text}
+@{fg 1}MODELy(inst)@{fg text}
+@{fg 1}MODELz(inst)@{fg text}
+@{fg 1}MODELrx(inst)@{fg text}
+@{fg 1}MODELry(inst)@{fg text}
+@{fg 1}MODELrz(inst)@{fg text}
+@{fg 1}MODELscale(inst)@{fg text}
+@{BODY}
+
+These functions return the current world-space position, rotation
+and scale of an instance. @{b}inst@{ub} is the instance ID returned by a
+previous @{b}MODEL AT@{ub} call.
+
+@{b}MODELx@{ub}, @{b}MODELy@{ub} and @{b}MODELz@{ub} return the X, Y and Z world position.
+@{b}MODELrx@{ub}, @{b}MODELry@{ub} and @{b}MODELrz@{ub} return the X, Y and Z rotation
+in degrees. @{b}MODELscale@{ub} returns the uniform scale factor.
+
+All values reflect the instance's own transform, not the result
+of any parent transform. If you need the absolute world position
+of a child instance, you must compute the parent transform yourself.
+
+@{CODE}
+@{BASIC}
+10 REM  Keep a second object 2 units above the first
+20 SCENE NEW sc
+30 REM  ... build models leader and follower ...
+40 MODEL AT lead, m, 0,0,-5, 0,0,0
+50 MODEL AT follow, m, 0,2,-5, 0,0,0
+60 DO
+70   CLS
+80   MODEL ROTATE lead, 0,1,0
+90   REM  Follow leader's XZ position, stay 2 units above it
+100  MODEL MOVE TO follow, MODELx(lead), MODELy(lead)+2, MODELz(lead)
+110  MODEL ROTATE TO follow, MODELrx(lead), MODELry(lead), MODELrz(lead)
+120  RENDER sc
+130  WAIT SCREEN
+140 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Display instance coordinates as HUD text
+20 RENDER sc
+30 PRINT AT 0,0; "X=";MODELx(player);" Y=";MODELy(player);" Z=";MODELz(player)
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"MODEL AT      " LINK MODEL_AT}
+@{"MODELplaying  " LINK MODEL_INFO}
+@{"CAMERAx       " LINK CAMERA_FUNCS}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  MODEL_INFO -- Playing state, collision, picking
+; ----------------------------------------------------------------
+
+@NODE MODEL_INFO "MODELplaying"
+@{b}MODELplaying / MODELframe$ / MODELcoll / POINT3D / FACEat@{ub}
+
+@{CODE}
+@{fg 1}MODELplaying(inst)@{fg text}
+@{fg 1}MODELframe$(inst)@{fg text}
+@{fg 1}MODELcoll(instA, instB)@{fg text}
+@{fg 1}POINT3D(sx, sy)@{fg text}
+@{fg 1}FACEat(inst, sx, sy)@{fg text}
+@{BODY}
+
+@{b}MODELplaying(inst)@{ub} returns 1 if the instance currently has an
+animation playing (started by @{b}MODEL ANIM PLAY@{ub}), or 0 if not.
+
+@{b}MODELframe$(inst)@{ub} returns the name of the animation frame the
+instance is currently closest to. This is the name of whichever of
+the two frames (@{b}a$@{ub} or @{b}b$@{ub} in @{b}MODEL ANIM PLAY@{ub}) the blend parameter
+is nearest to. Useful for triggering events at specific points in
+an animation cycle.
+
+@{b}MODELcoll(instA, instB)@{ub} returns 1 if the bounding spheres of the
+two instances overlap, or 0 if they do not. The bounding sphere is
+computed by @{b}MODEL BUILD@{ub} to enclose all vertices of the model,
+scaled by the instance's current scale factor. This is a fast
+approximate collision test; for exact polygon-level collision you
+should follow up with more precise checks on your own geometry.
+
+@{b}POINT3D(sx, sy)@{ub} casts a ray from the camera through screen pixel
+(@{b}sx@{ub},@{b}sy@{ub}) and returns the instance ID of the closest instance hit
+by that ray, or -1 if no instance is intersected. This is the
+primary picking function for mouse-driven 3D interaction. The test
+is against each instance's bounding sphere.
+
+@{b}FACEat(inst, sx, sy)@{ub} tests a ray through screen pixel (@{b}sx@{ub},@{b}sy@{ub})
+against the actual triangles of @{b}inst@{ub} and returns the zero-based
+index of the hit face, or -1 if no face is hit. This provides an
+exact face-level pick after @{b}POINT3D@{ub} has identified the instance.
+
+@{CODE}
+@{BASIC}
+10 REM  Click to select a model instance
+20 SCENE NEW sc
+30 REM  ... place several instances ...
+40 DIM selected = -1
+50 DO
+60   CLS
+70   IF MOUSEBTN(1) THEN
+80     LET selected = POINT3D(MOUSEx, MOUSEy)
+90   END IF
+100  IF selected >= 0 THEN
+110    MODEL INK selected, 6   : REM highlight yellow
+120  END IF
+130  RENDER sc
+140  WAIT SCREEN
+150 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Collision response between two moving spheres
+20 SCENE NEW sc
+30 MODEL NEW ball
+40 REM  ... build ball mesh, build it ...
+50 MODEL AT a, ball, -3,0,-8, 0,0,0
+60 MODEL AT b, ball,  3,0,-8, 0,0,0
+70 CAMERA 0,2,0, -5,0,0
+80 DIM va=0.05, vb=-0.05
+90 DO
+100  LET xa=MODELx(a)+va
+110  IF ABS(xa) > 4 OR MODELcoll(a,b) THEN LET va=-va : LET xa=MODELx(a)+va
+120  LET xb=MODELx(b)+vb
+130  IF ABS(xb) > 4 OR MODELcoll(a,b) THEN LET vb=-vb : LET xb=MODELx(b)+vb
+140  MODEL MOVE TO a, xa, 0, -8
+150  MODEL MOVE TO b, xb, 0, -8
+160  CLS : RENDER sc : WAIT SCREEN
+170 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Show which face of a model was clicked
+20 DO
+30   CLS
+40   RENDER sc
+50   IF MOUSEBTN(1) THEN
+60     LET hit = POINT3D(MOUSEx, MOUSEy)
+70     IF hit >= 0 THEN
+80       LET f = FACEat(hit, MOUSEx, MOUSEy)
+90       PRINT AT 0,0; "Face "; f
+100    END IF
+110  END IF
+120  WAIT SCREEN
+130 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"MODEL ANIM    " LINK MODEL_ANIM}
+@{"MODEL AT      " LINK MODEL_AT}
+@{"MODELx        " LINK MODEL_FUNCS}
+@{"MOUSEBTN      " LINK MOUSEBTN}
+@{"MOUSEx        " LINK MOUSEx}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  CAMERA_FUNCS -- Camera position/rotation readback
+; ----------------------------------------------------------------
+
+@NODE CAMERA_FUNCS "CAMERAx"
+@{b}CAMERAx / CAMERAy / CAMERAz / CAMERArx / CAMERAry / CAMERArz / CAMERAfov@{ub}
+
+@{CODE}
+@{fg 1}CAMERAx@{fg text}
+@{fg 1}CAMERAy@{fg text}
+@{fg 1}CAMERAz@{fg text}
+@{fg 1}CAMERArx@{fg text}
+@{fg 1}CAMERAry@{fg text}
+@{fg 1}CAMERArz@{fg text}
+@{fg 1}CAMERAfov@{fg text}
+@{BODY}
+
+These functions return the current state of the active scene's
+camera. They take no arguments.
+
+@{b}CAMERAx@{ub}, @{b}CAMERAy@{ub} and @{b}CAMERAz@{ub} return the world position.
+@{b}CAMERArx@{ub}, @{b}CAMERAry@{ub} and @{b}CAMERArz@{ub} return the Euler rotation
+angles in degrees. @{b}CAMERAfov@{ub} returns the horizontal field of
+view in degrees.
+
+These are useful when the camera is modified by @{b}CAMERA MOVE@{ub},
+@{b}CAMERA ROTATE@{ub} or @{b}CAMERA FACE@{ub} over many frames and you need to
+read back the accumulated state, for example to save a viewpoint
+or to calculate where the camera is pointing.
+
+@{CODE}
+@{BASIC}
+10 REM  Print camera position every frame
+20 DO
+30   CLS
+40   CAMERA MOVE 0, 0, -0.1      : REM  dolly forward
+50   RENDER sc
+60   PRINT AT 0,0; "Cam Z="; CAMERAz
+70   WAIT SCREEN
+80 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Save and restore a camera viewpoint
+20 LET sx=CAMERAx : LET sy=CAMERAy : LET sz=CAMERAz
+30 LET srx=CAMERArx : LET sry=CAMERAry : LET srz=CAMERArz
+40 LET sfov=CAMERAfov
+50 REM  ... move camera around ...
+60 REM  Restore:
+70 CAMERA sx,sy,sz, srx,sry,srz, sfov
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"CAMERA        " LINK CAMERA}
+@{"MODELx        " LINK MODEL_FUNCS}
+@{"SCENE         " LINK SCENE}
+@{BODY}
+
+@ENDNODE
+
+@NODE RAINBOW "RAINBOW"
+@{b}RAINBOW@{ub}
+
+@{CODE}
+@{fg 1}RAINBOW idx1 TO idx2@{fg text}
+@{fg 1}RAINBOW HSV idx1 TO idx2@{fg text}
+@{BODY}
+
+Fills a contiguous range of palette entries with a smooth colour
+gradient. The colour at @{b}idx1@{ub} and the colour at @{b}idx2@{ub} are read from
+the current palette and left unchanged; all entries between them
+are replaced with evenly-spaced intermediate colours.
+
+Both @{b}idx1@{ub} and @{b}idx2@{ub} are palette indices in the range 0 to 255.
+They may be given in either order; RAINBOW always works from the
+lower index to the higher.
+
+The plain @{b}RAINBOW@{ub} form interpolates linearly in RGB space. This
+is simple and predictable but can produce muddy intermediate colours
+when the start and end colours are far apart in hue (for example
+a gradient from blue to yellow passes through a dull grey).
+
+@{b}RAINBOW HSV@{ub} interpolates in HSV (hue-saturation-value) space
+instead. This routes the gradient around the colour wheel rather
+than cutting across it, giving vivid, saturated intermediate colours
+for most start/end pairs. For a gradient between two complementary
+colours such as red and cyan, HSV interpolation follows the short
+arc of the colour wheel; you can reverse the direction by setting
+up the endpoint colours yourself before calling RAINBOW.
+
+Neither form alters the colours at @{b}idx1@{ub} or @{b}idx2@{ub} themselves.
+If @{b}idx1@{ub} equals @{b}idx2@{ub}, no entries are changed.
+
+@{CODE}
+@{BASIC}
+10 REM  Fire palette: black at 0, dark red at 64, orange at
+20 REM  128, yellow at 192, white at 255
+30 PALETTE 0, 0,0,0
+40 PALETTE 64, 128,0,0
+50 PALETTE 128, 255,64,0
+60 PALETTE 192, 255,200,0
+70 PALETTE 255, 255,255,255
+80 RAINBOW 0 TO 64
+90 RAINBOW 64 TO 128
+100 RAINBOW 128 TO 192
+110 RAINBOW 192 TO 255
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Spectrum palette using HSV interpolation
+20 REM  Set red at 16, green at 112, blue at 208
+30 PALETTE 16, 255,0,0
+40 PALETTE 112, 0,255,0
+50 PALETTE 208, 0,0,255
+60 RAINBOW HSV 16 TO 112
+70 RAINBOW HSV 112 TO 208
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Animated palette cycling on a rainbow band
+20 PALETTE 0, 255,0,0
+30 PALETTE 32, 255,165,0
+40 PALETTE 64, 255,255,0
+50 PALETTE 96, 0,200,0
+60 PALETTE 128, 0,100,255
+70 PALETTE 159, 140,0,200
+80 RAINBOW HSV 0 TO 32
+90 RAINBOW HSV 32 TO 64
+100 RAINBOW HSV 64 TO 96
+110 RAINBOW HSV 96 TO 128
+120 RAINBOW HSV 128 TO 159
+130 REM  Cycle the palette each frame
+140 DO
+150   PALETTE SHIFT 0, 159, 1
+160   WAIT SCREEN
+170 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"PALETTE       " LINK PALETTE}
+@{"HSV           " LINK HSV}
+@{"RGB           " LINK RGB}
+@{"RGBTOHSV      " LINK RGBTOHSV}
+@{BODY}
+
+@ENDNODE
+
+@NODE ORIGIN "ORIGIN"
+@{b}ORIGIN@{ub}
+
+@{CODE}
+@{fg 1}ORIGIN x1,y1 TO x2,y2 [FLIP]@{fg text}
+@{fg 1}ORIGIN x1,y1, w,h [FLIP]@{fg text}
+@{fg 1}ORIGIN x1,y1 [FLIP]@{fg text}
+@{fg 1}ORIGIN FLIP@{fg text}
+@{fg 1}ORIGIN OFF@{fg text}
+@{BODY}
+
+@{b}ORIGIN@{ub} installs a coordinate mapping on the current window.
+After an ORIGIN call, all drawing commands use the logical coordinate
+system you define rather than raw pixel coordinates. This lets you
+write programs in any coordinate system -- mathematical, game-world,
+or data-space -- without manually scaling every value.
+
+@{b}ORIGIN x1,y1 TO x2,y2@{ub} maps logical point (@{b}x1@{ub},@{b}y1@{ub}) to the top-left
+of the window and (@{b}x2@{ub},@{b}y2@{ub}) to the bottom-right. All drawing
+coordinates are scaled linearly between these extremes.
+
+@{b}ORIGIN x1,y1, w,h@{ub} is equivalent but uses a width and height
+instead of a second corner point.
+
+@{b}ORIGIN x1,y1@{ub} (without TO or dimensions) sets only the origin
+point -- the logical position that maps to the window's top-left
+corner -- without changing the scale. Coordinates still advance
+one unit per pixel.
+
+Any of the above forms may end with @{b}FLIP@{ub} to invert the Y axis
+so that Y increases upward (mathematical convention) rather than
+downward (screen convention).
+
+@{b}ORIGIN FLIP@{ub} alone toggles the Y-axis inversion without changing
+the current origin or scale.
+
+@{b}ORIGIN OFF@{ub} removes any active coordinate mapping and returns to
+raw pixel coordinates.
+
+The functions @{b}ORGx@{ub} and @{b}ORGy@{ub} return the current origin offset
+in pixels, and @{b}LTOPx@{ub}/@{b}LTOPy@{ub} and @{b}PTOLx@{ub}/@{b}PTOLy@{ub} convert between
+logical and pixel coordinates.
+
+@{CODE}
+@{BASIC}
+10 REM  Plot a sine wave with Y increasing upward,
+20 REM  x from 0 to 2*PI, y from -1.5 to 1.5
+30 ORIGIN 0,-1.5 TO TAU,1.5 FLIP
+40 INK 2 : PLOT 0,0
+50 FOR x=0 TO TAU STEP TAU/200
+60   DRAW x, SIN(x)
+70 NEXT x
+80 ORIGIN OFF
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Data chart: map data range 0..100 onto window
+20 WINDOW NEW w, 50,50, 400,300
+30 WINDOW w
+40 ORIGIN 0,0 TO 100,100 FLIP
+50 INK 1 : DRAW 0,0 TO 100,0   : REM x-axis
+60 INK 1 : DRAW 0,0 TO 0,100   : REM y-axis
+70 INK 2
+80 FOR i=0 TO 99
+90   PLOT i, RND(100)
+100 NEXT i
+110 ORIGIN OFF
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"ORGx          " LINK ORGX}
+@{"ORGy          " LINK ORGX}
+@{"LTOPx         " LINK LTOPX}
+@{"PTOLx         " LINK LTOPX}
+@{"WINDOW ORIGIN " LINK WINDOW}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  PARTICLE / FORCE
+; ----------------------------------------------------------------
+
+@NODE PARTICLE "PARTICLE"
+@{b}PARTICLE / FORCE@{ub}
+
+@{CODE}
+@{fg 1}PARTICLE array() [FRICTION f] [GRAVITY magnitude, heading]@{fg text}
+@{fg 1}FORCE array(), magnitude, heading@{fg text}
+@{BODY}
+
+SpecBAS provides a simple 2D particle physics system driven by
+a numeric array. Each row in the array represents one particle,
+and must have at least 7 columns in this order:
+
+@{CODE}
+  Column 0: x         world X position
+  Column 1: y         world Y position
+  Column 2: colour    palette index for display
+  Column 3: radius    collision radius in pixels
+  Column 4: mass      particle mass (heavier = harder to deflect)
+  Column 5: dx        X velocity (pixels per step)
+  Column 6: dy        Y velocity (pixels per step)
+@{BODY}
+
+Any additional columns are ignored. All values are floating-point.
+
+@{b}PARTICLE@{ub}
+
+@{b}PARTICLE array()@{ub} advances all particles by one physics step:
+
+Velocities (@{b}dx@{ub}, @{b}dy@{ub}) are added to positions (@{b}x@{ub}, @{b}y@{ub}). Every pair
+of particles whose circles overlap undergoes an elastic collision:
+velocities are exchanged weighted by mass, so heavy particles
+deflect light ones more than the reverse. @{b}GRAVITY magnitude, heading@{ub}
+adds a gravitational acceleration in the given direction to every
+particle's velocity before the step. @{b}FRICTION f@{ub} multiplies every
+velocity by @{b}f@{ub} after each step; values just below 1.0 (e.g. 0.99)
+give a gentle damping effect; 1.0 means no friction.
+
+The @{b}heading@{ub} follows the same angle convention as DRAW and TURNS
+(degrees or radians according to the current DEGREES/RADIANS setting);
+0 degrees points right, 90 degrees points down (unless ORIGIN FLIP
+is active).
+
+@{b}PARTICLE@{ub} modifies the array in place. It does not draw anything;
+use @{b}MULTIPLOT array()@{ub} or your own loop with @{b}CIRCLE@{ub} to render the
+particles each frame.
+
+@{b}FORCE@{ub}
+
+@{b}FORCE array(), magnitude, heading@{ub} applies a single gravitational
+impulse to all particles (dx += gx, dy += gy) without doing collision
+detection. Use this when you want to handle collisions yourself or
+need a very fast update without interaction physics.
+
+@{CODE}
+@{BASIC}
+10 REM  Simple particle fountain
+20 DIM p(50, 7)
+30 FOR i=0 TO 49
+40   p(i,0) = SCRw/2           : REM  x - screen centre
+50   p(i,1) = SCRh/2           : REM  y
+60   p(i,2) = 2 + (i MOD 6)    : REM  colour
+70   p(i,3) = 3                 : REM  radius
+80   p(i,4) = 1                 : REM  mass
+90   p(i,5) = (RND(6)-3)*2     : REM  dx
+100  p(i,6) = -(RND(4)+2)*2    : REM  dy (upward)
+110 NEXT i
+120 DO
+130  CLS
+140  PARTICLE p() FRICTION 0.995 GRAVITY 1, 90
+150  FOR i=0 TO 49
+160    IF p(i,1) > SCRh+5 THEN
+170      p(i,1) = SCRh/2 : p(i,5)=(RND(6)-3)*2 : p(i,6)=-(RND(4)+2)*2
+180    END IF
+190  NEXT i
+200  INK -1
+210  FOR i=0 TO 49
+220    CIRCLE p(i,0),p(i,1),p(i,3)
+230  NEXT i
+240  WAIT SCREEN
+250 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  FORCE example: particles drift in wind
+20 DIM p(20, 7)
+30 FOR i=0 TO 19
+40   p(i,0) = RND(SCRw) : p(i,1) = RND(SCRh)
+50   p(i,2) = 6 : p(i,3) = 4 : p(i,4) = 1
+60   p(i,5) = 0 : p(i,6) = 0
+70 NEXT i
+80 DO
+90   CLS
+100  FORCE p(), 0.2, 0      : REM  gentle rightward breeze
+110  FOR i=0 TO 19
+120    IF p(i,0) > SCRw THEN p(i,0) = 0
+130  NEXT i
+140  FOR i=0 TO 19
+150    CIRCLE p(i,0),p(i,1),4
+160  NEXT i
+170  WAIT SCREEN
+180 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"PLOT          " LINK PLOT}
+@{"CIRCLE        " LINK CIRCLE}
+@{"TURNS         " LINK TURNS}
+@{"DEGREES       " LINK DEGREES}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  TRANSFORM3D / PROJECT3D
+; ----------------------------------------------------------------
+
+@NODE TRANSFORM3D "TRANSFORM3D"
+@{b}TRANSFORM3D / PROJECT3D@{ub}
+
+@{CODE}
+@{fg 1}TRANSFORM3D src() [TO dst()] {MOVE dx,dy,dz | ROTATE rx,ry,rz | SCALE sx,sy,sz} ...@{fg text}
+@{fg 1}PROJECT3D src() TO dst() [MOVE tx,ty,tz] [ROTATE rx,ry,rz] [SCALE sx,sy,sz]@{fg text}
+@{BODY}
+
+These commands operate on a 2D numeric array of 3D points. The array
+must have at least 3 columns per row, representing the X, Y and Z
+coordinate of each point. Any extra columns are carried through
+unchanged.
+
+@{b}TRANSFORM3D@{ub}
+
+@{b}TRANSFORM3D src()@{ub} applies one or more geometric transforms to every
+point in @{b}src()@{ub}. Transforms are applied in the order written. Without
+the @{b}TO dst()@{ub} clause the source array is modified in place; with it
+the results go to @{b}dst()@{ub} and @{b}src()@{ub} is left unchanged.
+
+@{b}MOVE dx,dy,dz@{ub} translates every point by the given offset.
+
+@{b}ROTATE rx,ry,rz@{ub} rotates every point about the origin by @{b}rx@{ub} degrees
+around the X axis (pitch), @{b}ry@{ub} degrees around Y (yaw), and @{b}rz@{ub}
+degrees around Z (roll). Rotation order is X then Y then Z.
+
+@{b}SCALE sx,sy,sz@{ub} multiplies every point's coordinates by the given
+scale factors. Use equal values for uniform scaling.
+
+Multiple clauses may be chained on one line:
+
+@{CODE}
+TRANSFORM3D pts() SCALE 2,2,2 ROTATE 0,45,0 MOVE 10,0,-5
+@{BODY}
+
+This scales, then rotates, then translates -- in that order.
+
+@{b}PROJECT3D@{ub}
+
+@{b}PROJECT3D src() TO dst()@{ub} projects each 3D point in @{b}src()@{ub} through
+the current scene camera (FOV and near plane as set by @{b}CAMERA@{ub} and
+@{b}SETNEAR@{ub}) and writes the resulting 2D screen coordinates to @{b}dst()@{ub}.
+The optional @{b}MOVE@{ub}, @{b}ROTATE@{ub} and @{b}SCALE@{ub} clauses apply a world transform
+to the source points before projection, matching the transform
+applied to model instances by the 3D engine. Each row of @{b}dst()@{ub}
+receives the projected X and Y screen coordinates; the Z value
+(depth) is written to the third column if @{b}dst()@{ub} has one.
+
+Points that fall outside the view frustum still produce values in
+@{b}dst()@{ub} -- check depth against @{b}SETNEAR@{ub} or clip manually if needed.
+
+These commands are independent of the 3D scene system. They work
+on raw arrays and do not require a scene bank or any model banks.
+They are complementary to the scene-based commands described in
+@{"3D Graphics" LINK Sec_3D}.
+
+@{CODE}
+@{BASIC}
+10 REM  Transform and project a star field manually
+20 DIM stars(100, 3)
+30 FOR i=0 TO 99
+40   stars(i,0) = RND(200)-100
+50   stars(i,1) = RND(200)-100
+60   stars(i,2) = RND(200)-100
+70 NEXT i
+80 DIM screen(100, 2)
+90 CAMERA 0,0,0, 0,0,0, 70
+100 DO
+110  CLS
+120  TRANSFORM3D stars() ROTATE 0,0.5,0.2
+130  PROJECT3D stars() TO screen()
+140  FOR i=0 TO 99
+150    IF screen(i,2) > 0 THEN
+160      PLOT screen(i,0), screen(i,1)
+170    END IF
+180  NEXT i
+190  WAIT SCREEN
+200 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Label a 3D model's vertices with screen-space text
+20 REM  Assumes scene sc and instance inst are already set up
+30 DIM verts(8, 3)
+40 REM  ... fill verts() with the cube's world-space corners ...
+50 DIM screen(8, 3)
+60 PROJECT3D verts() TO screen() MOVE MODELx(inst),MODELy(inst),MODELz(inst)
+70 FOR i=0 TO 7
+80   IF screen(i,2) > 0 THEN
+90     PRINT AT screen(i,1), screen(i,0); i
+100  END IF
+110 NEXT i
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"3D Graphics   " LINK Sec_3D}
+@{"CAMERA        " LINK CAMERA_3D}
+@{"SETNEAR       " LINK LIGHT}
+@{"MODEL AT      " LINK MODEL_AT}
+@{"MODELx        " LINK MODEL_FUNCS}
+@{"TRANSFORM2D   " LINK TRANSFORM2D}
+@{BODY}
+
+@ENDNODE
+
+; ----------------------------------------------------------------
+;  LIGHT -- LIGHT TO, LIGHT AMBIENT, LIGHT FOG, SETNEAR
+; ----------------------------------------------------------------
+
+@NODE LIGHT "LIGHT"
+@{b}LIGHT TO / LIGHT AMBIENT / LIGHT COLOUR / LIGHT FOG / SETNEAR@{ub}
+
+@{CODE}
+@{fg 1}LIGHT TO dx, dy, dz@{fg text}
+@{fg 1}LIGHT AMBIENT level@{fg text}
+@{fg 1}LIGHT COLOUR $RRGGBB@{fg text}
+@{fg 1}LIGHT COLOUR red, green, blue@{fg text}
+@{fg 1}LIGHT FOG near, far, colour@{fg text}
+@{fg 1}LIGHT FOG OFF@{fg text}
+@{fg 1}SETNEAR dist@{fg text}
+@{BODY}
+
+@{b}Directional Light@{ub}
+
+@{b}LIGHT TO dx, dy, dz@{ub} sets the direction of the scene's single
+directional light. The vector (@{b}dx@{ub},@{b}dy@{ub},@{b}dz@{ub}) points from the light
+source toward the scene. It does not need to be normalised. The
+default is (0,-1,0) -- directly overhead. Light affects all
+shading modes except wireframe.
+
+@{b}LIGHT AMBIENT level@{ub} sets the ambient light intensity as a value
+from 0.0 (total darkness) to 1.0 (fully lit regardless of face
+angle). The default is 0.25. Ambient light prevents faces pointing
+away from the light from going completely black.
+
+@{b}Light Colour@{ub}
+
+@{b}LIGHT COLOUR@{ub} sets the colour of the directional light. By default
+the light is white, which leaves surface colours unchanged. A
+coloured light tints all lit surfaces toward that colour -- a red
+light makes surfaces appear redder, a blue light makes them appear
+bluer.
+
+The single-argument form takes an @{b}$RRGGBB@{ub} hex colour value, which
+is the same format used by @{b}RGB()@{ub} and the rest of SpecBAS.
+
+The three-argument form takes separate @{b}red@{ub}, @{b}green@{ub} and @{b}blue@{ub}
+components each in the range 0 to 255. Both forms are equivalent.
+
+Note that light colour interacts with surface colour multiplicatively,
+as it does in the real world. A surface only reflects light of its
+own colour: a pure red surface under a pure blue light appears
+black, because red paint reflects no blue light. To tint all
+surfaces equally, use a near-white colour with a slight hue rather
+than a fully saturated primary. To restore white light, use
+@{b}LIGHT COLOUR 255, 255, 255@{ub} or @{b}LIGHT COLOUR $FFFFFF@{ub}.
+
+In 8bpp mode the light colour is baked into the shade table when
+it is next rebuilt, so a palette change or any call to
+@{b}LIGHT COLOUR@{ub} will trigger a shade table rebuild on the next
+@{b}RENDER@{ub}. In 32bpp mode the colour is applied per-pixel at no extra
+cost.
+
+@{CODE}
+@{BASIC}
+10 REM  Scene with a warm low-sun lighting and fog
+20 SCENE NEW sc
+30 REM  ... build models and scene ...
+40 LIGHT TO 0.5,-0.3,1      : REM  sun from side and behind
+50 LIGHT AMBIENT 0.2
+60 LIGHT COLOUR 255,220,160 : REM  warm golden sunlight
+70 LIGHT FOG 15, 40, 7      : REM  white mist from 15 to 40 units
+80 CAMERA 0,1,0, 0,0,0
+90 DO
+100  CLS
+110  RENDER sc
+120  WAIT SCREEN
+130 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Night scene with moonlight (cool blue-white)
+20 LIGHT TO 0,-1,0
+30 LIGHT AMBIENT 0.05
+40 LIGHT COLOUR 180,200,255 : REM  cool blue-white moonlight
+50 LIGHT FOG 5, 15, 0       : REM  black fog, 5 to 15 units
+60 SETNEAR 0.05             : REM  allow close-up torch view
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Cycle light colour through red, green, blue
+20 DIM t=0
+30 DO
+40   LET r = INT((SIN(t)        * 0.5 + 0.5) * 255)
+50   LET g = INT((SIN(t + 2.09) * 0.5 + 0.5) * 255)
+60   LET b = INT((SIN(t + 4.19) * 0.5 + 0.5) * 255)
+70   LIGHT COLOUR r, g, b
+80   LET t = t + 0.02
+90   CLS : RENDER sc : WAIT SCREEN
+100 LOOP
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"MODEL SHADING " LINK MODEL_SHADING}
+@{"CAMERA        " LINK CAMERA_3D}
+@{"RENDER        " LINK RENDER_3D}
+@{"RGB           " LINK RGB}
+@{BODY}
+
+@ENDNODE
+
+; ----------------------------------------------------------------
+;  COMPILE
+; ----------------------------------------------------------------
+
+@NODE COMPILE "COMPILE"
+@{b}COMPILE@{ub}
+
+@{CODE}
+@{fg 1}COMPILE filename$ [, caption$] [LINE startline] [BANK id [,id ...]]@{fg text}
+@{BODY}
+
+Creates a standalone executable from the current program and writes
+it to @{b}filename$@{ub}. The output file is a copy of the SpecBAS interpreter
+with the current program embedded as a payload. Running the output
+file launches directly into the program without the editor.
+
+COMPILE may only be used from the primary thread; it will error if
+called from a secondary thread.
+
+@{b}caption$@{ub} sets the title bar text of the compiled program's window.
+If omitted the window has no caption.
+
+@{b}LINE startline@{ub} causes the compiled program to begin execution at
+the given line number rather than from the first line. This is
+useful when the program contains setup or menu code at the top that
+should be skipped when running standalone.
+
+@{b}BANK id@{ub} embeds one or more bank files into the executable. Multiple
+bank IDs are listed separated by commas. The embedded banks are
+available to the compiled program at startup, exactly as if they
+had been loaded with LOAD BANK before the program runs. This allows
+a compiled program to be distributed as a single file even when it
+depends on graphic, sound or model banks.
+
+The output file has the same extension and format as the SpecBAS
+interpreter itself on the current platform. On most systems you
+will need to ensure the output file has execute permission set
+before running it.
+
+@{CODE}
+@{BASIC}
+10 REM  Save a self-contained game executable with its
+20 REM  graphic and sound banks embedded
+30 GRAPHIC NEW gfx : REM  ... load graphics ...
+40 SAMPLE NEW sfx  : REM  ... load samples ...
+50 COMPILE "mygame.exe", "My Game" BANK gfx, sfx
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Compile starting at line 1000 (skip the menu system)
+20 COMPILE "game_direct.exe", "My Game" LINE 1000
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"SAVE          " LINK SAVE}
+@{"LOAD          " LINK LOAD}
+@{"BANK          " LINK BANK}
+@{"EXECUTE       " LINK EXECUTE}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  LLIST
+; ----------------------------------------------------------------
+
+@NODE LLIST "LLIST"
+@{b}LLIST@{ub}
+
+@{CODE}
+@{fg 1}LLIST filename$ [, width [, height]]@{fg text}
+@{BODY}
+
+Renders the current program listing as a pixel-art image in the
+style of a magazine type-in listing and saves it to @{b}filename$@{ub}.
+The listing is drawn using the system font onto a newly created
+graphic bank, which is then saved as an image file.
+
+@{b}width@{ub} sets the column width of the listing in characters. If
+omitted or set to -1 it defaults to the current display width in
+characters. Long lines are word-wrapped to fit the column width.
+
+@{b}height@{ub} sets the maximum number of lines per column before a new
+column is started. If omitted or set to -1 the listing occupies a
+single column as tall as needed. When a @{b}height@{ub} is given, the
+output is laid out in multiple columns side by side -- useful for
+producing a compact magazine-page style image.
+
+The image is saved in whatever format is determined by @{b}filename$@{ub}'s
+extension. The graphic bank used for rendering is deleted
+automatically after saving; it does not remain in memory.
+
+If the program was loaded using @{b}INCLUDE@{ub}, only the included portion
+of the program is listed.
+
+@{CODE}
+@{BASIC}
+10 REM  Save the listing as a single-column image
+20 LLIST "listing.png"
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Magazine layout: 40 chars wide, 60 lines per column
+20 LLIST "magazine.png", 40, 60
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"LIST          " LINK LIST}
+@{"SAVE          " LINK SAVE}
+@{"GRAPHIC       " LINK GRAPHIC}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  KEYBOARD
+; ----------------------------------------------------------------
+
+@NODE KEYBOARD "KEYBOARD"
+@{b}KEYBOARD@{ub}
+
+@{CODE}
+@{fg 1}KEYBOARD name$@{fg text}
+@{BODY}
+
+Loads a keyboard layout definition file from @{b}name$@{ub}. This replaces
+the current keyboard mapping, allowing programs to support
+non-English keyboards or custom input schemes at runtime.
+
+A keyboard definition file maps physical key codes to the characters
+they produce, both with and without modifier keys. The format is
+determined by the SpecBAS keyboard definition system; refer to the
+keyboard definition files supplied with SpecBAS for the correct
+layout.
+
+After @{b}KEYBOARD@{ub} the new mapping takes effect immediately for all
+subsequent @{b}INKEY$@{ub}, @{b}INPUT@{ub} and @{b}KEY@{ub} operations.
+
+@{CODE}
+@{BASIC}
+10 REM  Load a French keyboard layout
+20 KEYBOARD "keyboards/fr.kbd"
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"INKEY$        " LINK INKEY$}
+@{"INPUT         " LINK INPUT}
+@{"KEY           " LINK KEY}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  HELP
+; ----------------------------------------------------------------
+
+@NODE HELP_CMD "HELP"
+@{b}HELP@{ub}
+
+@{CODE}
+@{fg 1}HELP@{fg text}
+@{fg 1}HELP keyword$@{fg text}
+@{BODY}
+
+Opens the SpecBAS online help viewer from within a running program.
+
+@{b}HELP@{ub} without an argument opens the help at the contents page.
+
+@{b}HELP keyword$@{ub} jumps directly to the entry for @{b}keyword$@{ub}, exactly
+as if the user had pressed F1 with that keyword under the cursor in
+the editor. If no entry exists for the given keyword the contents
+page is shown instead.
+
+@{b}HELP@{ub} is most useful during development for quick reference, but
+can also be used to provide in-program documentation or guidance
+to the user in an interactive tutorial.
+
+@{CODE}
+@{BASIC}
+10 REM  Open help for the CIRCLE command
+20 HELP "CIRCLE"
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Context-sensitive help using the user's input
+20 INPUT "Enter a keyword: "; kw$
+30 HELP kw$
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"  Contents    " LINK Main}
+@{BODY}
+
+@ENDNODE
+
+
+; ----------------------------------------------------------------
+;  INSTALL
+; ----------------------------------------------------------------
+
+@NODE INSTALL "INSTALL"
+@{b}INSTALL@{ub}
+
+@{CODE}
+@{fg 1}INSTALL@{fg text}
+@{BODY}
+
+On macOS, @{b}INSTALL@{ub} copies the SpecBAS support files from inside the
+application bundle to the user's home directory (@{b}~/specbas@{ub}), making
+them accessible for programs that expect to find resources at the
+default SpecBAS paths. It also resets the palette to the default
+and clears the screen.
+
+On all other platforms @{b}INSTALL@{ub} does nothing and returns without
+error.
+
+@{b}INSTALL@{ub} is typically only needed once, on first run after installing
+SpecBAS from a macOS disk image. It is safe to call it from a
+program; if the files are already in place they will be overwritten
+with fresh copies from the bundle.
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"COMPILE       " LINK COMPILE}
+@{"SAVE          " LINK SAVE}
 @{BODY}
 
 @ENDNODE

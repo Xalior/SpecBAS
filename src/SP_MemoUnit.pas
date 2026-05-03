@@ -249,7 +249,7 @@ SP_Memo = Class(SP_BaseComponent)
     Function  WrappedLineOfRaw(RawLine, RawCol: Integer): Integer;
     Procedure RawPosFromMouse(X, Y: Integer; Out RLine, RCol: Integer);
     Procedure DeleteSelection;
-    Procedure SetCursorRaw(RLine, RCol: Integer; ExtendSel: Boolean);
+    Procedure SetCursorRaw(RLine, RCol: Integer; ExtendSel: Boolean; UpdateDesired: Boolean = True);
     Procedure MoveCursorUp(Extend: Boolean);
     Procedure MoveCursorDown(Extend: Boolean);
     Procedure MoveWordLeft(Extend: Boolean);
@@ -293,11 +293,13 @@ SP_Memo = Class(SP_BaseComponent)
 
   Public
 
+    fShowVertSB: BooLean;
+
     Procedure Draw; Override;
     Function  GetText: aString;
     Procedure SetText(s: aString);
-    Procedure InsertChar(ch: aChar); Virtual;
-    Procedure InsertText(s: aString);
+    Procedure InsertChar(ch: aString); Virtual;
+    Procedure InsertText(s: aString); Virtual;
     Procedure EnsureCursorVisible;
     Procedure PerformKeyDown(Var Handled: Boolean); Override;
     Procedure PerformKeyUp(Var Handled: Boolean); Override;
@@ -322,6 +324,7 @@ SP_Memo = Class(SP_BaseComponent)
     Procedure GotoLine(RawLine, RawCol: Integer);
     Function  HasSelection: Boolean;
     Procedure SelectAll;
+    Procedure SelectWordAtCursor;
     Procedure CopySelection;
     Procedure CutSelection;
     Procedure PasteSelection; Virtual;
@@ -329,6 +332,7 @@ SP_Memo = Class(SP_BaseComponent)
     Procedure GetSelectionOrder(Out L1, C1, L2, C2: Integer);
     Function  GetCharHeight: Integer;
     Function  CharRectFromRawPos(RawLine, ColStart, ColEnd: Integer): TRect;
+    Procedure SetShowVertSB(b: Boolean);
 
     Procedure GetCharPosFromMouse(X, Y: Integer; Out RLine, RCol: Integer);
 
@@ -353,6 +357,7 @@ SP_Memo = Class(SP_BaseComponent)
     Property WrappedCount: Integer    read fWrappedCount;
     Property OnCursorMove: SP_NotifyEvent read fOnCursorMove write fOnCursorMove;
     Property CharHeight: Integer      read GetCharHeight;
+    Property ShowVertSB: Boolean      read fShowVertSB write SetShowVertSB;
 
     Constructor Create(Owner: SP_BaseComponent);
     Destructor  Destroy; Override;
@@ -406,6 +411,7 @@ Constructor SP_Memo.Create(Owner: SP_BaseComponent);
 Begin
   Inherited;
   fTypeName  := 'spMemo';
+  fShowVertSB := True;
   fCanFocus  := True;
   fWantTab   := True;
   fBorder    := True;
@@ -432,6 +438,8 @@ Begin
   fColour      := 7;
   fBackgroundClr := SP_UIBackground;
   fFontClr       := SP_UIText;
+  fDesiredCol := 1;
+  fDesiredX   := 0;
 
   // Search state
   fSearchTerm       := '';
@@ -487,6 +495,7 @@ Begin
 
   AddOverrideControl(Self);
   fFlashTimer := AddTimer(Self, FLASHINTERVAL, FlashTimer, False, False)^.ID;
+  If fLines.Count = 0 Then fLines.Add('');
 End;
 
 Destructor SP_Memo.Destroy;
@@ -903,15 +912,19 @@ Begin
   End;
 End;
 
-Procedure SP_Memo.SetCursorRaw(RLine, RCol: Integer; ExtendSel: Boolean);
+Procedure SP_Memo.SetCursorRaw(RLine, RCol: Integer; ExtendSel, UpdateDesired: Boolean);
 Begin
   If fLines.Count > 0 Then Begin
-    CursorLine := Max(0, Min(RLine, fLines.Count - 1));
-    CursorCol  := Max(1, Min(RCol,  Length(fLines[fCursorLine]) + 1));
-    If Not ExtendSel Then Begin fSelLine := fCursorLine; fSelCol := fCursorCol; End;
+    fCursorLine := Max(0, Min(RLine, fLines.Count - 1));
+    fCursorCol  := Max(1, Min(RCol,  Length(fLines[fCursorLine]) + 1));
+    If Not ExtendSel Then Begin
+      fSelLine := fCursorLine;
+      fSelCol := fCursorCol;
+    End;
   End Else Begin
     CursorLine := 0; CursorCol := 1;
   End;
+  If UpdateDesired Then UpdateDesiredPos;
   OnCursorMoved;
   EnsureCursorVisible;
   Paint;
@@ -947,7 +960,7 @@ Begin
     Else
       newRCol := Min(newRCol, Length(fLines[newRLine]) + 1);
   End;
-  SetCursorRaw(newRLine, newRCol, Extend);
+  SetCursorRaw(newRLine, newRCol, Extend, False);
 End;
 
 Procedure SP_Memo.MoveCursorDown(Extend: Boolean);
@@ -988,7 +1001,7 @@ Begin
   Else
     newRCol := Min(newRCol, Length(fLines[newRLine]) + 1);
 
-  SetCursorRaw(newRLine, newRCol, Extend);
+  SetCursorRaw(newRLine, newRCol, Extend, False);
 End;
 
 Procedure SP_Memo.MoveWordLeft(Extend: Boolean);
@@ -1060,7 +1073,7 @@ Begin
   // --- TEXT AREA CLICK/DRAG LOGIC ---
   wl    := (fTopPixel Div cfH) + ((Y - bOffT + (fTopPixel Mod cfH)) Div cfH);
   If wl >= fWrappedCount Then Begin
-    RLine := -1;
+    RLine := fWrappedCount;
     Exit;
   End;
   wl    := Max(0, Min(wl, fWrappedCount - 1));
@@ -1097,9 +1110,6 @@ Begin
     Else
       RCol := Max(1, Min(RCol, Length(fLines[RLine]) + 1));
   End;
-
-  fDesiredCol := RCol;
-  fDesiredX   := Max(0, RCol - fWrapped[wl].RawOffset) * cfW + fWrapped[wl].VisualIndent;
 End;
 
 // ---------------------------------------------------------------------------
@@ -1350,7 +1360,7 @@ Begin
   fWrapDirty  := True; OnLineChanged(L1);
 End;
 
-Procedure SP_Memo.InsertChar(ch: aChar);
+Procedure SP_Memo.InsertChar(ch: aString);
 Var
   s: aString;
   p: Integer;
@@ -1363,7 +1373,7 @@ Begin
 
   If fLines.Count = 0 Then fLines.Add('');
 
-  If ShouldSnapToLineStart(ch) Then Begin
+  If (ch <> '') And ShouldSnapToLineStart(ch[1]) Then Begin
     s := fLines[fCursorLine];
     If s <> '' Then Begin
       p := 1;
@@ -1383,24 +1393,29 @@ Begin
   Else
     fLines[fCursorLine] := Copy(s, 1, fCursorCol - 1) + ch + Copy(s, fCursorCol, Length(s));
 
-  Inc(fCursorCol);
+  Inc(fCursorCol, Length(ch));
   fSelLine := fCursorLine; fSelCol := fCursorCol;
   fWrapDirty := True;
   OnLineChanged(fCursorLine);
   OnCursorMoved;
+  UpdateDesiredPos;
   If Not fBulkInsert Then
     EnsureCursorVisible;
 End;
 
 Procedure SP_Memo.InsertText(s: aString);
 Var i: Integer;
-    sub: aString;
+    sub, Accum: aString;
+    startCurs: Integer;
 Begin
   fBulkInsert := True;
+  StartCurs := CursorLine;
   Try
     i := 1;
+    Accum := '';
     While i <= Length(s) Do Begin
       If (s[i] = #13) Or (s[i] = #10) Then Begin
+        InsertChar(Accum); Accum := '';
         If HasSelection Then DeleteSelection Else StoreUndo(uoSplitLine);
         fWrapDirty := True;
         sub := fLines[fCursorLine];
@@ -1414,12 +1429,16 @@ Begin
         OnLineChanged(fCursorLine - 1);
         If (s[i] = #13) And (i < Length(s)) And (s[i+1] = #10) Then Inc(i);
       End Else
-        InsertChar(s[i]);
+        Accum := Accum + s[i];
       Inc(i);
     End;
+    OnLineChanged(fCursorLine);
   Finally
     fBulkInsert := False;
   End;
+  If Accum <> '' Then InsertChar(Accum);
+  For i := startCurs To CursorLine Do
+    OnLineChanged(i);
   fWrapDirty := True;
   EnsureCursorVisible;
 End;
@@ -1460,6 +1479,7 @@ Begin
       OnLinesChanged(fCursorLine + 1, -1);
       fWrapDirty := True; OnLineChanged(fCursorLine);
     End;
+  UpdateDesiredPos;
 End;
 
 Procedure SP_Memo.DeleteCharFwd;
@@ -1480,6 +1500,7 @@ Begin
       OnLinesChanged(fCursorLine + 1, -1);
       fWrapDirty := True; OnLineChanged(fCursorLine);
     End;
+  UpdateDesiredPos;
 End;
 
 Procedure SP_Memo.SplitLine;
@@ -1497,6 +1518,7 @@ Begin
   fWrapDirty := True;
   OnLineChanged(fCursorLine - 1);
   OnLineChanged(fCursorLine);
+  UpdateDesiredPos;
 End;
 
 // ---------------------------------------------------------------------------
@@ -1726,7 +1748,11 @@ End;
 // ---------------------------------------------------------------------------
 
 Procedure SP_Memo.PerformKeyDown(Var Handled: Boolean);
-Var NewChar: Byte; cfH, vis, pg: Integer; oText: aString; ch: aChar;
+Var
+  NewChar: Byte;
+  cfH, vis, pg: Integer;
+  oText: aString;
+  ch: aChar;
 Begin
   If Not (fEnabled And fFocused) Then Exit;
   cfH := Max(1, Round(iFH * iSY)); Handled := False; oText := GetText;
@@ -1765,6 +1791,7 @@ Begin
             fTopPixel := Max(0, fTopPixel - cfH);
             SP_ScrollBar(fVScroll).Pos := fTopPixel; Paint;
           End Else MoveCursorUp(cKEYSTATE[K_SHIFT] = 1);
+          SP_PlaySystem(CLICKCHAN, CLICKBANK);
           Handled := True;
         End;
 
@@ -1774,6 +1801,7 @@ Begin
             fTopPixel := Min(fWrappedCount - 1, fTopPixel + cfH);
             SP_ScrollBar(fVScroll).Pos := fTopPixel; Paint;
           End Else MoveCursorDown(cKEYSTATE[K_SHIFT] = 1);
+          SP_PlaySystem(CLICKCHAN, CLICKBANK);
           Handled := True;
         End;
 
@@ -1825,6 +1853,7 @@ Begin
           SP_ScrollBar(fVScroll).Pos := fTopPixel;
           MoveCursorUp(cKEYSTATE[K_SHIFT] = 1);
           For pg := 1 To vis - 1 Do MoveCursorUp(cKEYSTATE[K_SHIFT] = 1);
+          SP_PlaySystem(CLICKCHAN, CLICKBANK);
           Handled := True;
         End;
 
@@ -1835,6 +1864,7 @@ Begin
           SP_ScrollBar(fVScroll).Pos := fTopPixel;
           MoveCursorDown(cKEYSTATE[K_SHIFT] = 1);
           For pg := 1 To vis - 1 Do MoveCursorDown(cKEYSTATE[K_SHIFT] = 1);
+          SP_PlaySystem(CLICKCHAN, CLICKBANK);
           Handled := True;
         End;
 
@@ -1871,6 +1901,7 @@ Begin
       K_ESCAPE:
         Begin
           If fSearchBarVisible Then HideSearchBar;
+          SP_PlaySystem(CLICKCHAN, CLICKBANK);
           Handled := True;
         End;
 
@@ -1889,8 +1920,10 @@ Begin
         'v': Begin If fEditable Then PasteSelection; Handled := True; End;
         'a': Begin SelectAll; Handled := True; End;
         'f': Begin ShowSearchBar; Handled := True; End;
-      Else Inherited;
+      Else
+        Inherited;
       End;
+      SP_PlaySystem(CLICKCHAN, CLICKBANK);
     End Else Begin
       If fEditable Then Begin
         If NewChar = 0 Then NewChar := Ord(cLastKeyChar);
@@ -1934,7 +1967,10 @@ Begin fMouseIsDown := False; Inherited; End;
 Procedure SP_Memo.MouseMove(Sender: SP_BaseComponent; X, Y, Btn: Integer);
 Var RLine, RCol: Integer;
 Begin
-  If fMouseIsDown Then Begin RawPosFromMouse(X, Y, RLine, RCol); SetCursorRaw(RLine, RCol, True); End;
+  If fMouseIsDown Then Begin
+    RawPosFromMouse(X, Y, RLine, RCol);
+    SetCursorRaw(RLine, RCol, True);
+  End;
   Inherited;
 End;
 
@@ -1949,7 +1985,7 @@ Begin
 End;
 
 Procedure SP_Memo.DoubleClick(X, Y, Btn: Integer);
-Var bOffL, bOffT, cfH, lm, wl: Integer;
+Var bOffL, bOffT, cfH, lm, wl, RLine, RCol: Integer;
 Begin
   // Double-click in the left margin - route to OnMarginClick with Btn=2.
   // Double-click in the text area - fall through to base (word-select etc).
@@ -1965,6 +2001,13 @@ Begin
       OnMarginClick(wl, X, Y, 2);
     End;
     Exit;
+  End Else Begin
+    RawPosFromMouse(X, Y, RLine, RCol);
+    If RLine >= 0 Then Begin
+      SetCursorRaw(RLine, RCol, cKEYSTATE[K_SHIFT] = 1);
+      SelectWordAtCursor;
+      SP_PlaySystem(CLICKCHAN, CLICKBANK);
+    End;
   End;
   Inherited;
 End;
@@ -2133,6 +2176,26 @@ Begin
   End;
 End;
 
+Procedure SP_Memo.SelectWordAtCursor;
+Var
+  s: aString;
+  sIdx, eIdx: Integer;
+Begin
+  If (fCursorLine < fLines.Count) And (fCursorLine >= 0) Then Begin
+    s := fLines[fCursorLine];
+    if (s <> '') and (fCursorCol > 0) And (fCursorCol <= Length(s)+1) Then Begin
+      sIdx := fCursorCol;
+      eIdx := fCursorCol;
+      While (eIdx <= Length(s)) And (Not (s[eIdx] in Seps)) Do Inc(eIdx);
+      While (sIdx > 1) And (Not (s[sIdx] in Seps)) Do Dec(sIdx);
+      fSelLine := fCursorLine;
+      fSelCol := sIdx +1;
+      fCursorCol := eIdx;
+      Paint;
+    End;
+  End;
+End;
+
 Procedure SP_Memo.CopySelection;
 Var L1, C1, L2, C2, i: Integer; s: aString;
 Begin
@@ -2166,7 +2229,10 @@ Begin
     InsertText(s);
     fSuppressUndo := False;
     fLastUndoOp := uoNone;
-    fWrapDirty := True; RebuildWrappedLines; EnsureCursorVisible; Paint;
+    fWrapDirty := True;
+    RebuildWrappedLines;
+    EnsureCursorVisible;
+    Paint;
   End;
 End;
 
@@ -2188,6 +2254,15 @@ End;
 Procedure SP_Memo.GetCharPosFromMouse(X, Y: Integer; Out RLine, RCol: Integer);
 Begin
   RawPosFromMouse(X, Y, RLine, RCol);
+End;
+
+Procedure SP_Memo.SetShowVertSB(b: Boolean);
+Begin
+  if b <> fShowVertSB Then Begin
+    fShowVertSB := b;
+    fVScroll.Visible := b;
+    Paint;
+  End;
 End;
 
 Function SP_Memo.GetCharHeight: Integer;
@@ -2309,6 +2384,7 @@ Begin
     DrawLine(0, 0, fWidth - 1, 0, fBorderClr);
     DrawLine(b, 1, fWidth - (1 + b), 1, 15);
     DrawLine(b, fHeight - 1, fWidth - (1 + b), fHeight - 1, SP_UIShadow);
+    DrawLine(fWidth - (1 + b), 1, fWidth - (1 + b), fHeight -1, SP_UIShadow);
 
     lx := fSearchEdit.Left - Round(TextWidth('Find: ')) - 2;
     If lx < 2 Then lx := 2;

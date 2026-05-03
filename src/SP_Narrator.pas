@@ -121,8 +121,8 @@ Type
   //   Rd = 2.0  — breathy (softer closure, darker spectrum)
   //   Rd is driven from stress level so stressed syllables are slightly more pressed.
   TLFState = Record
-    E0:     Double;   // open-phase amplitude normalisation (peak → 1.0)
-    Alpha:  Double;   // open-phase spectral tilt (negative → darker with higher Rd)
+    E0:     Double;   // open-phase amplitude normalisation (peak -> 1.0)
+    Alpha:  Double;   // open-phase spectral tilt (negative -> darker with higher Rd)
     OmegaG: Double;   // = Pi/Tp; open-phase angular frequency
     Te:     Double;   // end of open phase (fraction of period)
     Ta:     Double;   // return-phase time constant (fraction of period)
@@ -318,14 +318,14 @@ End;
 //   stored in State.LF and used sample-by-sample by LFGlottalPulse.
 //
 // Physical interpretation of Rd:
-//   Open phase  → positive lobe (glottis opening)
-//   Closure     → negative spike at Te (main vocal-tract excitation)
-//   Return phase→ exponential recovery to zero baseline
+//   Open phase  -> positive lobe (glottis opening)
+//   Closure     -> negative spike at Te (main vocal-tract excitation)
+//   Return phase-> exponential recovery to zero baseline
 //
-// Rd → model parameters mapping (after Fant 1994, Table 1):
+// Rd -> model parameters mapping (after Fant 1994, Table 1):
 //   Oq (open quotient) = Te = 0.50 + 0.15 * Rd  [clamped 0.38..0.90]
 //   Tp (time to +lobe peak) = Te / 1.55           [fixed asymmetry Rk=0.55]
-//   Alpha (spectral tilt)  = -(0.3 + 0.6*Rd)/Te  [negative → darker @ high Rd]
+//   Alpha (spectral tilt)  = -(0.3 + 0.6*Rd)/Te  [negative -> darker @ high Rd]
 //   Ta (return time const) = max(0.003, 0.016*Rd)
 //
 Procedure UpdateLFParams(Var State: TSynthState; Rd: Double);
@@ -344,7 +344,7 @@ Begin
   // Peak of open phase (positive lobe): solve d/dphi[exp(Alpha*phi)*sin(OmegaG*phi)] = 0
   //   tan(OmegaG*phi_peak) = -OmegaG/Alpha
   //   phi_peak = ArcTan(-OmegaG/Alpha) / OmegaG
-  // Alpha < 0 → -OmegaG/Alpha > 0 → ArcTan returns value in (0, Pi/2) ✓
+  // Alpha < 0 -> -OmegaG/Alpha > 0 -> ArcTan returns value in (0, Pi/2) ✓
   PhiPeak := ArcTan(-OmegaG / Alpha) / OmegaG;
   PeakAmp := Exp(Alpha * PhiPeak) * Sin(OmegaG * PhiPeak);
   If Abs(PeakAmp) > 1e-12 Then
@@ -575,9 +575,9 @@ Begin
   If (Upper = 'C') Or (Upper = '/C') Then Upper := 'KH';
   If Upper = 'J' Then Upper := 'JH';
   If Upper = 'Q' Then Upper := 'QQ';
-  If Upper = 'UM' Then Upper := 'UN';  // syllabic M → treat as syllabic N
-  If Upper = 'IL' Then Upper := 'UL';  // IL variant → UL
-  If Upper = 'IN' Then Upper := 'UN';  // IN variant → UN
+  If Upper = 'UM' Then Upper := 'UN';  // syllabic M -> treat as syllabic N
+  If Upper = 'IL' Then Upper := 'UL';  // IL variant -> UL
+  If Upper = 'IN' Then Upper := 'UN';  // IN variant -> UN
 
   // --------------------------------------
 
@@ -656,10 +656,10 @@ End;
 //   stress level and the current voice parameters.
 //
 //   The Amiga pitch model (FUN_002211b8):
-//     • All pitch-buffer slots initialise to period 0xA0 = 160 at 22254 Hz = 139 Hz.
-//     • Non-stressed phonemes receive no pitch write → stay at 139 Hz (1.00×).
-//     • Stressed (level 1) phonemes fall to ~134 Hz (0.964×) — British nuclear fall.
-//     • Very unstressed / schwa can rise to ~178 Hz (1.28×).
+//     - All pitch-buffer slots initialise to period 0xA0 = 160 at 22254 Hz = 139 Hz.
+//     - Non-stressed phonemes receive no pitch write -> stay at 139 Hz (1.00×).
+//     - Stressed (level 1) phonemes fall to ~134 Hz (0.964×) — British nuclear fall.
+//     - Very unstressed / schwa can rise to ~178 Hz (1.28×).
 //   We use Params.Pitch as the NEUTRAL anchor (Amiga 139 Hz ≡ our Params.Pitch).
 //   Stressed fall and unstressed rise are expressed as fixed ratios of that anchor.
 //
@@ -1168,8 +1168,8 @@ Begin
   //
   // The discrepancy arises from phrase declination: BuildF0Contour returns
   // Params.Pitch × 0.94 for a neutral phoneme at phrase end, while the old
-  // ComputePitchHz returned Params.Pitch × 1.00.  Lower pitch → larger
-  // (139/PitchHz) coupling factor → more samples per allophone.
+  // ComputePitchHz returned Params.Pitch × 1.00.  Lower pitch -> larger
+  // (139/PitchHz) coupling factor -> more samples per allophone.
   RateScale := 150.0 / Max(1, Params.Rate);
   SetLength(F0Contour, AlloCount);
   BuildF0Contour(Indices, Stresses, AlloCount, Params, AlloBoundaryPre, F0Contour);
@@ -1257,22 +1257,22 @@ Begin
     // Pitch arc design (matching Amiga FUN_002211b8):
     //   ComputePitchHz returns the ONSET pitch (slightly above neutral for
     //   stressed syllables, so the arc can fall into the nuclear trough).
-    //   StressPitchPeak < 0 → falling arc (nuclear fall for levels 1, 2, 5).
-    //   StressPitchPeak > 0 → rising arc (tertiary/schwa).
-    //   StressPitchPeak = 0 → flat (neutral, level 4).
+    //   StressPitchPeak < 0 -> falling arc (nuclear fall for levels 1, 2, 5).
+    //   StressPitchPeak > 0 -> rising arc (tertiary/schwa).
+    //   StressPitchPeak = 0 -> flat (neutral, level 4).
     If Allo.Voiced And Not Allo.Stop Then Begin
       Case StressLevel Of
         5: Begin  // emphatic — strong nuclear fall
              StressAmpScale  := 1.20;
-             StressPitchPeak := -(Params.Pitch * 0.18);  // onset 1.08× → trough 0.90×
+             StressPitchPeak := -(Params.Pitch * 0.18);  // onset 1.08× -> trough 0.90×
            End;
         1: Begin  // primary stress — nuclear fall (Amiga: ~134/139 = 0.964 at trough)
              StressAmpScale  := 1.12;
-             StressPitchPeak := -(Params.Pitch * 0.075); // onset 1.04× → trough 0.965×
+             StressPitchPeak := -(Params.Pitch * 0.075); // onset 1.04× -> trough 0.965×
            End;
         2: Begin  // secondary stress — modest fall
              StressAmpScale  := 1.08;
-             StressPitchPeak := -(Params.Pitch * 0.040); // onset 1.02× → trough 0.980×
+             StressPitchPeak := -(Params.Pitch * 0.040); // onset 1.02× -> trough 0.980×
            End;
         3: Begin  // tertiary — slight rise
              StressAmpScale  := 1.03;
@@ -1293,8 +1293,8 @@ Begin
     End;
 
     // ---- LF voice quality (Rd) ----
-    // Stressed syllables → slightly more pressed (brighter, more percussive).
-    // Schwa / unstressed → slightly breathier (softer, more natural).
+    // Stressed syllables -> slightly more pressed (brighter, more percussive).
+    // Schwa / unstressed -> slightly breathier (softer, more natural).
     // Female voice is inherently breathier than male.
     If Params.Sex = 1 Then
       CurRd := 1.60           // female: breathy
@@ -1432,7 +1432,7 @@ Begin
       // adds a smooth cosine S-curve rise from 0 to +QuestionArcPeak over the
       // full allophone duration.  This produces a clearly audible, smooth rise
       // rather than a step-function jump.  QuestionArcPeak = 22% of Params.Pitch:
-      // at 120 Hz that's a 0→26 Hz rise, landing ~152 Hz at the end.
+      // at 120 Hz that's a 0->26 Hz rise, landing ~152 Hz at the end.
       If (AlloBoundaryPre[ai] = 4) And Allo.Voiced And (DurSamples > 0) Then Begin
         StressPitchArc := (Params.Pitch * 0.22) *
           (1.0 - Cos(Pi * si / DurSamples)) * 0.5;
@@ -1478,7 +1478,7 @@ Begin
         // Voiced stops /b d g/ have audible low-level buzz leaking through the
         // oral closure because the vocal folds keep vibrating.  This murmur is
         // the primary acoustic cue that distinguishes voiced from voiceless stops.
-        // Without it, the closure is pure silence → the subsequent voicing ramp
+        // Without it, the closure is pure silence -> the subsequent voicing ramp
         // sounds like a glide (BB = "w"-like onset rather than "b").
         // 12% for voiced, 2% for voiceless (near-silence for /p t k/).
         If Allo.Voiced Then ClosureMurmur := 0.12 Else ClosureMurmur := 0.02;
@@ -1534,7 +1534,7 @@ Begin
 
           If (AlloName = 'CH') Or (AlloName = 'JH') Then Begin
             // Affricates sustain friction throughout their release phase.
-            // When the next allophone is voiced (e.g. CH→UN in "question"),
+            // When the next allophone is voiced (e.g. CH->UN in "question"),
             // fade out the friction over the last 20ms to reduce forward masking.
             // Without this fade, the abrupt full-amplitude cutoff leaves the
             // auditory masking window active when the following nasal/vowel starts,
@@ -1586,12 +1586,12 @@ Begin
         // Amplitude crossfade: blend BuzzAmp and NoiseAmp from the previous
         // allophone's values to this allophone's values over ~8 ms (353 samples).
         // Prevents pops at voiced<->unvoiced boundaries and fricative onsets.
-        // Standard crossfade ~12ms, extended to ~25ms at fricative→fricative
-        // voicing boundaries (e.g. SS→ZZ, SH→ZH, FF→VV, TH→DH) where
+        // Standard crossfade ~12ms, extended to ~25ms at fricative->fricative
+        // voicing boundaries (e.g. SS->ZZ, SH->ZH, FF->VV, TH->DH) where
         // both allophones are sustained and the voicing transition is abrupt.
         // Stops are excluded from the 25ms path: their release is already
         // handled by the burst code above, so the following voiced allophone
-        // (e.g. CH→UN in "question") should onset in 12ms, not 25ms.
+        // (e.g. CH->UN in "question") should onset in 12ms, not 25ms.
         If (PrevAllo.NoiseAmp > PrevAllo.BuzzAmp) And
            (Not PrevAllo.Stop) And
            (Allo.NoiseAmp > 0) And
@@ -1615,7 +1615,7 @@ Begin
 
         // Fade out noise at the end of unvoiced fricatives when the next
         // allophone is voiced — prevents the abrupt noise cutoff click
-        // at SS→vowel, FF→vowel, TH→DH boundaries.
+        // at SS->vowel, FF->vowel, TH->DH boundaries.
         If (Not Allo.Voiced) And (Not Allo.Stop) And
            (Allo.NoiseAmp > 0.5) And
            AlloPhones[Indices[Min(ai + 1, AlloCount - 1)]].Voiced Then Begin

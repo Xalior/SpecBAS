@@ -266,7 +266,7 @@ Begin
     If p = 0 Then
       p := Pos(#10, s);
     If p > 0 Then Begin
-      Add(Copy(s, 1, p -1));
+      Add(SP_Copy(s, 1, p -1));
       Case s[p] of
         #13:
           Begin
@@ -277,7 +277,7 @@ Begin
         #10:
           Inc(p);
       End;
-      s := Copy(s, p);
+      s := SP_Copy(s, p);
     End Else
       If s <> '' Then Begin
         Add(s);

@@ -217,6 +217,12 @@ Function  SP_Convert_FORCE(Var KeyWordID: LongWord; Var Tokens: aString; Var Pos
 Function  SP_Convert_INSTALL(Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
 Function  SP_Convert_SAY(Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
 Function  SP_Convert_THREAD(Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Function  SP_Convert_MODEL (Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Function  SP_Convert_SCENE (Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Function  SP_Convert_CAMERA(Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Function  SP_Convert_LIGHT (Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Function  SP_Convert_RENDER(Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Function  SP_Convert_SETNEAR(Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
 
 Var
 
@@ -227,7 +233,7 @@ Var
 
 implementation
 
-Uses SP_Interpret_PostFix, {$IFDEF FPC}LclIntf{$ELSE}Windows{$ENDIF}, SP_AnsiStringlist, SP_PreRun;
+Uses SP_Interpret_PostFix, {$IFDEF FPC}LclIntf{$ELSE}Windows{$ENDIF}, SP_AnsiStringlist, SP_PreRun, SP_3DEngineUnit;
 
 Function CreateToken(tType: Byte; tVarious, tLength: LongWord): aString;
 Begin
@@ -720,6 +726,11 @@ Begin
     SP_KW_CTRL: Result := Result + SP_Convert_CTRL(Tokens, KeyWordID, Position, Error);
     SP_KW_SAY: Result := Result + SP_Convert_SAY(KeyWordID, Tokens, Position, Error);
     SP_KW_THREAD: Result := Result + SP_Convert_THREAD(KeyWordID, Tokens, Position, Error);
+    SP_KW_MODEL: Result := Result + SP_Convert_MODEL (KeyWordID, Tokens, Position, Error);
+    SP_KW_SCENE: Result := Result + SP_Convert_SCENE (KeyWordID, Tokens, Position, Error);
+    SP_KW_CAMERA: Result := Result + SP_Convert_CAMERA(KeyWordID, Tokens, Position, Error);
+    SP_KW_LIGHT: Result := Result + SP_Convert_LIGHT (KeyWordID, Tokens, Position, Error);
+    SP_KW_RENDER: Result := Result + SP_Convert_RENDER(Tokens, Position, Error);
 
   Else
 
@@ -1223,7 +1234,8 @@ Begin
             SP_FN_HEADING, SP_FN_DRPOSX, SP_FN_DRPOSY, SP_FN_LASTK, SP_FN_FRAMES, SP_FN_TIME, SP_FN_MOUSEWHEEL,
             SP_FN_ITEM, SP_FN_POPLINE, SP_FN_POPST, SP_FN_VOL, SP_FN_LOGW, SP_FN_LOGH, SP_FN_ORGX, SP_FN_ORGY,
             SP_FN_MUSICPOS, SP_FN_MUSICLEN, SP_FN_LASTM, SP_FN_LASTMI, SP_FN_TXTW, SP_FN_TXTH, SP_FN_STK, SP_FN_INKEY,
-            SP_FN_THREADCOUNT:
+            SP_FN_THREADCOUNT, SP_FN_CAMERAX, SP_FN_CAMERAY, SP_FN_CAMERAZ, SP_FN_CAMERARX, SP_FN_CAMERARY,
+            SP_FN_CAMERARZ, SP_FN_CAMERAFOV:
               Begin
                 Inc(StackPtr);
                 Stack[StackPtr] := SP_VALUE;
@@ -1242,8 +1254,8 @@ Begin
             SP_FN_LOGTWO, SP_FN_WORDSWAP, SP_FN_BYTESWAP, SP_FN_NYBBLESWAP, SP_FN_HIWORD, SP_FN_LOWORD, SP_FN_HIBYTE,
             SP_FN_LOBYTE, SP_FN_NUBMODE, SP_FN_NUBX, SP_FN_NUBY, SP_FN_LTOPX, SP_FN_LTOPY, SP_FN_PTOLX, SP_FN_PTOLY,
             SP_FN_SPFRAME, SP_FN_SPCOLL, SP_FN_MEMRD, SP_FN_DMEMRD, SP_FN_QMEMRD, SP_FN_FMEMRD, SP_FN_DATADDR, SP_FN_WINADDR, SP_FN_PAR,
-            SP_FN_SINH, SP_FN_COSH, SP_FN_TANH, SP_FN_ASNH, SP_FN_ACSH, SP_FN_ATNH, SP_FN_BITCNT, SP_FN_HIBIT:
-
+            SP_FN_SINH, SP_FN_COSH, SP_FN_TANH, SP_FN_ASNH, SP_FN_ACSH, SP_FN_ATNH, SP_FN_BITCNT, SP_FN_HIBIT, SP_FN_MODELPLAYING,
+            SP_FN_MODELX, SP_FN_MODELY, SP_FN_MODELZ, SP_FN_MODELRX, SP_FN_MODELRY, SP_FN_MODELRZ, SP_FN_MODELSCALE:
               Begin
                 If (StackPtr < 0) or (Stack[StackPtr] <> SP_VALUE) Then Begin
                   Error.Code := SP_ERR_MISSING_NUMEXPR;
@@ -1677,7 +1689,7 @@ Begin
             SP_FN_MAX, SP_FN_MIN, SP_FN_POINT, SP_FN_ROUND, SP_FN_PEEK, SP_FN_DPEEK, SP_FN_QPEEK, SP_FN_SPFRADDR,
             SP_FN_SPRITEW, SP_FN_SPRITEH, SP_FN_GRGB, SP_FN_GHSV, SP_FN_FPEEK, SP_FN_POWER, SP_FN_POLAR, SP_FN_BIT,
             SP_FN_POLARDIST, SP_FN_BTSET, SP_FN_BTCLR, SP_FN_PYTH, SP_FN_GCD, SP_FN_LCM, SP_FN_INZONE, SP_FN_MIATTR,
-            SP_FN_SPCLX, SP_FN_SPCLY, SP_FN_BINV, SP_FN_BREV:
+            SP_FN_SPCLX, SP_FN_SPCLY, SP_FN_BINV, SP_FN_BREV, SP_FN_MODELCOLL, SP_FN_POINT3D:
               Begin
                 If StackPtr > 0 Then Begin
                   If Stack[StackPtr] <> SP_VALUE Then Begin
@@ -1702,7 +1714,7 @@ Begin
             // Functions that take three numeric parameters and return a numeric
 
             SP_FN_RGBtoINT, SP_FN_HSVtoINT, SP_FN_RGBtoHSV, SP_FN_HSVtoRGB, SP_FN_RGBn, SP_FN_RGBf, SP_FN_GPOINT, SP_FN_GETTILE, SP_FN_MANDEL, SP_FN_INTERP, SP_FN_NOISE,
-            SP_FN_MID:
+            SP_FN_MID, SP_FN_FACEAT:
               Begin
                 If StackPtr > 1 Then Begin
                   If Stack[StackPtr] <> SP_VALUE Then Begin
@@ -1728,6 +1740,39 @@ Begin
                   Position := Token^.TokenPos;
                   Error.Code := SP_ERR_SYNTAX_ERROR;
                   Exit;
+                End;
+              End;
+
+            // Functions that take fouyr numeric parameters and return a numeric
+
+            SP_FN_MVERT:
+              Begin
+                If StackPtr > 2 Then Begin
+                  If Stack[StackPtr] <> SP_VALUE Then Begin
+                    Error.Code := SP_ERR_MISSING_NUMEXPR;
+                    Position := Token^.TokenPos; Exit;
+                  End Else Begin
+                    Dec(StackPtr);
+                    If Stack[StackPtr] <> SP_VALUE Then Begin
+                      Error.Code := SP_ERR_MISSING_NUMEXPR;
+                      Position := Token^.TokenPos; Exit;
+                    End Else Begin
+                      Dec(StackPtr);
+                      If Stack[StackPtr] <> SP_VALUE Then Begin
+                        Error.Code := SP_ERR_MISSING_NUMEXPR;
+                        Position := Token^.TokenPos; Exit;
+                      End Else Begin
+                        Dec(StackPtr);
+                        If Stack[StackPtr] <> SP_VALUE Then Begin
+                          Error.Code := SP_ERR_MISSING_NUMEXPR;
+                          Position := Token^.TokenPos; Exit;
+                        End;
+                      End;
+                    End;
+                  End;
+                End Else Begin
+                  Position := Token^.TokenPos;
+                  Error.Code := SP_ERR_SYNTAX_ERROR; Exit;
                 End;
               End;
 
@@ -3145,7 +3190,8 @@ Begin
             SP_FN_FONTHEIGHT, SP_FN_FONTMODE, SP_FN_FONTTRANSPARENT,SP_FN_MOUSEDX, SP_FN_MOUSEDY, SP_FN_HEADING, SP_FN_DRPOSX,
             SP_FN_DRPOSY, SP_FN_LASTK, SP_FN_FRAMES, SP_FN_TIME, SP_FN_MOUSEWHEEL, SP_FN_ERRORS, SP_FN_POPLINE, SP_FN_POPST,
             SP_FN_VOL, SP_FN_LOGW, SP_FN_LOGH, SP_FN_ORGX, SP_FN_ORGY, SP_FN_MSECS, SP_FN_MUSICPOS, SP_FN_MUSICLEN, SP_FN_LASTM,
-            SP_FN_LASTMI, SP_FN_TXTW, SP_FN_TXTH, SP_FN_STK, SP_FN_STKS, SP_FN_CLIPS, SP_FN_INKEY, SP_FN_THREADCOUNT:
+            SP_FN_LASTMI, SP_FN_TXTW, SP_FN_TXTH, SP_FN_STK, SP_FN_STKS, SP_FN_CLIPS, SP_FN_INKEY, SP_FN_THREADCOUNT, SP_FN_CAMERAX,
+            SP_FN_CAMERAY, SP_FN_CAMERAZ, SP_FN_CAMERARX, SP_FN_CAMERARY, SP_FN_CAMERARZ, SP_FN_CAMERAFOV:
               Begin
                 Inc(Position, SizeOf(LongWord));
                 FnResult := '';
@@ -3167,7 +3213,8 @@ Begin
             SP_FN_LTOPY, SP_FN_PTOLX, SP_FN_PTOLY, SP_FN_INV, SP_FN_SPFRAME, SP_FN_SPCOLL, SP_FN_TEXTURES, SP_FN_IVAL, SP_FN_MEMRD,
             SP_FN_DMEMRD, SP_FN_QMEMRD, SP_FN_FMEMRD, SP_FN_DATADDR, SP_FN_WINADDR, SP_FN_MILLISECONDS, SP_FN_PAR, SP_FN_SINH,
             SP_FN_COSH, SP_FN_TANH, SP_FN_ASNH, SP_FN_ACSH, SP_FN_ATNH, SP_FN_PARAMS, SP_FN_REVS, SP_FN_BITCNT, SP_FN_HIBIT, SP_FN_DEXISTS,
-            SP_FN_TRANSLATES:
+            SP_FN_TRANSLATES, SP_FN_MODELPLAYING, SP_FN_MODELX, SP_FN_MODELY, SP_FN_MODELZ, SP_FN_MODELRX, SP_FN_MODELRY, SP_FN_MODELRZ,
+            SP_FN_MODELSCALE:
               Begin
                 Inc(Position, SizeOf(LongWord));
                 FnResult := SP_Convert_Expr(Tokens, Position, Error, 14);
@@ -3853,7 +3900,8 @@ Begin
             SP_FN_POINT, SP_FN_MIN, SP_FN_MAX, SP_FN_ROUND, SP_FN_PEEK, SP_FN_DPEEK, SP_FN_QPEEK, SP_FN_SPFRADDR,
             SP_FN_SPRITEW, SP_FN_SPRITEH, SP_FN_GRGB, SP_FN_GHSV, SP_FN_FPEEK, SP_FN_POWER, SP_FN_POLAR, SP_FN_BIT,
             SP_FN_POLARDIST, SP_FN_BTSET, SP_FN_BTCLR, SP_FN_PYTH, SP_FN_BASES, SP_FN_GCD, SP_FN_LCM, SP_FN_INZONE,
-            SP_FN_SCREENS, SP_FN_MIATTR, SP_FN_SPCLX, SP_FN_SPCLY, SP_FN_MEMRDS, SP_FN_BINV, SP_FN_BREV:
+            SP_FN_SCREENS, SP_FN_MIATTR, SP_FN_SPCLX, SP_FN_SPCLY, SP_FN_MEMRDS, SP_FN_BINV, SP_FN_BREV, SP_FN_MODELCOLL,
+            SP_FN_POINT3D:
               Begin
                 Inc(Position, SizeOf(LongWord));
                 If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position +1] = '(') Then Begin
@@ -4161,7 +4209,7 @@ Begin
                 End;
               End;
 
-            SP_FN_RGBtoINT, SP_FN_HSVtoINT, SP_FN_PEEKS, SP_FN_GPOINT, SP_FN_GETTILE, SP_FN_MANDEL, SP_FN_INTERP, SP_FN_NOISE, SP_FN_MID:
+            SP_FN_RGBtoINT, SP_FN_HSVtoINT, SP_FN_PEEKS, SP_FN_GPOINT, SP_FN_GETTILE, SP_FN_MANDEL, SP_FN_INTERP, SP_FN_NOISE, SP_FN_MID, SP_FN_FACEAT:
               Begin
                 Inc(Position, SizeOf(LongWord));
                 If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position +1] = '(') Then Begin
@@ -10950,7 +10998,7 @@ Begin
     If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
     If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position +1] = ',') Then Begin
       Inc(Position, 2);
-      Expr := SP_Convert_Expr(Tokens, Position, Error, -1) + Expr; // text (pushed first ? popped last)
+      Expr := SP_Convert_Expr(Tokens, Position, Error, -1) + Expr; // text (pushed first -> popped last)
       If Error.Code <> SP_ERR_OK Then Exit;
       If Error.ReturnType <> SP_STRING Then Begin Error.Code := SP_ERR_MISSING_STREXPR; Exit; End;
       Result := Expr;
@@ -19181,5 +19229,772 @@ Begin
   // Stack order: Async, Sex, Rate, Pitch, Phonemes (top = first popped)
   Result := Async + Sex + Rate + Pitch + Expr;
 End;
+
+// ---------------------------------------------------------------------------
+// SP_Convert_SCENE
+//   SCENE NEW   numvar           auto-allocates bank, assigns ID to numvar
+//   SCENE USE   numexpr
+//   SCENE CLEAR [numexpr]        omit to clear active scene
+//   SCENE ERASE numexpr
+// ---------------------------------------------------------------------------
+Function SP_Convert_SCENE(Var KeyWordID: LongWord; Var Tokens: aString;
+                           Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Var
+  Expr, VarResult : aString;
+  KeyWordPos, SubKW : LongWord;
+Begin
+  Result := '';
+
+  If Byte(Tokens[Position]) <> SP_KEYWORD Then Begin
+    Error.Code := SP_ERR_INVALID_KEYWORD;  Exit;
+  End;
+
+  KeyWordPos := Position;
+  SubKW      := pLongWord(@Tokens[Position+1])^;
+  Inc(Position, 1 + SizeOf(LongWord));
+
+  Case SubKW Of
+
+    SP_KW_NEW: Begin
+      // SCENE NEW numvar  —  auto-allocate, assign ID to numvar
+      If Byte(Tokens[Position]) = SP_NUMVAR Then Begin
+        VarResult := SP_Convert_Var_Assign(Tokens, Position, Error);
+        If Error.Code <> SP_ERR_OK Then Exit;
+        // No params to push; keyword token + VarResult is the entire result
+        Result    := CreateToken(SP_KEYWORD, KeyWordPos, SizeOf(LongWord)) +
+                     LongWordToString(SP_KW_SCENE_NEW) + VarResult;
+        If pToken(@VarResult[1])^.Token In [SP_STRVAR_LET, SP_NUMVAR_LET] Then
+          KeyWordID := 0
+        Else
+          KeyWordID := SP_KW_LET;
+      End Else
+        Error.Code := SP_ERR_MISSING_VARIABLE;
+    End;
+
+    SP_KW_USE: Begin
+      Expr := SP_Convert_Expr(Tokens, Position, Error, -1);
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+      KeyWordID := SP_KW_SCENE_USE;
+      Result    := Expr;
+    End;
+
+    SP_KW_CLEAR: Begin
+      // Optional scene ID — if absent, handler uses active scene
+      If (Byte(Tokens[Position]) <> SP_TERMINAL) And
+         Not ((Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ':')) Then Begin
+        Expr := SP_Convert_Expr(Tokens, Position, Error, -1);
+        If Error.Code <> SP_ERR_OK Then Exit;
+        If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+        Result := Expr;
+      End;
+      KeyWordID := SP_KW_SCENE_CLEAR;
+    End;
+
+    SP_KW_ERASE: Begin
+      Expr := SP_Convert_Expr(Tokens, Position, Error, -1);
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+      KeyWordID := SP_KW_SCENE_ERASE;
+      Result    := Expr;
+    End;
+
+  Else
+    Error.Code := SP_ERR_INVALID_KEYWORD;
+  End;
+End;
+
+// ---------------------------------------------------------------------------
+// SP_Convert_MODEL
+//   MODEL NEW    numvar           auto-allocates bank, assigns ID to numvar
+//   MODEL VERTEX bank%, x, y, z
+//   MODEL FACE   bank%, v0, v1, v2, colour%
+//   MODEL BUILD  bank%
+//   MODEL AT     numvar, bank%, x, y, z, rx, ry, rz [, scale]
+//   MODEL MOVE   inst%, dx, dy, dz
+//   MODEL ROTATE inst%, drx, dry, drz
+//   MODEL SCALE  inst%, s
+//   MODEL ERASE  inst%
+//   MODEL HIDE   inst%
+//   MODEL INK    inst%, clr
+//   MODEL SHOW   inst%
+//   MODEL SETVERT m, idx, x, y, z
+//   MODEL UV     inst%, face%, u0,v0,u1,v1,u2,v2 - moves u/v coords of face
+//   MODEL BILLBOARD inst%  — toggle billboard on existing instance
+//   MODEL SHADING inst% [FLAT|SMOOTH|WIRE[NOCULL|SOLID]]
+// ---------------------------------------------------------------------------
+Function SP_Convert_MODEL(Var KeyWordID: LongWord; Var Tokens: aString;
+                           Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Var
+  E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, EBB: aString;
+  VarResult : aString;
+  KeyWordPos, SubKW, SubKW2: LongWord;
+  IsBillBoard, Done: Boolean;
+  vCnt, uvCnt: Integer;
+  VarPos, VarSize, wireval: Integer;
+  VarType: aChar;
+  VarName: aString;
+
+  Function Num: aString;
+  Begin
+    Result := SP_Convert_Expr(Tokens, Position, Error, -1);
+    If (Error.Code = SP_ERR_OK) And (Error.ReturnType <> SP_VALUE) Then
+      Error.Code := SP_ERR_MISSING_NUMEXPR;
+  End;
+
+  Function Str: aString;
+  Begin
+    Result := SP_Convert_Expr(Tokens, Position, Error, -1);
+    If (Error.Code = SP_ERR_OK) And (Error.ReturnType <> SP_STRING) Then
+      Error.Code := SP_ERR_MISSING_STREXPR;
+  End;
+
+  Procedure Comma;
+  Begin
+    If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',') Then
+      Inc(Position, 2)
+    Else
+      Error.Code := SP_ERR_ILLEGAL_CHAR;
+  End;
+
+  Label NotVarVertex, NotVarFace;
+
+Begin
+  Result := '';
+
+  If Byte(Tokens[Position]) <> SP_KEYWORD Then Begin
+    Error.Code := SP_ERR_INVALID_KEYWORD;  Exit;
+  End;
+
+  KeyWordPos := Position;
+  SubKW      := pLongWord(@Tokens[Position+1])^;
+  Inc(Position, 1 + SizeOf(LongWord));
+
+  Case SubKW Of
+
+    SP_KW_NEW: Begin
+      // MODEL NEW numvar  —  auto-allocate, assign ID to numvar
+      If Byte(Tokens[Position]) = SP_NUMVAR Then Begin
+        VarResult := SP_Convert_Var_Assign(Tokens, Position, Error);
+        If Error.Code <> SP_ERR_OK Then Exit;
+        Result    := CreateToken(SP_KEYWORD, KeyWordPos, SizeOf(LongWord)) +
+                     LongWordToString(SP_KW_MODEL_NEW) + VarResult;
+        If pToken(@VarResult[1])^.Token In [SP_STRVAR_LET, SP_NUMVAR_LET] Then
+          KeyWordID := 0
+        Else
+          KeyWordID := SP_KW_LET;
+      End Else
+        Error.Code := SP_ERR_MISSING_VARIABLE;
+    End;
+
+    SP_KW_VERTEX: Begin
+      E1 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+      // Check if next token is an array variable
+      If Byte(Tokens[Position]) = SP_NUMVAR Then Begin
+        // MODEL VERTEX bank%, arr()  — array load
+        If Byte(Tokens[Position]) = SP_NUMVAR Then Begin
+          VarPos := Position;
+          VarType := Tokens[Position];
+          Inc(Position, 1 + SizeOf(LongWord));
+          VarSize := pLongWord(@Tokens[Position])^;
+          Inc(Position, SizeOf(LongWord));
+          VarName := LowerNoSpaces(Copy(Tokens, Position, VarSize));
+          Inc(Position, VarSize);
+          If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position +1] = '(') And
+             (Byte(Tokens[Position +2]) = SP_SYMBOL) And (Tokens[Position +3] = ')') Then Begin
+             Result := CreateToken(Byte(VarType), VarPos, SizeOf(LongWord)+Length(VarName)) + LongWordToString(0) + VarName;
+             Inc(Position, 4);
+          End Else Begin
+            Position := VarPos;
+            GoTo NotVarVertex;
+          End;
+        End;
+        KeyWordID := SP_KW_MODEL_VERTEXARRAY;
+        Result    := Result + E1;
+      End Else Begin
+        // MODEL VERTEX bank%, x,y,z [,colour%]
+        notVarVertex:
+        E2 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+        E3 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+        E4 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+        // Optional colour — default to T_INK
+        E5 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(-1);
+        If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',') Then Begin
+          Inc(Position, 2);
+          E5 := Num;  If Error.Code <> SP_ERR_OK Then Exit;
+        End;
+        KeyWordID := SP_KW_MODEL_VERTEX;
+        Result    := E5 + E4 + E3 + E2 + E1;   // colour(bottom), z, y, x, bank(top)
+      End;
+    End;
+
+    SP_KW_FACE: Begin
+      // bank%, v0, v1, v2[,vn...] [,INK|GRAPHIC id,u0,v0,u1,v1,u2,v2[,un,vn...]]
+      E1 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;  // Bank
+      // Check if next token is an array variable
+      If Byte(Tokens[Position]) = SP_NUMVAR Then Begin
+        // MODEL FACE bank%, arr()  — array load
+        If Byte(Tokens[Position]) = SP_NUMVAR Then Begin
+          VarPos := Position;
+          VarType := Tokens[Position];
+          Inc(Position, 1 + SizeOf(LongWord));
+          VarSize := pLongWord(@Tokens[Position])^;
+          Inc(Position, SizeOf(LongWord));
+          VarName := LowerNoSpaces(Copy(Tokens, Position, VarSize));
+          Inc(Position, VarSize);
+          If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position +1] = '(') And
+             (Byte(Tokens[Position +2]) = SP_SYMBOL) And (Tokens[Position +3] = ')') Then Begin
+             Result := CreateToken(Byte(VarType), VarPos, SizeOf(LongWord)+Length(VarName)) + LongWordToString(0) + VarName;
+             Inc(Position, 4);
+          End Else Begin
+            Position := VarPos;
+            GoTo NotVarFace;
+          End;
+        End;
+        KeyWordID := SP_KW_MODEL_FACEARRAY;
+        Result    := Result + E1;
+      End Else Begin
+        NotVarFace:
+        vCnt := 0;
+        Done := False;
+        Repeat
+          E2 := Num; If Error.Code <> SP_ERR_OK Then Exit; // Get vertex
+          Inc(vCnt);
+          If ((Byte(Tokens[Position]) = SP_KEYWORD) And ((pLongWord(@Tokens[Position +1])^ = SP_KW_GRAPHIC) or (pLongWord(@Tokens[Position +1])^ = SP_KW_INK) or (pLongWord(@Tokens[Position +1])^ = SP_KW_ELSE))) Or
+             ((Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position +1] in [':', ';'])) Or
+             (Byte(Tokens[Position]) = SP_TERMINAL) Then Begin
+            Done := True
+          End Else Begin
+            Comma; If Error.Code <> SP_ERR_OK Then Exit;
+          End;
+          Result := E2 + Result; // Store vertex.
+        Until Done;
+        If vCnt < 3 Then Begin // minimum of 3 vertices
+          Error.Code := SP_ERR_SYNTAX_ERROR;
+          Exit;
+        End;
+        Result := Result + CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(vCnt) + E1;
+        // Flag INK (1) or GRAPHIC (2)
+        If (Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position +1])^ = SP_KW_INK) Then Begin
+          Result := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(1) + Result;
+          Inc(Position, 1 + SizeOf(LongWord));
+          Result := Num + Result; If Error.Code <> SP_ERR_OK Then Exit;
+        End Else
+          If (Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position +1])^ = SP_KW_GRAPHIC) Then Begin
+            uvCnt := 0;
+            Result := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(2) + Result;
+            Inc(Position, 1 + SizeOf(LongWord));
+            Done := False;
+            Repeat
+              Result := Num + Result; If Error.Code <> SP_ERR_OK Then Exit Else Inc(uvCnt);
+              If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position + 1] = ',') Then
+                Inc(Position, 2)
+              Else
+                Done := True;
+            Until Done;
+            If uvCnt <> (vCnt * 2) +1 Then Begin
+              Error.Code := SP_ERR_SYNTAX_ERROR;
+              Exit;
+            End;
+          End Else Begin
+            // No INK Or GRAPHIC, so set colour to -1 and texbank to -1 so the renderer knows to use CINK.
+            Result := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(-1) +
+                      CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(1) + Result;
+          End;
+        KeyWordID := SP_KW_MODEL_FACE;
+      End;
+    End;
+
+    SP_KW_INK:
+      Begin
+        E1 := Num; Comma; If Error.Code <> SP_ERR_OK Then Exit;  // bank
+        E2 := Num;        If Error.Code <> SP_ERR_OK Then Exit;         // Colour
+        Result := E2 + E1;
+        KeyWordID := SP_KW_MODEL_INK;
+      End;
+
+    SP_KW_SHADING: Begin
+      // SHADING FLAT or SHADING SMOOTH
+      E1 := Num; If Error.Code <> SP_ERR_OK Then Exit;  // bank
+      If (Byte(Tokens[Position]) = SP_KEYWORD) And
+         (pLongWord(@Tokens[Position+1])^ = SP_KW_SMOOTH) Then Begin
+        Inc(Position, 1 + SizeOf(LongWord));
+        // Push smooth=1
+        E2 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(1);
+        E3 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(0);
+        KeyWordID := SP_KW_MODEL_SHADING;
+        Result    := E3 + E2 + E1;
+      End Else If (Byte(Tokens[Position]) = SP_KEYWORD) And
+                  (pLongWord(@Tokens[Position+1])^ = SP_KW_FLAT) Then Begin
+        Inc(Position, 1 + SizeOf(LongWord));
+        E2 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(0);
+        E3 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(0);
+        KeyWordID := SP_KW_MODEL_SHADING;
+        Result    := E3 + E2 + E1;
+      End Else
+      If (Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position+1])^ = SP_KW_WIRE) Then Begin
+        Inc(Position, 1 + SizeOf(LongWord));
+        WireVal := 2;
+        If (Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position+1])^ = SP_KW_NOCULL) Then Begin
+          Inc(Position, 1 + SizeOf(LongWord));
+          Inc(WireVal);
+        End;
+        If (Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position+1])^ = SP_KW_SOLID) Then Begin
+          Inc(Position, 1 + SizeOf(LongWord));
+          E3 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(1);
+        End Else
+          E3 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(0);
+        // Push Wire=2 or Wire No-Cull=3
+        E2 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(WireVal);
+        KeyWordID := SP_KW_MODEL_SHADING;
+        Result    := E3 + E2 + E1;
+      End Else
+        Error.Code := SP_ERR_INVALID_KEYWORD;
+    End;
+
+    SP_KW_BUILD:
+      Begin
+        E1 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+        KeyWordID := SP_KW_MODEL_BUILD;
+        Result    := E1;
+      End;
+
+    SP_KW_UV:
+      Begin
+        // MODEL UV model,face AT u0,v0,..,uN,vN
+        E1 := Num; Comma; // model
+        E2 := Num;        // face
+        If (Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position +1])^ = SP_KW_AT) Then Begin
+          Inc(Position, 1 + SizeOf(LongWord));
+          vCnt := 0;
+          Done := False;
+          Repeat
+            E3 := Num; If Error.Code <> SP_ERR_OK Then Exit; // Get vertex
+            Inc(vCnt);
+            If ((Byte(Tokens[Position]) = SP_KEYWORD) And ((pLongWord(@Tokens[Position +1])^ = SP_KW_GRAPHIC) or (pLongWord(@Tokens[Position +1])^ = SP_KW_INK) or (pLongWord(@Tokens[Position +1])^ = SP_KW_ELSE))) Or
+               ((Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position +1] in [':', ';'])) Or
+               (Byte(Tokens[Position]) = SP_TERMINAL) Then Begin
+              Done := True
+            End Else Begin
+              Comma; If Error.Code <> SP_ERR_OK Then Exit;
+            End;
+            Result := E3 + Result; // Store vertex.
+          Until Done;
+          Result := Result + CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(vCnt) + E2 + E1;
+          KeyWordID := SP_KW_MODEL_UV;
+        End;
+      End;
+
+    SP_KW_SETVERT:
+      // MODEL SETVERT m, idx, x, y, z
+      Begin
+        E1 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+        E2 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+        E3 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+        E4 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+        E5 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+        KeyWordID := SP_KW_MODEL_SETVERT;
+        Result    := E5 + E4 + E3 + E2 + E1;
+      End;
+
+    SP_KW_AT: Begin
+      // MODEL AT numvar, bank%, x, y, z, rx, ry, rz [, scale] [PARENT id]
+      If Byte(Tokens[Position]) = SP_NUMVAR Then Begin
+        VarResult := SP_Convert_Var_Assign(Tokens, Position, Error);
+        If Error.Code <> SP_ERR_OK Then Exit;
+        Comma; If Error.Code <> SP_ERR_OK Then Exit;
+        E2 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit; // bank
+        E3 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit; // x
+        E4 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit; // y
+        E5 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit; // z
+        E6 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit; // rx
+        E7 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit; // ry
+        E8 := Num; If Error.Code <> SP_ERR_OK Then Exit;                                               // rz
+        E9 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(1.0);  // scale default
+
+        IsBillboard := False;
+        If (Byte(Tokens[Position]) = SP_KEYWORD) And
+           (pLongWord(@Tokens[Position+1])^ = SP_KW_BILLBOARD) Then Begin
+          Inc(Position, 1 + SizeOf(LongWord));
+          IsBillboard := True;
+        End;
+        // Push billboard flag as final param (0 or 1)
+        EBB := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(Ord(IsBillboard));
+
+        // Optional PARENT clause
+        If (Byte(Tokens[Position]) = SP_KEYWORD) And
+           (pLongWord(@Tokens[Position+1])^ = SP_KW_PARENT) Then Begin
+          Inc(Position, 1 + SizeOf(LongWord));
+          // Push the parent inst ID; the handler will call SetParent after placement
+          E10 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+        End Else
+          E10 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(-1);
+
+        Result := EBB + E10 + E9 + E8 + E7 + E6 + E5 + E4 + E3 + E2 + E1 + CreateToken(SP_KEYWORD, KeyWordPos, SizeOf(LongWord)) + LongWordToString(SP_KW_MODEL_AT) + VarResult;
+        If pToken(@VarResult[1])^.Token In [SP_STRVAR_LET, SP_NUMVAR_LET] Then
+          KeyWordID := 0
+        Else
+          KeyWordID := SP_KW_LET;
+      End Else
+        Error.Code := SP_ERR_MISSING_VARIABLE;
+    End;
+
+    SP_KW_MOVE: Begin
+      E1 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+      If (Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position +1])^ = SP_KW_TO) Then
+        KeyWordID := SP_KW_MODEL_MOVE_TO
+      Else
+        KeyWordID := SP_KW_MODEL_MOVE;
+      E2 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+      E3 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+      E4 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+      Result    := E4 + E3 + E2 + E1;
+    End;
+
+    SP_KW_ROTATE: Begin
+      E1 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+      If (Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position +1])^ = SP_KW_TO) Then
+        KeyWordID := SP_KW_MODEL_ROTATE_TO
+      Else
+        KeyWordID := SP_KW_MODEL_ROTATE;
+      E2 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+      E3 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+      E4 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+      Result    := E4 + E3 + E2 + E1;
+    End;
+
+    SP_KW_SCALE: Begin
+      E1 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+      E2 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+      KeyWordID := SP_KW_MODEL_SCALE;
+      Result    := E2 + E1;
+    End;
+
+    SP_KW_ERASE: Begin
+      E1 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+      KeyWordID := SP_KW_MODEL_ERASE;
+      Result    := E1;
+    End;
+
+    SP_KW_HIDE: Begin
+      E1 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+      KeyWordID := SP_KW_MODEL_HIDE;
+      Result    := E1;
+    End;
+
+    SP_KW_SHOW: Begin
+      E1 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+      KeyWordID := SP_KW_MODEL_SHOW;
+      Result    := E1;
+    End;
+
+    SP_KW_BILLBOARD: Begin
+      E1 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+      KeyWordID := SP_KW_MODEL_BILLBOARD;
+      Result    := E1;
+    End;
+
+    SP_KW_ADDFRAME: Begin
+      // MODEL ADDFRAME bank%, name$
+      E1 := Num;  If Error.Code <> SP_ERR_OK Then Exit;  Comma;
+      E2 := Str;  If Error.Code <> SP_ERR_OK Then Exit;
+      KeyWordID := SP_KW_MODEL_ADDFRAME;
+      Result    := E2 + E1;   // name$(bottom), bank%(top)
+    End;
+
+    SP_KW_ANIM: Begin
+      // Check next subkeyword: PLAY, STOP, FRAME
+      SubKW2 := pLongWord(@Tokens[Position+1])^;
+      Inc(Position, 1 + SizeOf(LongWord));
+      Case SubKW2 Of
+        SP_KW_PLAY: Begin
+          // MODEL ANIM PLAY inst%, a$, b$, speed
+          E1 := Num;  If Error.Code <> SP_ERR_OK Then Exit;  Comma;
+          E2 := Str;  If Error.Code <> SP_ERR_OK Then Exit;  Comma;
+          E3 := Str;  If Error.Code <> SP_ERR_OK Then Exit;  Comma;
+          E4 := Num;  If Error.Code <> SP_ERR_OK Then Exit;
+          KeyWordID := SP_KW_MODEL_ANIM_PLAY;
+          Result    := E4 + E3 + E2 + E1;   // speed(bottom), b$, a$, inst%(top)
+        End;
+        SP_KW_STOP: Begin
+          // MODEL ANIM STOP inst%
+          E1 := Num;  If Error.Code <> SP_ERR_OK Then Exit;
+          KeyWordID := SP_KW_MODEL_ANIM_STOP;
+          Result    := E1;
+        End;
+        SP_KW_FRAME: Begin
+          // MODEL ANIM FRAME inst%, name$
+          E1 := Num;  If Error.Code <> SP_ERR_OK Then Exit;  Comma;
+          E2 := Str;  If Error.Code <> SP_ERR_OK Then Exit;
+          KeyWordID := SP_KW_MODEL_ANIM_FRAME;
+          Result    := E2 + E1;   // name$(bottom), inst%(top)
+        End;
+      End;
+    End;
+
+    SP_KW_PARENT: Begin
+      // MODEL PARENT inst%, parent%
+      E1 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+      E2 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+      KeyWordID := SP_KW_MODEL_PARENT;
+      Result    := E2 + E1;   // parent%(bottom), inst%(top)
+    End;
+
+    SP_KW_UNPARENT: Begin
+      // MODEL UNPARENT inst%  — equivalent to MODEL PARENT inst%, -1
+      E1 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+      KeyWordID := SP_KW_MODEL_PARENT;
+      // Push -1 as the parent ID
+      Result := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(-1) + E1;
+    End;
+
+  Else
+    Error.Code := SP_ERR_INVALID_KEYWORD;
+  End;
+End;
+
+// ---------------------------------------------------------------------------
+// SP_Convert_CAMERA
+//   CAMERA x, y, z, rx, ry, rz [, fov]   plain set (KeyWordID=SP_KW_CAMERA)
+//   CAMERA MOVE  dx, dy, dz
+//   CAMERA ROTATE drx, dry, drz
+//   CAMERA FACE x, y, z
+//   CAMERA FACE MODEL inst%
+// ---------------------------------------------------------------------------
+Function SP_Convert_CAMERA(Var KeyWordID: LongWord; Var Tokens: aString;
+                            Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Var
+  E1, E2, E3, E4, E5, E6, E7 : aString;
+  SubKW                        : LongWord;
+
+  Function Num: aString;
+  Begin
+    Result := SP_Convert_Expr(Tokens, Position, Error, -1);
+    If (Error.Code = SP_ERR_OK) And (Error.ReturnType <> SP_VALUE) Then
+      Error.Code := SP_ERR_MISSING_NUMEXPR;
+  End;
+
+  Procedure Comma;
+  Begin
+    If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',') Then
+      Inc(Position, 2)
+    Else
+      Error.Code := SP_ERR_ILLEGAL_CHAR;
+  End;
+
+Begin
+  Result := '';
+
+  // Check for CAMERA MOVE / CAMERA ROTATE subkeywords
+  If Byte(Tokens[Position]) = SP_KEYWORD Then Begin
+    SubKW := pLongWord(@Tokens[Position+1])^;
+    Case SubKW Of
+    SP_KW_MOVE:
+      Begin
+        Inc(Position, 1 + SizeOf(LongWord));
+        E1 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+        E2 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+        E3 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+        KeyWordID := SP_KW_CAMERA_MOVE;
+        Result    := E3 + E2 + E1;
+        Exit;
+      End;
+    SP_KW_ROTATE:
+      Begin
+        Inc(Position, 1 + SizeOf(LongWord));
+        E1 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+        E2 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+        E3 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+        KeyWordID := SP_KW_CAMERA_ROTATE;
+        Result    := E3 + E2 + E1;
+        Exit;
+      End;
+    SP_KW_FACE:
+      Begin
+        Inc(Position, 1 + SizeOf(LongWord));
+        If (Byte(Tokens[Position]) = SP_KEYWORD) And
+           (pLongWord(@Tokens[Position+1])^ = SP_KW_MODEL) Then Begin
+          Inc(Position, 1 + SizeOf(LongWord));
+          E1 := Num;  If Error.Code <> SP_ERR_OK Then Exit;
+          KeyWordID := SP_KW_CAMERA_FACE_MODEL;
+          Result := E1;
+          Exit;
+        End Else Begin
+          E1 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+          E2 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+          E3 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+          KeyWordID := SP_KW_CAMERA_FACE;
+          Result := E3 + E2 + E1;  // z(bottom), y, x(top)
+          Exit;
+        End;
+      End;
+    End;
+  End;
+
+  // Plain CAMERA x, y, z, rx, ry, rz [, fov]
+  // KeyWordID stays SP_KW_CAMERA; handler registered directly.
+  E1 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+  E2 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+  E3 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+  E4 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+  E5 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+  E6 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+  E7 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(0);  // FOV default: keep current
+  If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',') Then Begin
+    Inc(Position, 2);
+    E7 := Num;  If Error.Code <> SP_ERR_OK Then Exit;
+  End;
+  // Stack top->bottom: x(E1)..fov(E7=bottom)
+  Result := E7 + E6 + E5 + E4 + E3 + E2 + E1;
+End;
+
+// ---------------------------------------------------------------------------
+// SP_Convert_LIGHT
+//   LIGHT TO dx, dy, dz
+//   LIGHT AMBIENT level
+//   LIGHT FOG near, far, colour
+//   LIGHT FOG OFF
+// ---------------------------------------------------------------------------
+Function SP_Convert_LIGHT(Var KeyWordID: LongWord; Var Tokens: aString;
+                           Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Var
+  E1, E2, E3 : aString;
+  SubKW       : LongWord;
+
+  Function Num: aString;
+  Begin
+    Result := SP_Convert_Expr(Tokens, Position, Error, -1);
+    If (Error.Code = SP_ERR_OK) And (Error.ReturnType <> SP_VALUE) Then
+      Error.Code := SP_ERR_MISSING_NUMEXPR;
+  End;
+
+  Procedure Comma;
+  Begin
+    If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',') Then
+      Inc(Position, 2)
+    Else
+      Error.Code := SP_ERR_ILLEGAL_CHAR;
+  End;
+
+Begin
+  Result := '';
+
+  If Byte(Tokens[Position]) <> SP_KEYWORD Then Begin
+    Error.Code := SP_ERR_INVALID_KEYWORD;  Exit;
+  End;
+
+  SubKW := pLongWord(@Tokens[Position+1])^;
+  Inc(Position, 1 + SizeOf(LongWord));
+
+  Case SubKW Of
+
+    SP_KW_TO: Begin
+      E1 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+      E2 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+      E3 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+      KeyWordID := SP_KW_LIGHT_TO;
+      Result    := E3 + E2 + E1;
+    End;
+
+    SP_KW_AMBIENT: Begin
+      E1 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+      KeyWordID := SP_KW_LIGHT_AMBIENT;
+      Result    := E1;
+    End;
+
+    SP_KW_FOG:
+      Begin
+        // Check for LIGHT FOG OFF
+        If (Byte(Tokens[Position]) = SP_KEYWORD) And
+           (pLongWord(@Tokens[Position+1])^ = SP_KW_OFF) Then Begin
+          Inc(Position, 1 + SizeOf(LongWord));
+          KeyWordID := SP_KW_LIGHT_FOG_OFF;
+          // No params
+        End Else Begin
+          // LIGHT FOG near, far, colour%
+          E1 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+          E2 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
+          E3 := Num; If Error.Code <> SP_ERR_OK Then Exit;
+          KeyWordID := SP_KW_LIGHT_FOG;
+          Result := E3 + E2 + E1;   // colour(bottom), far, near(top)
+        End;
+      End;
+
+    SP_KW_COLOUR:
+      Begin
+        // check for one parameter (palette index in 8bpp or RGB integer) or three (RGB)
+        E1 := Num;
+        If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position +1] = ',') Then Begin
+          Comma;
+          E2 := Num;
+          Comma;
+          E3 := Num;
+        End Else Begin
+          E2 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(-1);
+          E3 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(-1);
+        End;
+        Result := E3 + E2 + E1;
+        KeyWordID := SP_KW_LIGHT_COLOUR;
+      End;
+
+  Else
+    Error.Code := SP_ERR_INVALID_KEYWORD;
+  End;
+End;
+
+// ---------------------------------------------------------------------------
+// SP_Convert_RENDER
+//   RENDER scene [ TO [winID|GRAPHIC id] [ASYNC [threads]]]
+// ---------------------------------------------------------------------------
+Function SP_Convert_RENDER(Var Tokens: aString; Var Position: Integer;
+                            Var Error: TSP_ErrorCode): aString;
+Var
+  E1, E2, E3: aString;
+  IsGFX: Boolean;
+Begin
+  Result := '';
+  E1 := SP_Convert_Expr(Tokens, Position, Error, -1); // scene
+  If Error.Code <> SP_ERR_OK Then Exit;
+  If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+
+  IsGFX := False;
+  If (Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position +1])^ = SP_KW_TO) Then Begin
+    Inc(Position, SizeOf(LongWord) +1);
+    If (Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position +1])^ = SP_KW_GRAPHIC) Then Begin
+      Inc(Position, SizeOf(LongWord) +1);
+      IsGFX := True;
+    End;
+    E2 := SP_Convert_Expr(Tokens, Position, Error, -1); // Surface ID - make negative if gfx
+    If Error.Code <> SP_ERR_OK Then Exit;
+    If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+    If IsGFX Then
+      E2 := E2 + CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(-1) + CreateToken(SP_SYMBOL, 0, 1) + '*';
+  End Else
+    E2 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString($FFFFFF);
+
+  If (Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position +1])^ = SP_KW_ASYNC) Then Begin
+    Inc(Position, SizeOf(LongWord) +1);
+    If ((Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position +1])^ = SP_KW_ELSE)) Or
+       ((Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position +1] in [':', ';'])) Or
+       (Byte(Tokens[Position]) = SP_TERMINAL) Then
+      E3 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(1) // No threadcount, so assume 1 thread
+    Else Begin
+      E3 := SP_Convert_Expr(Tokens, Position, Error, -1); // Thread count
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+    End;
+  End Else
+    E3 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(-1); // No ASYNC
+
+  Result := E3 + E2 + E1;
+End;
+
+Function SP_Convert_SETNEAR(Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Begin
+  Result := SP_Convert_Expr(Tokens, Position, Error, -1); // scene
+  If Error.Code <> SP_ERR_OK Then Exit;
+  If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+End;
+
 
 end.

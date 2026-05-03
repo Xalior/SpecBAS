@@ -295,7 +295,12 @@ Begin
         End;
       For i := 1 To -Delta Do
         If AtLine < Listing.Count Then Listing.Delete(AtLine);
-    End;
+      For i := 0 To Listing.Count - 1 Do
+        If Listing.Flags[i].State = spLineDuplicate Then Begin
+          Listing.Flags[i].State := spLineDirty;
+          AddCompileLine(i, False);
+        End;
+      End;
   Finally
     CompilerLock.Leave;
   End;
@@ -419,7 +424,7 @@ Begin
   FPBASICEditor.BackgroundClr := 7;
   // AlignChildren has now run (triggered by SetAlign on FPBASICEditor above),
   // giving FPTabBar its real pixel width via SetBounds.  SetupTabBar calls
-  // AddTab → LayoutTabs, which needs the correct fWidth to compute natural
+  // AddTab -> LayoutTabs, which needs the correct fWidth to compute natural
   // tab widths.  Calling it before FPBASICEditor.Create meant LayoutTabs ran
   // with fWidth = 16px (the base constructor default), producing a narrow tab
   // that snapped to the correct width only on the first mouse-over repaint.
@@ -474,6 +479,7 @@ Begin
   DWBASICEditor.OnEditorSearchRequest := DWBridge.EditorSearchRequest;
   DWBASICEditor.OnMouseMove := DWBridge.MouseMoved;
   DWBASICEditor.Name        := 'Direct';
+  DWBASICEditor.ShowVertSB  := False;
   DWBASICEditor.BackgroundClr := 7;
 
   // Restore history from previous session

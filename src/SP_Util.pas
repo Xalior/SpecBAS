@@ -48,7 +48,7 @@ Type
   aFloat = Double;
   paFloat = ^aFloat;
 
-Procedure LogError(const Msg: string);
+Procedure LogError(const Msg: aString);
 
 Procedure Delay(ms: Integer);
 {$IFDEF FPC}
@@ -199,19 +199,19 @@ End;
 
 {$ENDIF}
 
-Procedure LogError(const Msg: string);
+Procedure LogError(const Msg: aString);
 var
   F: TextFile;
   LogFileName: string;
 begin
-  LogFileName := ExtractFilePath(ParamStr(0)) + 'specbas_gl_error.txt';
+  LogFileName := ExtractFilePath(ParamStr(0)) + 'specbas_log.txt';
   AssignFile(F, LogFileName);
   try
     if FileExists(LogFileName) then
       Append(F)
     else
       Rewrite(F);
-    Writeln(F, DateTimeToStr(Now) + ': ' + Msg);
+    Writeln(F, DateTimeToStr(Now) + ': ' + String(Msg));
   finally
     CloseFile(F);
   end;

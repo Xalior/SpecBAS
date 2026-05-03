@@ -27,7 +27,7 @@ Type
 implementation
 
 Uses SysUtils, SyncObjs, SP_AnsiStringlist, Math, SP_Main, SP_FPEditor, SP_InfixToPostFix, SP_Tokenise, SP_Errors, SP_SysVars, SP_Util,
-     SP_BASICEditorHostUnit;
+     SP_BASICEditorHostUnit, SP_BASICInterpreter;
 
 Procedure SetAllToCompile;
 Var
@@ -187,6 +187,7 @@ Var
   Idx, lIdx, i: Integer;
   Error: TSP_ErrorCode;
   InString: Boolean;
+  CompilerInterpreter: TSP_BASICInterpreter;
 Begin
 
   NameThreadForDebugging('Compiler Thread');
@@ -196,6 +197,11 @@ Begin
   CompilerBusy := False;
   Finish := False;
   FreeOnTerminate := True;
+
+  CompilerInterpreter := TSP_BASICInterpreter.Create(-1);
+  CompilerInterpreter.AcquireThreadVars;
+
+  CurrentInterpreter  := CompilerInterpreter;
 
   While Not (QUITMSG or Finish) Do Begin
 
@@ -299,6 +305,8 @@ Begin
   End;
 
   SP_FinalizeThreadVars;
+  CompilerInterpreter.ReleaseThreadVars;
+  CompilerInterpreter.Free;
   CompilerRunning := False;
 
 End;

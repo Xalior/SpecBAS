@@ -80,7 +80,7 @@ Const
   // List of keywords that are used in statements.
   // MUST Be in this order - add new commands to the end of the list.
 
-  SP_KEYWORDS_EXTRA: Array[0..260] of aString =
+  SP_KEYWORDS_EXTRA: Array[0..282] of aString =
     ('SPECTRUM ', 'PLAY ', 'AT ', 'TAB ', 'LINE ', ' THEN ', ' TO ', ' STEP ',
      'DEF ', 'CAT ', ' FORMAT ', 'MOVE ', 'ERASE ', 'OPEN ', 'CLOSE ', 'MERGE ', 'BEEP ',
      'CIRCLE ', 'INK ', 'PAPER ', 'INVERSE ', 'OUT ', 'STOP ', 'READ ', ' DATA ',
@@ -91,7 +91,7 @@ Const
      ' LOOP ', 'EXIT ', 'QUIT ', 'SCREEN ', 'LOCK ', 'UNLOCK ', 'UPDATE ', 'WINDOW ', 'SIZE ',
      'FRONT ', 'BACK ', 'SHOW ', 'HIDE ', 'GRAB ', 'PUT ', ' TRANSPARENT ', 'TRANS ', 'DPOKE ',
      'QPOKE ', 'OVER ', 'SCROLL ', 'ROLL ', 'ON ', 'EVERY ', 'OFF', 'ERROR ', 'YIELD', 'FULL ',
-     'FILL ', 'RECTANGLE ', 'POLYGON ', 'DEGREES', 'RADIANS', 'RECOVER', 'FONT ', 'COLOUR',
+     'FILL ', 'RECTANGLE ', 'POLYGON ', 'DEGREES', 'RADIANS', 'RECOVER', 'FONT ', 'COLOUR ',
      'MONO', ' BANK ', 'WAIT ', 'STREAM ', 'WRITE ','SEEK ', 'LABEL ', 'SETDIR ', 'MOUSEDOWN',
      'MOUSEUP', 'MOUSEMOVE', 'KEYDOWN', 'KEYUP', 'DEFAULT', 'STACK ', 'PUSH ', 'POP ', 'EXECUTE ',
      ' ROTATE ', 'FACE ', ' ASCII ', ' SAMPLE ', ' RATE ', ' VOLUME ', ' PAN ', ' BITS ',
@@ -111,7 +111,10 @@ Const
      'MEMWRT$ ', 'REPEAT', 'PARTICLE ', 'FRICTION ', 'GRAVITY ', 'FORCE ', 'INSTALL', 'MEMWRTF ',
      'PRESS', 'TURNS', 'GRADIANS', 'EGA', 'CGA', 'ADDCTRL', 'CTRL', 'PROP ', 'OLD', ' ASYNC',
      'COMPILE ', 'APPLEHGR', 'APPLELGR', 'CPC', 'ENUM ', 'STROKE ', 'LLIST ', ' TILE ', 'SAY ',
-     ' PITCH ', ' SEX ', 'DECOR ', ' CAPTION ');
+     ' PITCH ', ' SEX ', 'DECOR ', ' CAPTION ', ' VERTEX ', ' AMBIENT ', ' USE ', ' BUILD ',
+     'SCENE ', 'MODEL ', 'CAMERA ', 'LIGHT ', 'RENDER ', 'FOG ', ' UV ', ' BILLBOARD ', ' SMOOTH ',
+     ' FLAT ', ' SHADING ',  'WIRE ', ' NOCULL ', ' SOLID ', ' SETVERT ', ' PARENT ', ' UNPARENT ',
+     'SETNEAR ');
 
   // Constants used to quickly identify keywords when in token form. Each keyword listed
   // above has a corresponding constant, which must be SP_KEYWORD_BASE + (Index of Keyword above).
@@ -379,7 +382,28 @@ Const
   SP_KW_SEX                 = 1258;
   SP_KW_DECOR               = 1259;
   SP_KW_CAPTION             = 1260;
-
+  SP_KW_VERTEX              = 1261;
+  SP_KW_AMBIENT             = 1262;
+  SP_KW_USE                 = 1263;
+  SP_KW_BUILD               = 1264;
+  SP_KW_SCENE               = 1265;
+  SP_KW_MODEL               = 1266;
+  SP_KW_CAMERA              = 1267;
+  SP_KW_LIGHT               = 1268;
+  SP_KW_RENDER              = 1269;
+  SP_KW_FOG                 = 1270;
+  SP_KW_UV                  = 1271;
+  SP_KW_BILLBOARD           = 1272;
+  SP_KW_SMOOTH              = 1273;
+  SP_KW_FLAT                = 1274;
+  SP_KW_SHADING             = 1275;
+  SP_KW_WIRE                = 1276;
+  SP_KW_NOCULL              = 1277;
+  SP_KW_SOLID               = 1278;
+  SP_KW_SETVERT             = 1279;
+  SP_KW_PARENT              = 1280;
+  SP_KW_UNPARENT            = 1281;
+  SP_KW_SETNEAR             = 1282;
 
   // These are meta-commands; they do not appear in listings, and are used during
   // execution only, having been inserted by the pre-processor.
@@ -766,10 +790,49 @@ Const
   SP_KW_FONT_UPDATE         = 4430;
   SP_KW_WIN_DECOR           = 4431;
   SP_KW_WIN_CAPTION         = 4432;
+  SP_KW_SCENE_NEW           = 4433;
+  SP_KW_SCENE_USE           = 4434;
+  SP_KW_SCENE_CLEAR         = 4435;
+  SP_KW_SCENE_ERASE         = 4436;
+  SP_KW_MODEL_NEW           = 4437;
+  SP_KW_MODEL_VERTEX        = 4438;
+  SP_KW_MODEL_FACE          = 4439;
+  SP_KW_MODEL_BUILD         = 4440;
+  SP_KW_MODEL_AT            = 4441;
+  SP_KW_MODEL_MOVE          = 4442;
+  SP_KW_MODEL_ROTATE        = 4443;
+  SP_KW_MODEL_SCALE         = 4444;
+  SP_KW_MODEL_ERASE         = 4445;
+  SP_KW_MODEL_HIDE          = 4446;
+  SP_KW_MODEL_SHOW          = 4447;
+  SP_KW_CAMERA_MOVE         = 4448;
+  SP_KW_CAMERA_ROTATE       = 4449;
+  SP_KW_LIGHT_TO            = 4450;
+  SP_KW_LIGHT_AMBIENT       = 4451;
+  SP_KW_LIGHT_FOG           = 4452;
+  SP_KW_LIGHT_FOG_OFF       = 4453;
+  SP_KW_MODEL_UV            = 4454;
+  SP_KW_MODEL_BILLBOARD     = 4455;
+  SP_KW_CAMERA_FACE         = 4456;
+  SP_KW_CAMERA_FACE_MODEL   = 4457;
+  SP_KW_MODEL_SHADING       = 4458;
+  SP_KW_MODEL_VERTEXARRAY   = 4459;
+  SP_KW_MODEL_FACEARRAY     = 4460;
+  SP_KW_MODEL_INK           = 4461;
+  SP_KW_MODEL_ANIM_PLAY     = 4462;
+  SP_KW_MODEL_ANIM_STOP     = 4463;
+  SP_KW_MODEL_ANIM_FRAME    = 4464;
+  SP_KW_MODEL_ADDFRAME      = 4465;
+  SP_KW_MODEL_SETVERT       = 4466;
+  SP_KW_MODEL_PARENT        = 4467;
+  SP_KW_MODEL_UNPARENT      = 4468;
+  SP_KW_MODEL_MOVE_TO       = 4469;
+  SP_KW_MODEL_ROTATE_TO     = 4470;
+  SP_KW_LIGHT_COLOUR        = 4471;
 
   // Names of the above meta-keywords - for use by the DEBUG command.
 
-  SP_Keyword_Names: Array[0..381] of aString =
+  SP_Keyword_Names: Array[0..420] of aString =
     ('PR INK', 'PR PAPER', 'PR INVERSE', 'PR TAB', 'PR AT', 'PR MOVE', 'GOTO', 'GOSUB', 'PALSHIFT',
      'READ ASSIGN', 'DRAWTO', 'SCR LOCK', 'SCR UNLOCK', 'SCR UPDATE', 'SCR RES', 'WIN NEW', 'WIN DEL',
      'WIN MOVE', 'WIN SIZE', 'WIN FRONT', 'WIN BACK', 'WIN SHOW', 'WIN HIDE', 'SCR GRAB', 'WIN GRAB',
@@ -823,12 +886,17 @@ Const
      'RECTFILL TO', 'WAIT KEY UP', 'FOR EACH STRING', 'ENUM BASE', 'ORG DIM', 'DRAW GML', 'WIN ORG DIM', 'GFX ORG DIM',
      'STREAM READ FILE', 'RAINBOW HSV', 'PR STROKE', 'DRAW CDELTA', 'A-DRAW CDELTA', 'TILEMAP DRAW TILE', 'CTRL NEW',
      'CTRL SET', 'CTRL DO', 'CTRL LOCK', 'CTRL UNLOCK', 'CTRL LIST', 'PR FONT', 'CTRL ERASE', 'PR PROP', 'FONT UPDATE',
-     'WINDOW DECOR', 'WINDOW CAPTION');
+     'WINDOW DECOR', 'WINDOW CAPTION', 'SCENE NEW', 'SCENE USE', 'SCENE CLEAR', 'SCENE ERASE', 'MODEL NEW', 'MODEL VERTEX',
+     'MODEL FACE', 'MODEL BUILD', 'MODEL AT', 'MODEL MOVE', 'MODEL ROTATE', 'MODEL SCALE', 'MODEL ERASE', 'MODEL HIDE',
+     'MODEL SHOW', 'CAMERA MOVE', 'CAMERA ROTATE', 'LIGHT TO', 'LIGHT AMBIENT', 'LIGHT FOG', 'LIGHT FOG OFF', 'MODEL UV',
+     'MODEL BILLBOARD', 'CAMERA FACE', 'CAMERA FACE MODEL', 'MODEL SHADING', 'MODEL VERTEX ARRAY', 'MODEL FACE ARRAY',
+     'MODEL INK', 'MODEL ANIM PLAY ', 'MODEL ANIM STOP ', 'MODEL ANIUM FRAME ', 'MODEL ADD FRAME', 'MODEL SETVERT',
+     'MODEL PARENT', 'MODEL UNPARENT', 'MODEL MOVE TO', 'MODEL ROTATE TO', 'LIGHT COLOUR');
 
   // List of Functions that are used in expressions. Again, MUST be in order.
   // Functions that take only one parameter have a space at the end of their name. All others have no spaces.
 
-  SP_FUNCTIONS_EXTRA: Array[0..284] of aString =
+  SP_FUNCTIONS_EXTRA: Array[0..297] of aString =
     ('nRND', 'nINKEY$', 'oPI', 'nVAL$ ', 'oCODE ', 'oVAL ', 'oLEN ', 'nSIN ', 'nCOS ',
      'nTAN ', 'nASN ', 'nACS ', 'nATN ', 'oLN ', 'oEXP ', 'oINT ', 'oSQR ', 'oSGN ', 'oABS ', 'n IN ',
      'nUSR ', 'oSTR$ ','oCHR$ ', 'nPEEK ', 'oNOT ', 'o OR ', 'o AND ', 'o MOD ', 'o XOR ', 'o SHL ',
@@ -860,7 +928,9 @@ Const
      'oTAU', 'nMILLISECONDS', 'oBINV', 'oBREV', 'oINTERP', 'oMIN$', 'oMAX$', 'nFMEMRD', 'nTXTw', 'nTXTh',
      'nNOISE', 'nOCTNOISE', 'oPAR ', 'oMAP', 'o EQV ', 'o IMP ', 'oSINH ', 'oCOSH ', 'oTANH ', 'oASNH ',
      'oACSH ', 'oATNH ', 'oMID', 'nPARAM$', 'nSTK', 'nSTK$', 'oREV$ ', 'nCLIP$', 'oINSTR', 'oFMOD',
-     'oBITCNT', 'oHIBIT', 'oCPAD$', 'nINKEY', 'nFILEREQ', 'nCTRLGET', 'oLOG ', 'oTRANSLATE$', 'nTHREADCOUNT');
+     'oBITCNT', 'oHIBIT', 'oCPAD$', 'nINKEY', 'nFILEREQ', 'nCTRLGET', 'oLOG ', 'oTRANSLATE$', 'nTHREADCOUNT',
+     'nMVERT', 'nMODELCOLL', 'nPOINT3D', 'nFACEAT', 'nMODELFRAME', 'nMODELPLAYING', 'nMODELX', 'nMODELY',
+     'nMODELZ', 'nMODELRX', 'nMODELRY', 'nMODELRZ', 'nMODELSCALE');
 
   // Constants, like above, for identifying Functions in token form
 
@@ -1151,6 +1221,26 @@ Const
   SP_FN_LOG                 = 2282;
   SP_FN_TRANSLATES          = 2283;
   SP_FN_THREADCOUNT         = 2284;
+  SP_FN_MVERT               = 2285;
+  SP_FN_MODELCOLL           = 2286;
+  SP_FN_POINT3D             = 2287;
+  SP_FN_FACEAT              = 2288;
+  SP_FN_MODELFRAME          = 2289;
+  SP_FN_MODELPLAYING        = 2290;
+  SP_FN_MODELX              = 2291;
+  SP_FN_MODELY              = 2292;
+  SP_FN_MODELZ              = 2293;
+  SP_FN_MODELRX             = 2294;
+  SP_FN_MODELRY             = 2295;
+  SP_FN_MODELRZ             = 2296;
+  SP_FN_MODELSCALE          = 2298;
+  SP_FN_CAMERAX             = 2299;
+  SP_FN_CAMERAY             = 2300;
+  SP_FN_CAMERAZ             = 2301;
+  SP_FN_CAMERARX            = 2302;
+  SP_FN_CAMERARY            = 2303;
+  SP_FN_CAMERARZ            = 2304;
+  SP_FN_CAMERAFOV           = 2305;
 
   // Meta-functions
 
@@ -2510,7 +2600,7 @@ Begin
   i := 1;
   l := Length(Text);
 
-  While i < L Do Begin
+  While i <= L Do Begin
     c := Text[i];
     If (c < ' ') And (c <> #5) Then Begin
       Case c of

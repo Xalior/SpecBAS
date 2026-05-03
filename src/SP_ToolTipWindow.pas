@@ -193,7 +193,7 @@ Begin
     SP_PutRegion(Window^.Surface, 2, 2, hw, hh, @Str[1], Length(Str), 0, 1, cX1, cY1, cX2, cY2, Error);
     RemoveTimer(TipTimerID);
     SP_InvalidateWholeDisplay;
-    SP_ForceScreenUpdate;
+//    SP_ForceScreenUpdate;
     SwitchFocusedWindow(DefaultWindow);
     TipWindowActive := False;
     TipTimerID := -1;
@@ -230,6 +230,8 @@ Var
   localRect: TRect;
 Begin
   If MOUSEBTN <> 0 Then Exit;
+  For i := 0 To High(cKEYSTATE) Do
+    If cKEYSTATE[i] <> 0 Then Exit;
 
   CurHint.Hint := '';
   tX := TipMouseX;

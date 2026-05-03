@@ -27,7 +27,7 @@ unit MainForm;
 interface
 
 uses
-  {$IFNDEF FPC}System.Types, SyncObjs, SHellAPI, PNGImage, GIFImg, Windows, Messages,{$ELSE} LCLIntf, LCLType, {$IFDEF Windows}Windows, Messages{$ELSE}LMessages{$ENDIF}, {$ENDIF}
+  {$IFNDEF FPC}Dialogs, System.Types, SyncObjs, SHellAPI, PNGImage, GIFImg, Windows, Messages,{$ELSE} LCLIntf, LCLType, {$IFDEF Windows}Windows, Messages{$ELSE}LMessages{$ENDIF}, {$ENDIF}
   SHFolder, SysUtils, Variants, Classes, Graphics, Controls, Forms, Math, SP_SysVars, SP_Graphics, SP_Graphics32, SP_BankManager, SP_Util, SP_Main, SP_FileIO,
   ExtCtrls, SP_Input, MMSystem, SP_Errors, SP_Sound, Bass, SP_Tokenise, SP_Menu, RunTimeCompiler, SP_Components, SP_BaseComponentUnit, Clipbrd;
 

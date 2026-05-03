@@ -905,9 +905,9 @@ Begin
       cl_normal := 12;
     End;
     If FILECHANGED Then
-      Result := Result + aChar(#16)+LongWordToString(cl_changed)+' '+#244
+      Result := Result + aChar(#16)+LongWordToString(cl_changed)+' '+ BlobChar
     Else
-      Result := Result + aChar(#16)+LongWordToString(cl_normal)+' '+#244;
+      Result := Result + aChar(#16)+LongWordToString(cl_normal)+' '+ BlobChar;
   End;
 
 End;

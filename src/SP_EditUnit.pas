@@ -45,6 +45,7 @@ SP_Edit = Class(SP_BaseComponent)
     Procedure SetSelStart(n: Integer);
     Procedure SetGhostText(s: aString);
     Function  TextPixelWidth: Integer;
+    Procedure Edit_OnFocus(Sender: SP_BaseComponent; WillFocus: Boolean);
 
   Public
 
@@ -132,8 +133,8 @@ Begin
   fRedoList := TStringList.Create;
   AddOverrideControl(Self);
   fShadow := True;
-
-  fFlashTimer := AddTimer(Self, FLASHINTERVAL, FlashTimer, False, False)^.ID;
+  fOnFocus := Edit_OnFocus;
+  fFlashTimer := -1;
 
 End;
 
@@ -146,6 +147,17 @@ Begin
 
   Inherited;
 
+End;
+
+Procedure SP_Edit.Edit_OnFocus(Sender: SP_BaseComponent; WillFocus: Boolean);
+Begin
+  If WillFocus Then Begin
+    If fFlashTimer = -1 Then
+      fFlashTimer := AddTimer(Self, FLASHINTERVAL, FlashTimer, False, False)^.ID;
+  End Else Begin
+    RemoveTimer(fFlashTimer);
+  End;
+  Inherited;
 End;
 
 Procedure SP_Edit.SetGhostText(s: aString);

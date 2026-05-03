@@ -20,42 +20,30 @@ unit SP_EditorTabsUnit;
 
 // Per-tab editor state for SP_TabBar.
 //
-// ── IMPORTANT: Pascal identifier case-insensitivity ───────────────────────
-//
-// SP_SysVars declares globals PROGNAME, PROGLINE, FILECHANGED, FILENAMED.
-// In Pascal, identifiers are case-insensitive, so record fields named ProgName,
-// ProgLine, FileChanged, AutoStart would SHADOW those globals inside any
-// With SP_EditorTabs[i] Do Begin ... End block, making all saves/restores
-// silently operate on the field rather than the global (i.e. no-ops).
-//
-// All program-identity fields therefore use a Stored prefix:
-//   StoredProgName, StoredProgLine, StoredFileChanged, StoredAutoStart
-// These names have no SP_SysVars counterpart and are safe inside With blocks.
-//
-// ── Per-tab state ────────────────────────────────────────────────────────
+// -- Per-tab state --------------------------------------------------------
 //
 // Each tab owns:
-//   • Listing text + per-line compiler flags
-//   • SP_Program token array (instant restore, no recompile)
-//   • SP_Memo undo/redo stacks, scroll position, cursor (PackEditorState)
-//   • Program identity: StoredProgName (raw PROGNAME), StoredDisplayName
+//   - Listing text + per-line compiler flags
+//   - SP_Program token array (instant restore, no recompile)
+//   - SP_Memo undo/redo stacks, scroll position, cursor (PackEditorState)
+//   - Program identity: StoredProgName (raw PROGNAME), StoredDisplayName
 //     (SP_GetProgName result for tab caption), StoredProgLine, StoredFileChanged,
 //     StoredAutoStart
 //
-// ── Tab switching ────────────────────────────────────────────────────────
+// -- Tab switching --------------------------------------------------------
 //
 //   SP_EditorTab_Switch(NewIdx)
 //     1. SP_EditorTab_SaveActive
 //     2. SP_ActiveTab := NewIdx
 //     3. SP_EditorTab_RestoreActive
 //
-// ── RUN / re-enter editor ────────────────────────────────────────────────
+// -- RUN / re-enter editor ------------------------------------------------
 //
-//   SP_CloseEditorWindows → SP_EditorTab_SaveActive → EditorHost_Destroy
-//   SP_CreateEditorWindows → EditorHost_Init (SetupTabBar) → SP_CreateDirectWindow
-//                          → SP_EditorTab_SyncActiveIfChanged → SP_EditorTab_RestoreActive
+//   SP_CloseEditorWindows -> SP_EditorTab_SaveActive -> EditorHost_Destroy
+//   SP_CreateEditorWindows -> EditorHost_Init (SetupTabBar) -> SP_CreateDirectWindow
+//                          -> SP_EditorTab_SyncActiveIfChanged -> SP_EditorTab_RestoreActive
 //
-// ── Display name sync ────────────────────────────────────────────────────
+// -- Display name sync ----------------------------------------------------
 //
 //   SP_EditorTab_SyncDisplay(SP_GetProgName(PROGNAME, True)) is called from
 //   SP_FPEditor whenever a fresh formatted name is available:
@@ -73,7 +61,7 @@ Type
 
   TSP_EditorTab = Record
 
-    // ── Listing snapshot ────────────────────────────────────────────────
+    // -- Listing snapshot ------------------------------------------------
     ListingText:    AnsiString;
     ListingFlags:   Array of TLineFlags;
     ListingCount:   Integer;
@@ -82,14 +70,14 @@ Type
     ListingFPSelLine: Integer;
     ListingFPSelPos:  Integer;
 
-    // ── Tokenised program snapshot ──────────────────────────────────────
+    // -- Tokenised program snapshot --------------------------------------
     ProgTokens:     Array of aString;
     ProgCount:      Integer;
 
-    // ── Editor visual + undo/redo state ─────────────────────────────────
+    // -- Editor visual + undo/redo state ---------------------------------
     EditorState:    aString;   // from SP_Memo.PackEditorState
 
-    // ── Program identity ────────────────────────────────────────────────
+    // -- Program identity ------------------------------------------------
     // Field names use the Stored prefix to avoid shadowing SP_SysVars globals
     // (PROGNAME, PROGLINE, FILECHANGED, AUTOSTART) inside With blocks.
     StoredProgName:    aString;   // raw PROGNAME; only restored if non-empty
@@ -137,7 +125,7 @@ Function  TabDisplayName(Const Tab: TSP_EditorTab): aString;
 
 // Persistence helpers - called from SP_Main (save) and SP_Editor (restore).
 // These are kept out of SP_EditorTabsUnit's own file I/O to avoid a circular
-// dependency through SP_FileIO → SP_BASICEditorHostUnit → SP_EditorTabsUnit.
+// dependency through SP_FileIO -> SP_BASICEditorHostUnit -> SP_EditorTabsUnit.
 
 // Snapshot current Listing/SP_Program/globals into tab slot Idx.
 // Creates the slot if Idx = Length(SP_EditorTabs) (append).
@@ -188,7 +176,7 @@ Begin
   Result := s;
   // The suffix is always 7 bytes: #16 (ink control) + 4 LongWord bytes + ' ' + #244
   n := Length(s);
-  If (n >= 7) And (s[n] = #244) And (s[n-1] = ' ') And (s[n-6] = #16) Then
+  If (n >= 7) And (s[n] = BlobChar) And (s[n-1] = ' ') And (s[n-6] = #16) Then
     SetLength(Result, n - 7);
 End;
 
@@ -222,9 +210,9 @@ Const
   cl_normal  = 4;   // green — matches SP_GetProgName editor-focused normal
 Begin
   If Changed Then
-    Result := name + aChar(#16) + LongWordToString(cl_changed) + ' ' + #244
+    Result := name + aChar(#16) + LongWordToString(cl_changed) + ' ' + BlobChar
   Else
-    Result := name + aChar(#16) + LongWordToString(cl_normal)  + ' ' + #244;
+    Result := name + aChar(#16) + LongWordToString(cl_normal)  + ' ' + BlobChar;
 End;
 
 // Returns the display name to show on a tab button.
@@ -412,11 +400,13 @@ Begin
   EditorHost_LoadFromListing;
 
   // Restore identity globals BEFORE UnpackEditorState so cursor events
-  // (SetCursorRaw → OnCursorMoved → UpdateStatusLabel) see the correct PROGNAME.
+  // (SetCursorRaw -> OnCursorMoved -> UpdateStatusLabel) see the correct PROGNAME.
   // Only restore PROGNAME when non-empty: a blank StoredProgName means we have
   // no reliable value and should leave whatever PROGNAME SpecBAS already has.
   If SP_EditorTabs[SP_ActiveTab].StoredProgName <> '' Then
-    PROGNAME := SP_EditorTabs[SP_ActiveTab].StoredProgName;
+    PROGNAME := SP_EditorTabs[SP_ActiveTab].StoredProgName
+  ELSE
+    PROGNAME := NEWPROGNAME;
   PROGLINE  := SP_EditorTabs[SP_ActiveTab].StoredProgLine;
 
   // Refresh gutter blobs and clear exec line BEFORE restoring FILECHANGED.

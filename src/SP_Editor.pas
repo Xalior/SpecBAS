@@ -1,4 +1,4 @@
-// Copyright (C) 2010 By Paul Dunn
+﻿// Copyright (C) 2010 By Paul Dunn
 //
 // This file is part of the SpecBAS BASIC Interpreter, which is in turn
 // part of the SpecOS project.
@@ -160,7 +160,7 @@ Begin
 
       If aSave And SP_FileExists('s:tabstate') Then Begin
 
-        // ── Multi-tab restore ──────────────────────────────────────────────
+        // -- Multi-tab restore ----------------------------------------------
         TabFileID := SP_FileOpen('s:tabstate', False, Error);
         TabCount  := 1;
         ActiveIdx := 0;
@@ -209,7 +209,7 @@ Begin
 
       End Else If aSave And (SP_FileExists('s:autosave')) Then Begin
 
-        // ── Single-tab fallback (existing behaviour) ───────────────────────
+        // -- Single-tab fallback (existing behaviour) -----------------------
         SP_LoadProgram('s:autosave', False, False, nil, Error);
         FILENAMED := SP_FileExists(PROGNAME);
 

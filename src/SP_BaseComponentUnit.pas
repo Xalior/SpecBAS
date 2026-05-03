@@ -2731,7 +2731,8 @@ End;
 Procedure SP_BaseComponent.KeyUp(Key: Integer; Var Handled: Boolean);
 Begin
 
-  If cKeyRepeat >= 0 Then
+  // Only cancel the repeat timer if it was started for THIS key
+  If (cKeyRepeat >= 0) And (Key = Integer(fLastKey)) Then
     RemoveTimer(cKeyRepeat);
 
   PerformKeyUp(Handled);

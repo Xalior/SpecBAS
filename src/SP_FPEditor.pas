@@ -213,6 +213,8 @@ Var
 
 Const
 
+  BlobChar = #245;
+
   FPMarginSize = 2; // Gap between buttons and track in scrollbars
   FPMinGutterWidth = 4;
 
@@ -239,8 +241,6 @@ Const
 
   fwNone =       -1;
   fwDebugPanel = -2;
-
-  Seps = [' ', '(', ')', ',', ';', '"', #39, '=', '+', '-', '/', '*', '^', '%', '$', '|', '&', ':', '>', '<'];
 
 implementation
 
@@ -1592,11 +1592,11 @@ Begin
             K_F1:
               SP_ShowHelpForWord(EditorHost_GetWordAtCursor);
 
-K_F2:
-  If KEYSTATE[K_SHIFT] = 1 Then Begin
-    SP_NarratorDefaultParams(Params);
-    SP_Say('HH EH LL OW PA2 WW ER LL DD', Params, False);
-  End;
+            K_F2:
+              If KEYSTATE[K_SHIFT] = 1 Then Begin
+                SP_NarratorDefaultParams(Params);
+                SP_Say('HH EH LL OW PA2 WW ER LL DD', Params, False);
+              End;
 
             K_F3:
               FindNext(True);
@@ -2285,6 +2285,10 @@ Begin
     Else
       WinY := (DISPLAYHEIGHT - WinH) - BSize;
 
+    COVER := 0;
+    T_INK := 0;
+    T_OVER := 0;
+
     ERRORWINDOW := SP_Add_Window(WinX, WinY, WinW, WinH, -1, 8, 0, Error);
     SP_SetDrawingWindow(ERRORWINDOW);
     SP_GetWindowDetails(ERRORWINDOW, ErrWin, Error);
@@ -2293,9 +2297,6 @@ Begin
 
     SP_FillRect(0, 0, WinW, WinH, 7);
     SP_Decorate_Window(ERRORWINDOW, Title, False, False, True);
-    COVER := 0;
-    T_INK := 0;
-    T_OVER := 0;
     SP_TextOut(-1, 1 + BSize, Integer(BSize) + FPCaptionHeight, EdSc + ErrorText, 0, 7, False);
     SP_SetWindowVisible(ERRORWINDOW, False, Error);
     SP_InvalidateWholeDisplay;
@@ -2436,10 +2437,10 @@ Procedure SP_CreateEditorWindows;
 Begin
 
   SP_InitDWMetrics;
-  SP_CreateFPWindow;      // calls EditorHost_Init → SetupTabBar → LoadFromListing
+  SP_CreateFPWindow;      // calls EditorHost_Init -> SetupTabBar -> LoadFromListing
   SP_CreateDirectWindow;  // DW window and status bar labels must exist before RestoreActive,
-                          // because UnpackEditorState → EnsureCursorVisible → SetCursorRaw
-                          // → OnCursorMoved → UpdateStatusLabel → SP_Label.SetCaption.
+                          // because UnpackEditorState -> EnsureCursorVisible -> SetCursorRaw
+                          // -> OnCursorMoved -> UpdateStatusLabel -> SP_Label.SetCaption.
   // If content changed since SaveActive (e.g. LOAD was executed), re-snapshot
   // the active tab from the current Listing and clear the stale EditorState so
   // RestoreActive doesn't overwrite the newly loaded content.  Also renames the
@@ -2626,7 +2627,7 @@ Begin
   Line := SP_DeTokenise(TokensStr, Error.Position, False, False);
   BREAKSIGNAL := False;
 
-  // ── Tokenisation / syntax error ──────────────────────────────────────────
+  // -- Tokenisation / syntax error ------------------------------------------
   If Error.Code <> SP_ERR_OK Then Begin
 
     // Try as an expression (catches things like "1+1" or "PRINT a$")
@@ -2744,7 +2745,7 @@ Begin
   EDITERROR := False;
   EDITRESULT := False;
 
-  // ── Numbered BASIC line - store it ───────────────────────────────────────
+  // -- Numbered BASIC line - store it ---------------------------------------
   If TokensStr[1] = aChar(SP_LINE_NUM) Then Begin
     SP_StoreBASICLine(TokensStr);
     Line := '';
@@ -2755,7 +2756,7 @@ Begin
     Exit;
   End;
 
-  // ── Execute a command ─────────────────────────────────────────────────────
+  // -- Execute a command -----------------------------------------------------
   If STEPMODE = SM_None Then Begin
     BPSIGNAL := False;
     SP_CloseEditorWindows;
@@ -2807,7 +2808,7 @@ Begin
     Error.Statement := PreParseErrorStatement;
   End;
 
-  // ── SP_ERR_EDITOR: runtime signals "jump to this listing line" ───────────
+  // -- SP_ERR_EDITOR: runtime signals "jump to this listing line" -----------
   If Error.Code = SP_ERR_EDITOR Then Begin
     // Error.Line is a listing INDEX here - convert to BASIC line number
     ErrorBASICLine := SP_GetLineNumberFromText(Listing[Error.Line]);
@@ -2826,7 +2827,7 @@ Begin
     Exit;
   End;
 
-  // ── Normal error / break / stop ───────────────────────────────────────────
+  // -- Normal error / break / stop -------------------------------------------
   PROGSTATE := SP_PR_STOP;
   SP_StartCompiler;
 
@@ -2849,16 +2850,16 @@ Begin
         BringToEditorAfterError := False;
         SP_FPBringToEditor(PROGLINE, Error.Statement, Error, True);
         SP_SwitchFocus(fwDirect);
-      End Else If PROGLINE > 0 Then Begin
-        // Normal error: scroll editor to the error line, no DW population
-        SP_FPBringToEditor(PROGLINE, Error.Statement, Error, False);
-      End;
+      End Else
+        If (PROGLINE > 0) And Not (Error.Code in [SP_ERR_OK, SP_ERR_BREAK]) Then Begin
+          // Normal error: scroll editor to the error line, no DW population
+          SP_FPBringToEditor(PROGLINE, Error.Statement, Error, False);
+        End;
 
       // Place exec arrow at the continue point
       If (CONTLINE >= 0) And (CONTLINE < SP_Program_Count) And
          (SP_Program[CONTLINE] <> '') Then
-        EditorHost_SetExecLineWithScroll(
-          pLongWord(@SP_Program[CONTLINE][2])^, CONTSTATEMENT);
+        EditorHost_SetExecLine(pLongWord(@SP_Program[CONTLINE][2])^, CONTSTATEMENT);
 
     End Else If STEPMODE = SM_StepOver Then Begin
 
@@ -3223,6 +3224,7 @@ Begin
   OutList.Free;
 
   If Assigned(FPBASICEditor) Then EditorHost_LoadFromListing;
+  SP_EditorTab_SaveActive;
 
 End;
 

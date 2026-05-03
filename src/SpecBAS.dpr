@@ -45,6 +45,8 @@ uses
   Interfaces,
   {$ENDIF }
   Forms,
+  Dialogs,
+  SysUtils,
   SP_Display,
   MainForm in 'MainForm.pas' {Main};
 

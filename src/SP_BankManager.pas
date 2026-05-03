@@ -207,6 +207,8 @@ Const
   SP_SPRITE_BANK = 6;
   SP_TILEMAP_BANK = 7;
   SP_WINDOW_BANK = 8;
+  SP_MODEL_BANK = 9;
+  SP_SCENE_BANK = 10;
 
   SP_FONT_TYPE_MONO: Byte = 0;
   SP_FONT_TYPE_COLOUR: Byte = 1;
@@ -219,7 +221,7 @@ Var
 
 implementation
 
-Uses SP_FPEditor, SP_BASICEditorHostUnit, SP_Graphics, SP_Sound, SP_Main, SP_BaseComponentUnit, SP_ToolTipWindow;
+Uses SP_FPEditor, SP_BASICEditorHostUnit, SP_Graphics, SP_Sound, SP_Main, SP_BaseComponentUnit, SP_ToolTipWindow, SP_3DEngineUnit;
 
 Procedure SP_ChangeBankSize(Index: Integer);
 Begin
@@ -594,6 +596,8 @@ Begin
       If MOUSEISGRAPHIC And (MOUSESPRITE = SP_BankList[Index]^.ID) Then SP_MousePointerFromDefault;
       If SP_BankList[Index]^.DataType = SP_SAMPLE_BANK Then
         BASS_SampleFree(pSP_Sample_Info(@SP_BankList[Index]^.Info[0])^.Sample);
+      If SP_BankList[Index]^.DataType In [SP_MODEL_BANK, SP_SCENE_BANK] Then
+        SP_3D_OnDeleteBank(SP_BankList[Index]^.ID, SP_BankList[Index]^.DataType);
       If SP_BankList[Index]^.DataType = SP_SPRITE_BANK Then Begin
         Sprite := @SP_BankList[Index]^.Info[0];
         SP_RemoveSpriteFromWindowList(Sprite);
@@ -643,6 +647,7 @@ Begin
   // Use with caution - will remove all banks, including system banks.
   // Intended as a nice way to clear up memory when quitting SpecBAS.
 
+  SP_3D_OnDeleteBank(-1, SP_SCENE_BANK);   // clears SP3D_ActiveScene if needed
   If Not SystemToo Then Begin
     Idx := 0;
     While Idx < Length(SP_BankList) Do Begin

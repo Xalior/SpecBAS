@@ -1,4 +1,4 @@
-// Copyright (C) 2026 By Paul Dunn
+﻿// Copyright (C) 2026 By Paul Dunn
 //
 // This file is part of the SpecBAS BASIC Interpreter, which is in turn
 // part of the SpecOS project.
@@ -151,6 +151,7 @@ SP_BASICEditor = Class(SP_Memo)
     Procedure OnRebuildPerLineData; Override;
     Procedure OnAfterRebuildWraps; Override;
     Procedure PreDrawVisibleLines(firstWL, lastWL, lastRaw: Integer); Override;
+    Procedure ExpandCompoundsFor(RawIdx: Integer);
     Procedure OnLineChanged(RawIdx: Integer); Override;
     Procedure OnCursorMoved; Override;
     Function  FormatLineForDisplay(WrapIdx: Integer): aString; Override;
@@ -202,7 +203,7 @@ SP_BASICEditor = Class(SP_Memo)
     Procedure UpdateProgline;
     Procedure SetMode(NewMode: TBASICEditorMode);
     Procedure ClearText;
-    Procedure InsertChar(ch: aChar); Override;
+    Procedure InsertChar(ch: aString); Override;
     Procedure DeleteCharBack; Override;
     Procedure DeleteCharFwd; Override;
     Procedure GetCursorClrs(Out Fg, Bg: Integer); Override;
@@ -219,6 +220,7 @@ SP_BASICEditor = Class(SP_Memo)
     // Return the BASIC line number for a raw line index, or -1 for continuations.
     Function  RawLineNumber(RawIdx: Integer): Integer;
     Function  CountStatementSeps(const s: aString; SkipChars: Integer): Integer;
+    Procedure InsertText(s: aString); Override;
 
     // ZXASCII file format - parse without loading (for SP_IncludeFile etc.)
     // Returns the program lines; header metadata via Out parameters.
@@ -352,6 +354,60 @@ End;
 // Virtual overrides
 // ---------------------------------------------------------------------------
 
+Procedure SP_BASICEditor.InsertText(s: aString);
+Var i: Integer;
+    sub, Accum: aString;
+    startCurs: Integer;
+
+    Function StripSpacesIfLineNum(s2: aString): aString;
+    var
+      i2, l: Integer;
+    Begin
+      i2 := 1;
+      l := Length(s2);
+      While (i2 < l) And (s2[i2] <= ' ') Do Inc(i2);
+      If (i2 <= l) And (s2[i2] in ['0'..'9']) Then
+        Result := SP_Copy(s2, i2)
+      Else
+        Result := s2;
+    End;
+
+Begin
+  fBulkInsert := True;
+  StartCurs := CursorLine;
+  Try
+    i := 1;
+    Accum := '';
+    While i <= Length(s) Do Begin
+      If (s[i] = #13) Or (s[i] = #10) Then Begin
+        InsertChar(StripSpacesIfLineNum(Accum)); Accum := '';
+        If HasSelection Then DeleteSelection Else StoreUndo(uoSplitLine);
+        fWrapDirty := True;
+        sub := fLines[fCursorLine];
+        fLines[fCursorLine] := Copy(sub, 1, fCursorCol - 1);
+        fCursorLine := fCursorLine + 1;
+        fLines.Insert(fCursorLine, Copy(sub, fCursorCol, Length(sub)));
+        fCursorCol := 1;
+        fSelLine := fCursorLine;
+        fSelCol  := fCursorCol;
+        OnLinesChanged(fCursorLine, 1);
+        OnLineChanged(fCursorLine - 1);
+        If (s[i] = #13) And (i < Length(s)) And (s[i+1] = #10) Then Inc(i);
+      End Else
+        Accum := Accum + s[i];
+      Inc(i);
+    End;
+    OnLineChanged(fCursorLine);
+  Finally
+    fBulkInsert := False;
+  End;
+  If Accum <> '' Then InsertChar(StripSpacesIfLineNum(Accum));
+  For i := startCurs To CursorLine Do
+    OnLineChanged(i);
+  fWrapDirty := True;
+  EnsureCursorVisible;
+End;
+
 Function SP_BASICEditor.ExtraLeftMargin: Integer;
 Begin
   If fMode = bemDirect Then
@@ -480,35 +536,37 @@ Begin
   fPrevGutterStmt := 0;   // Reset per-frame gutter statement counter.
 End;
 
-Procedure SP_BASICEditor.OnLineChanged(RawIdx: Integer);
+Procedure SP_BASICEditor.ExpandCompoundsFor(RawIdx: Integer);
 Var
-  FirstRaw, BASICLine, Statement: Integer;
   s: aString;
   c, oldC: Integer;
 Begin
-  Inherited;
-  // 1. --- NEW AUTO-EXPAND LOGIC ---
-  If (Not fBulkInsert) And (RawIdx >= 0) And (RawIdx < fLines.Count) Then Begin
-    s := fLines[RawIdx];
-    c := fCursorCol;
-    oldC := c;  // <-- Remember where the cursor started
+  s := fLines[RawIdx];
+  c := fCursorCol;
+  oldC := c;  // <-- Remember where the cursor started
 
-    AutoExpandCompounds(s, c);
+  AutoExpandCompounds(s, c);
 
-    // If a replacement happened, write it back to the buffer safely
-    If s <> fLines[RawIdx] Then Begin
-      fLines[RawIdx] := s;
-      fCursorCol := c;
-
-      // FIX: Keep the selection sync'd so we don't accidentally highlight the injected space!
-      If (fSelLine = fCursorLine) And (fSelCol = oldC) Then
-        fSelCol := c;
-
-      fWrapDirty := True; // Force word-wrap to recalculate the new length
-    End;
+  // If a replacement happened, write it back to the buffer safely
+  If s <> fLines[RawIdx] Then Begin
+    fLines[RawIdx] := s;
+    fCursorCol := c;
+    If (fSelLine = fCursorLine) And (fSelCol = oldC) Then
+      fSelCol := c;
+    fWrapDirty := True; // Force word-wrap to recalculate the new length
   End;
 
-  // 2. --- YOUR EXISTING LOGIC ---
+End;
+
+Procedure SP_BASICEditor.OnLineChanged(RawIdx: Integer);
+Var
+  FirstRaw, BASICLine, Statement: Integer;
+Begin
+  Inherited;
+
+  If (Not fBulkInsert) And (RawIdx >= 0) And (RawIdx < fLines.Count) Then
+    ExpandCompoundsFor(RawIdx);
+
   InvalidateSyntaxFrom(RawIdx);
 
   // In bemDirect mode there are no BASIC line numbers; skip the host event.
@@ -924,6 +982,7 @@ End;
 
 Procedure SP_BASICEditor.MouseDown(Sender: SP_BaseComponent; X, Y, Btn: Integer);
 Begin
+  If EDITERROR Then EDITERROR := False; // cursor movement should clear the editor error.
   If (fMode = bemDirect) And fShowingResult Then Begin
     DismissResult;
     Exit;
@@ -955,7 +1014,7 @@ Var
   NewChar: Byte;
 Begin
 
-  // ── GFXLOCK - active in both bemEditor and bemDirect ─────────────────────
+  // -- GFXLOCK - active in both bemEditor and bemDirect ---------------------
   //
   // Shift+Alt / Shift+AltGr toggles graphics-input mode.  K_ALT (18) and
   // K_ALTGR (10) both reach the component via ControlKeyEvent; cKEYSTATE
@@ -968,6 +1027,8 @@ Begin
   // bemPROGLINE is read-only (fEditable=False), so neither branch fires there.
 
   // Result display mode - any keypress clears it and swallows the key.
+
+  If EDITERROR Then EDITERROR := False; // cursor movement should clear the editor error.
 
   If (fMode = bemDirect) and fShowingResult Then Begin
     DismissResult;
@@ -1005,7 +1066,7 @@ Begin
 
   End;
 
-  // ── bemDirect ────────────────────────────────────────────────────────────
+  // -- bemDirect ------------------------------------------------------------
   If fMode = bemDirect Then Begin
 
     // Ctrl+F: open the program editor's inline search bar.
@@ -1087,7 +1148,7 @@ Begin
     // All other keys fall through to the standard SP_Memo handler below.
   End;
 
-  // ── bemEditor ────────────────────────────────────────────────────────────
+  // -- bemEditor ------------------------------------------------------------
   If (fMode = bemEditor) And (cLastKey = K_ESCAPE) And Not fSearchBarVisible And (FocusedWindow = fwEditor) Then Begin
     SP_SwitchFocus(fwDirect);
     SP_PlaySystem(CLICKCHAN, CLICKBANK);
@@ -1243,7 +1304,7 @@ Var
 Begin
   If fWrapDirty Then RebuildWrappedLines;
 
-  // ── Split s on #13 ──────────────────────────────────────────────────────
+  // -- Split s on #13 ------------------------------------------------------
   segCount := 0;
   SetLength(segments, 0);
   p := 1;
@@ -1260,7 +1321,7 @@ Begin
   End;
   If segCount = 0 Then Exit;
 
-  // ── Process groups ──────────────────────────────────────────────────────
+  // -- Process groups ------------------------------------------------------
   StoreUndo(uoBlock);
 
   i := 0;
@@ -1291,7 +1352,7 @@ Begin
       Inc(p);
     End;
 
-    // ── Find insertion / replacement point ─────────────────────────────
+    // -- Find insertion / replacement point -----------------------------
     existing := FindBASICLine(lineNum);
 
     If existing >= 0 Then Begin
@@ -1315,7 +1376,7 @@ Begin
       End;
     End;
 
-    // ── Insert the group segments ────────────────────────────────────────
+    // -- Insert the group segments ----------------------------------------
     For j := groupStart To groupStart + groupLen - 1 Do Begin
       If insertAt + (j - groupStart) >= fLines.Count Then
         fLines.Add(segments[j])
@@ -2202,7 +2263,7 @@ Begin
   End;
 End;
 
-Procedure SP_BASICEditor.InsertChar(ch: aChar);
+Procedure SP_BASICEditor.InsertChar(ch: aString);
 Begin
   If fMode = bemDirect Then Begin
     EDITERROR := False;

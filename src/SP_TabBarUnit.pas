@@ -20,16 +20,7 @@ unit SP_TabBarUnit;
 
 // SP_TabBar - a horizontal row of labelled tabs with a "+" new-tab button.
 //
-// ── Visual anatomy ──────────────────────────────────────────────────────────
-//
-//  y=0   ▓▒░░  gradient shadow (SP_TabShadowLines rows, 224→fBarColour)
-//  y=4   ┌──────────┐  ┌──────────┐        ┌──┐
-//  y=4   │ * tab1 x │  │  tab2 x  │  ···   │+ │
-//  y=19  └──────────┘  └──────────┘        └──┘
-//  y=19   ░░░░ button shadows (1px right+bottom, fShadowClr)
-//  y=23  ─────────────────────────────────────  bottom border (SP_UIBorder)
-//
-// ── Styles ──────────────────────────────────────────────────────────────────
+// -- Styles ------------------------------------------------------------------
 //
 // tbsButton (default):
 //   Tabs look like normal buttons: DrawRect black border + coloured fill.
@@ -46,12 +37,12 @@ unit SP_TabBarUnit;
 //   tab's fill overpaints its portion, breaking the line only there.
 //   Unselected tabs are recessed SP_TabRecess pixels from the joining edge.
 //
-// ── Always drawn ────────────────────────────────────────────────────────────
-//   • Gradient: SP_TabShadowLines rows from palette 224 (greyscale near-black)
+// -- Always drawn ------------------------------------------------------------
+//   - Gradient: SP_TabShadowLines rows from palette 224 (greyscale near-black)
 //     to fBarColour at the joining edge.  Blends into bar background.
-//   • 1px SP_UIBorder at the opposite (non-joining) edge.
+//   - 1px SP_UIBorder at the opposite (non-joining) edge.
 //
-// ── Notes ───────────────────────────────────────────────────────────────────
+// -- Notes -------------------------------------------------------------------
 //   Requires SP_AlignBottom fix in SP_BaseComponentUnit.AlignChildren:
 //     Dec(pRect.Bottom, fHeight - 1)   ← not Dec(pRect.Bottom, fHeight)
 //   This closes the 1-pixel gap between the listing editor and the tab bar.
@@ -463,7 +454,7 @@ Begin
                                                // looking "pressed" on hover
   Else               bgClr := fTabColour;
 
-  // ── Drop shadow (tbsButton, not actively pressed) ─────────────────────────
+  // -- Drop shadow (tbsButton, not actively pressed) -------------------------
   // 1px on the right and bottom edges, outside the button frame.
   // Matches the shadow behaviour of SP_Button (shadow disabled while pressed).
   If (fStyle = tbsButton) And Not isPressTab Then Begin
@@ -471,7 +462,7 @@ Begin
     DrawLine(x1 + 1, y2 + 1, x2 + 1, y2 + 1, fShadowClr);  // bottom shadow
   End;
 
-  // ── Frame and fill ────────────────────────────────────────────────────────
+  // -- Frame and fill --------------------------------------------------------
 
   Case fStyle Of
 
@@ -508,7 +499,7 @@ Begin
 
   End;
 
-  // ── Caption ──────────────────────────────────────────────────────────────
+  // -- Caption --------------------------------------------------------------
   cap := DisplayCaption(Index);
   ty  := y1 + (TabDrawH(Index) - cfH) Div 2;
   tx  := x1 + SP_TabPadX;
@@ -518,15 +509,15 @@ Begin
   End;
   Print(tx, ty, cap, fFontClr, -1, iSX, iSY, False, False, False, False);
 
-  // ── Close zone highlight (hover / press) ─────────────────────────────────
+  // -- Close zone highlight (hover / press) ---------------------------------
   With fTabs[Index].CloseRect Do Begin
     If isPressClose Then
-      FillRect(Left, Top, Right - 1, Bottom - 1, SP_UISelection)
+      FillRect(Left + 2, Top -1, Right - 2, Bottom - 1, SP_UISelection)
     Else If isHotClose Then
-      FillRect(Left, Top, Right - 1, Bottom - 1, SP_UIHalfLight);
+      FillRect(Left + 2, Top -1, Right - 2, Bottom - 1, SP_UIHalfLight);
   End;
 
-  // ── Close symbol: square ×, only drawn when multiple tabs exist ─────────
+  // -- Close symbol: square ×, only drawn when multiple tabs exist ---------
   // sz is derived from the smaller dimension so the × is always square.
   If fTabCount > 1 Then
     With fTabs[Index].CloseRect Do Begin
@@ -546,10 +537,10 @@ Procedure SP_TabBar.Draw;
 Var
   i, shade: Integer;
 Begin
-  // ── Bar background ───────────────────────────────────────────────────────
+  // -- Bar background -------------------------------------------------------
   FillRect(0, 0, fWidth - 1, fHeight - 1, fBarColour);
 
-  // ── Gradient shadow at the joining edge ──────────────────────────────────
+  // -- Gradient shadow at the joining edge ----------------------------------
   // SP_TabShadowLines rows from greyscale 224 (near-black) to fBarColour.
   // Steps evenly through the palette greyscale ramp using integer arithmetic.
   // In tbsMerge the selected tab's fill (drawn last) overpaints its portion
@@ -565,13 +556,13 @@ Begin
     End;
   End;
 
-  // ── Border at the non-gradient edge ──────────────────────────────────────
+  // -- Border at the non-gradient edge --------------------------------------
   If fTabsOnBottom Then
     DrawLine(0, fHeight - 1, fWidth - 1, fHeight - 1, SP_UIBorder)
   Else
     DrawLine(0, 0, fWidth - 1, 0, SP_UIBorder);
 
-  // ── Tabs: unselected first so selected tab paints on top ─────────────────
+  // -- Tabs: unselected first so selected tab paints on top -----------------
   // In tbsMerge this lets the selected tab's y=0 fill overpaint the gradient
   // within its x range, breaking the gradient line only there.
   For i := 0 To fTabCount - 1 Do

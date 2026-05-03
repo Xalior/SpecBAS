@@ -1064,7 +1064,7 @@ Const
 implementation
 
 Uses SP_Compiler, SP_Main, SP_Editor, SP_FPEditor, SP_DebugPanel, RunTimeCompiler, SP_Util2, SP_Display, SP_BaseComponentUnit, SP_Graphics32Alpha,
-     SP_Narrator, SP_NarratorTranslator, SP_BASICInterpreter;
+     SP_Narrator, SP_NarratorTranslator, SP_BASICInterpreter, SP_3DEngineUnit, SP_3DEngineUnit32;
 
 Procedure SP_Execute_Compiled(Line: aString; InitInterpreter: Boolean; Var Error: TSP_ErrorCode);
 Var
@@ -28162,6 +28162,617 @@ Begin
 
 End;
 
+Procedure SP_Interpret_SCENE_NEW(Var Info: pSP_iInfo);
+Begin
+  Inc(SP_StackPtr);
+  SP_StackPtr^.Val := SP_Scene_New(Info^.Error^);
+End;
+
+Procedure SP_Interpret_SCENE_USE(Var Info: pSP_iInfo);
+Begin
+  SP_Scene_Use(Round(SP_StackPtr^.Val), Info^.Error^);
+  Dec(SP_StackPtr);
+End;
+
+Procedure SP_Interpret_SCENE_CLEAR(Var Info: pSP_iInfo);
+Var SceneID: Integer;
+Begin
+  If SP_StackPtr <> SP_StackStart Then Begin
+    SceneID := Round(SP_StackPtr^.Val);
+    Dec(SP_StackPtr);
+  End Else
+    SceneID := SP3D_ActiveScene;
+  SP_Scene_Clear(SceneID, Info^.Error^);
+End;
+
+Procedure SP_Interpret_SCENE_ERASE(Var Info: pSP_iInfo);
+Begin
+  SP_Scene_Erase(Round(SP_StackPtr^.Val), Info^.Error^);
+  Dec(SP_StackPtr);
+End;
+
+// MODEL NEW — push auto-allocated model bank ID; VarResult handles assignment
+Procedure SP_Interpret_MODEL_NEW(Var Info: pSP_iInfo);
+Begin
+  Inc(SP_StackPtr);
+  SP_StackPtr^.Val := SP_Model_New(Info^.Error^);
+End;
+
+Procedure SP_Interpret_MODEL_VERTEX(Var Info: pSP_iInfo);
+Var BankID: Integer; X, Y, Z: aFloat; Colour: Integer;
+Begin
+  BankID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  X      :=       SP_StackPtr^.Val;   Dec(SP_StackPtr);
+  Y      :=       SP_StackPtr^.Val;   Dec(SP_StackPtr);
+  Z      :=       SP_StackPtr^.Val;   Dec(SP_StackPtr);
+  Colour := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  SP_Model_Vertex(BankID, X, Y, Z, Colour, Info^.Error^);
+End;
+
+Procedure SP_Interpret_MODEL_FACE(Var Info: pSP_iInfo);
+Var
+  BankID, V0, V1, V2, nV, Colour, TexBank, cFlag, i: Integer;
+  U0, Vt0, U1, Vt1, U2, Vt2: aFloat;
+  Vertices: Array of Integer;
+  UVs: Array of aFloat;
+Begin
+  // bankID, #vertices, v0,v1,v2...vN, cType
+  TexBank := -1; Colour := -1;
+  U0 := 0; Vt0 := 0; U1 := 0; Vt1 := 0; U2 := 0; Vt2 := 0;
+  BankID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  nV     := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  If nV = 3 Then Begin
+    V0     := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+    V1     := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+    V2     := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+    cFLag  := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+    Case cFlag of
+      1: // INK
+        Begin
+          Colour := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+        End;
+      2: // Texture
+        Begin
+          TexBank:= Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+          U0     :=       SP_StackPtr^.Val;   Dec(SP_StackPtr);
+          Vt0    :=       SP_StackPtr^.Val;   Dec(SP_StackPtr);
+          U1     :=       SP_StackPtr^.Val;   Dec(SP_StackPtr);
+          Vt1    :=       SP_StackPtr^.Val;   Dec(SP_StackPtr);
+          U2     :=       SP_StackPtr^.Val;   Dec(SP_StackPtr);
+          Vt2    :=       SP_StackPtr^.Val;   Dec(SP_StackPtr);
+        End;
+    End;
+    SP_Model_Face(BankID, V0, V1, V2, Colour, TexBank, U0, Vt0, U1, Vt1, U2, Vt2, Info^.Error^);
+  End Else Begin
+    SetLength(Vertices, nV);
+    For i := 0 to nV -1 Do Begin
+      Vertices[i] := Round(SP_StackPtr^.Val);
+      Dec(SP_StackPtr);
+    End;
+    cFLag  := Round(SP_StackPtr^.Val);
+    Dec(SP_StackPtr);
+    Case cFlag of
+      1: // INK
+        Begin
+          Colour := Round(SP_StackPtr^.Val);
+          If Colour = -1 Then Colour := CINK;
+          Dec(SP_StackPtr);
+        End;
+      2: // Texture
+        Begin
+          TexBank := Round(SP_StackPtr^.Val);
+          Dec(SP_StackPtr);
+          For i := 0 To (nV * 2) -1 Do Begin
+            Uvs[i] := SP_StacKPtr^.Val;
+            Dec(SP_StackPtr);
+          End;
+        End;
+    End;
+    SP_Model_Poly(BankID, Vertices, UVs, Colour, TexBank, Info^.Error^);
+  End;
+End;
+
+Procedure SP_Interpret_MODEL_VERTEXARRAY(Var Info: pSP_iInfo);
+Var BankID, ArrIdx: Integer; VarName: aString; Idx: Integer;
+Begin
+  BankID  := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  VarName := Lower(SP_StackPtr^.Str);  Dec(SP_StackPtr);
+  ArrIdx  := -1;
+  For Idx := 0 To Length(NumArrays)-1 Do
+    If NumArrays[Idx].Name = VarName Then Begin ArrIdx := Idx; Break; End;
+  If ArrIdx < 0 Then Begin Info^.Error^.Code := SP_ERR_ARRAY_NOT_FOUND; Exit; End;
+  SP_Model_VertexArray(BankID, ArrIdx, Info^.Error^);
+End;
+
+Procedure SP_Interpret_MODEL_FACEARRAY(Var Info: pSP_iInfo);
+Var BankID, ArrIdx: Integer; VarName: aString; Idx: Integer;
+Begin
+  BankID  := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  VarName := Lower(SP_StackPtr^.Str);  Dec(SP_StackPtr);
+  ArrIdx  := -1;
+  For Idx := 0 To Length(NumArrays)-1 Do
+    If NumArrays[Idx].Name = VarName Then Begin ArrIdx := Idx; Break; End;
+  If ArrIdx < 0 Then Begin Info^.Error^.Code := SP_ERR_ARRAY_NOT_FOUND; Exit; End;
+  SP_Model_FaceArray(BankID, ArrIdx, Info^.Error^);
+End;
+
+Procedure SP_Interpret_MODEL_SHADING(Var Info: pSP_iInfo);
+Var BankID, Smooth, Solid: Integer;
+Begin
+  BankID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  Smooth := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  Solid  := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  If Smooth in [0, 1] Then
+    SP_Model_SetShading(BankID, Smooth <> 0, Info^.Error^)
+  Else
+    SP_Model_SetWireframe(BankID, True, Smooth = 3, Solid <> 0, Info^.Error^);
+End;
+
+Procedure SP_Interpret_MODEL_INK(Var Info: pSP_iInfo);
+Var BankID, Ink: Integer;
+Begin
+  BankID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  Ink    := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  SP_Model_SetColourOverride(BankID, Ink, Info^.Error^);
+End;
+
+Procedure SP_Interpret_MODEL_SETVERT(Var Info: pSP_iInfo);
+Var
+  BankID, Idx: Integer;
+  x, y, z: aFloat;
+Begin
+  BankID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  Idx    := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  x      := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  y      := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  z      := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  SP_Model_SetVert(BankID, Idx, x, y, z, Info^.Error^);
+End;
+
+Procedure SP_Interpret_FN_MODELPLAYING(Var Info: pSP_iInfo);
+Begin
+  SP_StackPtr^.Val := IfThen(SP_Model_IsPlaying(Round(SP_StackPtr^.Val), Info^.Error^), 1.0, 0.0);
+End;
+
+Procedure SP_Interpret_MODEL_UV(Var Info: pSP_iInfo);
+Var
+  BankID, FaceID, Cnt, i: Integer;
+  UVs: Array of aFloat;
+Begin
+  // model,face,u0,v0,u1,v1,u2,v2
+  BankID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  FaceID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  Cnt    := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  SetLength(UVs, Cnt);
+  For i := 0 To Cnt -1 Do Begin
+    UVs[i] := Round(SP_StackPtr^.Val);
+    Dec(SP_StackPtr);
+  End;
+  SP_Model_UpdateUv(BankID, FaceID, UVs, Info^.Error^);
+End;
+
+Procedure SP_Interpret_MODEL_BUILD(Var Info: pSP_iInfo);
+Begin
+  SP_Model_Build(Round(SP_StackPtr^.Val), Info^.Error^);
+  Dec(SP_StackPtr);
+End;
+
+Procedure SP_Interpret_MODEL_AT(Var Info: pSP_iInfo);
+Var
+  BankID, InstID, ParentID: Integer; X, Y, Z, RX, RY, RZ, Scale: aFloat;
+  IsBillBoard: Boolean;
+Begin
+  // Converter pushed: scale(bottom) .. inst(top)
+  BankID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  X      := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  Y      := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  Z      := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  RX     := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  RY     := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  RZ     := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  Scale  := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  ParentID    := Round(SP_StackPtr^.Val); Dec(SP_StackPtr);
+  IsBillboard := SP_StackPtr^.Val <> 0;   Dec(SP_StackPtr);
+  // Push allocated instance ID; VarResult handles the assignment
+  InsTID := SP_Model_Place(BankID, X, Y, Z, RX, RY, RZ, Scale, Info^.Error^);
+  Inc(SP_StackPtr);
+  SP_StackPtr^.Val := InstID;
+  If IsBillboard Then
+    SP_Model_SetBillboard(InstID, True, Info^.Error^);
+  If ParentID >= 0 Then
+    SP_Model_SetParent(InstID, ParentID, Info^.Error^);
+End;
+
+Procedure SP_Interpret_MODEL_BILLBOARD(Var Info: pSP_iInfo);
+Begin
+  SP_Model_SetBillboard(Round(SP_StackPtr^.Val), True, Info^.Error^);
+  Dec(SP_StackPtr);
+End;
+
+Procedure SP_Interpret_MODEL_MOVE(Var Info: pSP_iInfo);
+Var InstID: Integer; DX, DY, DZ: aFloat;
+Begin
+  InstID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  DX     := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  DY     := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  DZ     := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  SP_Model_Move(InstID, DX, DY, DZ, Info^.Error^);
+End;
+
+Procedure SP_Interpret_MODEL_MOVE_TO(Var Info: pSP_iInfo);
+Var InstID: Integer; DX, DY, DZ: aFloat;
+Begin
+  InstID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  DX     := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  DY     := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  DZ     := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  SP_Model_MoveTo(InstID, DX, DY, DZ, Info^.Error^);
+End;
+
+Procedure SP_Interpret_MODEL_ROTATE(Var Info: pSP_iInfo);
+Var InstID: Integer; DRX, DRY, DRZ: aFloat;
+Begin
+  InstID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  DRX    := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  DRY    := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  DRZ    := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  SP_Model_Turn(InstID, DRX, DRY, DRZ, Info^.Error^);
+End;
+
+Procedure SP_Interpret_MODEL_ROTATE_TO(Var Info: pSP_iInfo);
+Var InstID: Integer; DRX, DRY, DRZ: aFloat;
+Begin
+  InstID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  DRX    := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  DRY    := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  DRZ    := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  SP_Model_TurnTo(InstID, DRX, DRY, DRZ, Info^.Error^);
+End;
+
+Procedure SP_Interpret_MODEL_SCALE(Var Info: pSP_iInfo);
+Var InstID: Integer; S: aFloat;
+Begin
+  // Converter pushed: scale(bottom), inst(top)
+  InstID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  S      := SP_StackPtr^.Val;         Dec(SP_StackPtr);
+  SP_Model_Scale(InstID, S, Info^.Error^);
+End;
+
+Procedure SP_Interpret_MODEL_ERASE(Var Info: pSP_iInfo);
+Begin
+  SP_Model_Remove(Round(SP_StackPtr^.Val), Info^.Error^);
+  Dec(SP_StackPtr);
+End;
+
+Procedure SP_Interpret_MODEL_HIDE(Var Info: pSP_iInfo);
+Begin
+  SP_Model_Hide(Round(SP_StackPtr^.Val), Info^.Error^);
+  Dec(SP_StackPtr);
+End;
+
+Procedure SP_Interpret_MODEL_SHOW(Var Info: pSP_iInfo);
+Begin
+  SP_Model_Show(Round(SP_StackPtr^.Val), Info^.Error^);
+  Dec(SP_StackPtr);
+End;
+
+Procedure SP_Interpret_MODEL_PARENT(Var Info: pSP_iInfo);
+Var InstID, ParentID: Integer;
+Begin
+  InstID   := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  ParentID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  SP_Model_SetParent(InstID, ParentID, Info^.Error^);
+End;
+
+Procedure SP_Interpret_CAMERA(Var Info: pSP_iInfo);
+Var X, Y, Z, RX, RY, RZ, FOV: aFloat;
+Begin
+  // Converter pushed: fov(bottom) .. x(top)
+  X   := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  Y   := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  Z   := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  RX  := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  RY  := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  RZ  := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  FOV := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  SP_3D_Camera(X, Y, Z, RX, RY, RZ, FOV);
+End;
+
+Procedure SP_Interpret_CAMERA_MOVE(Var Info: pSP_iInfo);
+Var DX, DY, DZ: aFloat;
+Begin
+  DX := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  DY := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  DZ := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  SP_3D_CameraMove(DX, DY, DZ);
+End;
+
+Procedure SP_Interpret_CAMERA_ROTATE(Var Info: pSP_iInfo);
+Var DRX, DRY, DRZ: aFloat;
+Begin
+  DRX := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  DRY := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  DRZ := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  SP_3D_CameraTurn(DRX, DRY, DRZ);
+End;
+
+Procedure SP_Interpret_RENDER(Var Info: pSP_iInfo);
+Var
+  WinInfo: pSP_Window_Info;
+  WinID, SceneID, ThreadCount: Integer;
+Begin
+  // sceneID, window/gfxID ($FFFFFF is not specified) then ASYNC threads (-1 for no ASYNC)
+  SceneID := Round(SP_StackPtr^.Val); Dec(SP_StackPtr);
+  WinID   := Round(SP_StackPtr^.Val); Dec(SP_StackPtr);
+  If WinID = $FFFFFF Then
+    WinID := SCREENBANK;
+  ThreadCount := Round(SP_StackPtr^.Val); Dec(SP_StackPtr);
+
+  If WinID >= 0 Then Begin
+    // Window target
+    SP_GetWindowDetails(WinID, WinInfo, Info^.Error^);
+    If Info^.Error^.Code = SP_ERR_OK Then
+      If WinInfo^.Bpp = 8 Then
+        SP_3D_Render(WinID, SceneID, ThreadCount, Info^.Error^)
+      Else
+        SP_3D_Render32(WinID, SceneID, ThreadCount, Info^.Error^);
+  End Else Begin
+    // Graphic, Always 8bpp
+    SP_3D_Render(WinID, SceneID, ThreadCount, Info^.Error^)
+  End;
+End;
+
+Procedure SP_Interpret_LIGHT_TO(Var Info: pSP_iInfo);
+Var DX, DY, DZ: aFloat;
+Begin
+  DX := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  DY := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  DZ := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  SP_3D_LightDir(DX, DY, DZ);
+End;
+
+Procedure SP_Interpret_LIGHT_COLOUR(Var Info: pSP_iInfo);
+Var
+  R, G, B: aFloat;
+  i: LongWord;
+Begin
+  R := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  G := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  B := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  If (G = -1) And (B = -1) Then Begin
+    i := Round(R);
+    R := (i And $FF0000) Shr 16;
+    G := (i And $FF00) Shr 8;
+    B := i And $FF;
+  End;
+  SP_3D_LightColour(R/255, G/255, B/255);
+End;
+
+Procedure SP_Interpret_LIGHT_AMBIENT(Var Info: pSP_iInfo);
+Begin
+  SP_3D_LightAmbient(SP_StackPtr^.Val);
+  Dec(SP_StackPtr);
+End;
+
+Procedure SP_Interpret_LIGHT_FOG(Var Info: pSP_iInfo);
+Var Near, Far: aFloat; Colour: Integer;
+Begin
+  Near   :=       SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  Far    :=       SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  Colour := Round(SP_StackPtr^.Val); Dec(SP_StackPtr);
+  SP_3D_Fog(Near, Far, Byte(Colour And $FF));
+End;
+
+Procedure SP_Interpret_LIGHT_FOG_OFF(Var Info: pSP_iInfo);
+Begin
+  SP_3D_FogOff;
+End;
+
+Procedure SP_Interpret_CAMERA_FACE(Var Info: pSP_iInfo);
+Var X, Y, Z: aFloat;
+Begin
+  // Stack top->bottom: x, y, z
+  X := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  Y := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  Z := SP_StackPtr^.Val;  Dec(SP_StackPtr);
+  SP_3D_CameraFacePoint(X, Y, Z);
+End;
+
+Procedure SP_Interpret_CAMERA_FACE_MODEL(Var Info: pSP_iInfo);
+Begin
+  SP_3D_CameraFaceInst(Round(SP_StackPtr^.Val), Info^.Error^);
+  Dec(SP_StackPtr);
+End;
+
+Procedure SP_Interpret_FN_MODELCOLL(Var Info: pSP_iInfo);
+Var InstA, InstB: Integer;
+Begin
+  // Stack top->bottom: inst1, inst2
+  InstA := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  InstB := Round(SP_StackPtr^.Val);
+  SP_StackPtr^.Val := IfThen(SP_3D_ModelColl(InstA, InstB, Info^.Error^), 1.0, 0.0);
+End;
+
+Procedure SP_Interpret_FN_POINT3D(Var Info: pSP_iInfo);
+Var SX, SY: Integer;
+Begin
+  // Stack top->bottom: sx, sy
+  SX := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  SY := Round(SP_StackPtr^.Val);
+  SP_StackPtr^.Val := SP_3D_Point3D(SX, SY, Info^.Error^);
+End;
+
+Procedure SP_Interpret_FN_FACEAT(Var Info: pSP_iInfo);
+Var InstID, SX, SY: Integer;
+Begin
+  // Stack top->bottom: inst, sx, sy
+  InstID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  SX     := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  SY     := Round(SP_StackPtr^.Val);
+  SP_StackPtr^.Val := SP_3D_FaceAt(InstID, SX, SY, Info^.Error^);
+End;
+
+Procedure SP_Interpret_MODEL_ADDFRAME(Var Info: pSP_iInfo);
+Var BankID: Integer; FrameName: aString;
+Begin
+  BankID    := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  FrameName := SP_StackPtr^.Str;         Dec(SP_StackPtr);
+  SP_Model_AddFrame(BankID, FrameName, Info^.Error^);
+End;
+
+Procedure SP_Interpret_MODEL_ANIM_PLAY(Var Info: pSP_iInfo);
+Var InstID: Integer; FrameA, FrameB: aString; Speed: aFloat;
+Begin
+  InstID  := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  FrameA  :=       SP_StackPtr^.Str;   Dec(SP_StackPtr);
+  FrameB  :=       SP_StackPtr^.Str;   Dec(SP_StackPtr);
+  Speed   :=       SP_StackPtr^.Val;   Dec(SP_StackPtr);
+  SP_Model_AnimPlay(InstID, FrameA, FrameB, Speed, Info^.Error^);
+End;
+
+Procedure SP_Interpret_MODEL_ANIM_STOP(Var Info: pSP_iInfo);
+Begin
+  SP_Model_AnimStop(Round(SP_StackPtr^.Val), Info^.Error^);
+  Dec(SP_StackPtr);
+End;
+
+Procedure SP_Interpret_MODEL_ANIM_FRAME(Var Info: pSP_iInfo);
+Var InstID: Integer; FrameName: aString;
+Begin
+  InstID    := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  FrameName := SP_StackPtr^.Str;         Dec(SP_StackPtr);
+  SP_Model_AnimFrame(InstID, FrameName, Info^.Error^);
+End;
+
+Procedure SP_Interpret_FN_MODELFRAME(Var Info: pSP_iInfo);
+Begin
+  SP_StackPtr^.Str := SP_Model_AnimGetFrame(Round(SP_StackPtr^.Val), Info^.Error^);
+End;
+
+Procedure SP_Interpret_FN_MODELX(Var Info: pSP_iInfo);
+Var
+  x, y, z: aFloat;
+Begin
+  SP_Model_GetPos(Round(SP_StackPtr^.Val), X, Y, Z, Info^.Error^);
+  SP_StackPtr^.Val := X;
+End;
+
+Procedure SP_Interpret_FN_MODELY(Var Info: pSP_iInfo);
+Var
+  x, y, z: aFloat;
+Begin
+  SP_Model_GetPos(Round(SP_StackPtr^.Val), X, Y, Z, Info^.Error^);
+  SP_StackPtr^.Val := Y;
+End;
+
+Procedure SP_Interpret_FN_MODELZ(Var Info: pSP_iInfo);
+Var
+  x, y, z: aFloat;
+Begin
+  SP_Model_GetPos(Round(SP_StackPtr^.Val), X, Y, Z, Info^.Error^);
+  SP_StackPtr^.Val := Z;
+End;
+
+Procedure SP_Interpret_FN_MODELRX(Var Info: pSP_iInfo);
+Var
+  rx, ry, rz: aFloat;
+Begin
+  SP_Model_GetPos(Round(SP_StackPtr^.Val), rX, rY, rZ, Info^.Error^);
+  SP_StackPtr^.Val := rX;
+End;
+
+Procedure SP_Interpret_FN_MODELRY(Var Info: pSP_iInfo);
+Var
+  rx, ry, rz: aFloat;
+Begin
+  SP_Model_GetPos(Round(SP_StackPtr^.Val), rX, rY, rZ, Info^.Error^);
+  SP_StackPtr^.Val := rY;
+End;
+
+Procedure SP_Interpret_FN_MODELRZ(Var Info: pSP_iInfo);
+Var
+  rx, ry, rz: aFloat;
+Begin
+  SP_Model_GetPos(Round(SP_StackPtr^.Val), rX, rY, rZ, Info^.Error^);
+  SP_StackPtr^.Val := rZ;
+End;
+
+Procedure SP_Interpret_FN_MODELSCALE(Var Info: pSP_iInfo);
+Var
+  s: aFloat;
+Begin
+  SP_Model_GetScale(Round(SP_StackPtr^.Val), s, Info^.Error^);
+  SP_StackPtr^.Val := s;
+End;
+
+Procedure SP_Interpret_FN_CAMERAX(Var Info: pSP_iInfo);
+Var
+  x, y, z, rx, ry, rz, fov: aFloat;
+Begin
+  SP_3D_GetCamera(X, Y, Z, RX, RY, RZ, FOV);
+  Inc(SP_StackPtr);
+  SP_StackPtr^.Val := X;
+End;
+
+Procedure SP_Interpret_FN_CAMERAY(Var Info: pSP_iInfo);
+Var
+  x, y, z, rx, ry, rz, fov: aFloat;
+Begin
+  SP_3D_GetCamera(X, Y, Z, RX, RY, RZ, FOV);
+  Inc(SP_StackPtr);
+  SP_StackPtr^.Val := Y;
+End;
+
+Procedure SP_Interpret_FN_CAMERAZ(Var Info: pSP_iInfo);
+Var
+  x, y, z, rx, ry, rz, fov: aFloat;
+Begin
+  SP_3D_GetCamera(X, Y, Z, RX, RY, RZ, FOV);
+  Inc(SP_StackPtr);
+  SP_StackPtr^.Val := Z;
+End;
+
+Procedure SP_Interpret_FN_CAMERARX(Var Info: pSP_iInfo);
+Var
+  x, y, z, rx, ry, rz, fov: aFloat;
+Begin
+  SP_3D_GetCamera(X, Y, Z, RX, RY, RZ, FOV);
+  Inc(SP_StackPtr);
+  SP_StackPtr^.Val := rX;
+End;
+
+Procedure SP_Interpret_FN_CAMERARY(Var Info: pSP_iInfo);
+Var
+  x, y, z, rx, ry, rz, fov: aFloat;
+Begin
+  SP_3D_GetCamera(X, Y, Z, RX, RY, RZ, FOV);
+  Inc(SP_StackPtr);
+  SP_StackPtr^.Val := rY;
+End;
+
+Procedure SP_Interpret_FN_CAMERARZ(Var Info: pSP_iInfo);
+Var
+  x, y, z, rx, ry, rz, fov: aFloat;
+Begin
+  SP_3D_GetCamera(X, Y, Z, RX, RY, RZ, FOV);
+  Inc(SP_StackPtr);
+  SP_StackPtr^.Val := rZ;
+End;
+
+Procedure SP_Interpret_FN_CAMERAFOV(Var Info: pSP_iInfo);
+Var
+  x, y, z, rx, ry, rz, fov: aFloat;
+Begin
+  SP_3D_GetCamera(X, Y, Z, RX, RY, RZ, FOV);
+  Inc(SP_StackPtr);
+  SP_StackPtr^.Val := fov;
+End;
+
+Procedure SP_Interpret_SETNEAR(Var Info: pSP_iInfo);
+Begin
+  SP_3D_SetNearPlane(SP_StackPtr^.Val);
+End;
+
 Initialization
 
   ONCtrlLock := TCriticalSection.Create;
@@ -28673,9 +29284,54 @@ Initialization
   InterpretProcs[SP_KW_THREAD] := @SP_Interpret_THREAD;
   InterpretProcs[SP_KW_WIN_DECOR]   := @SP_Interpret_WIN_DECOR;
   InterpretProcs[SP_KW_WIN_CAPTION] := @SP_Interpret_WIN_CAPTION;
+  InterpretProcs[SP_KW_SCENE_NEW]     := @SP_Interpret_SCENE_NEW;
+  InterpretProcs[SP_KW_SCENE_USE]     := @SP_Interpret_SCENE_USE;
+  InterpretProcs[SP_KW_SCENE_CLEAR]   := @SP_Interpret_SCENE_CLEAR;
+  InterpretProcs[SP_KW_SCENE_ERASE]   := @SP_Interpret_SCENE_ERASE;
+  InterpretProcs[SP_KW_MODEL_NEW]     := @SP_Interpret_MODEL_NEW;
+  InterpretProcs[SP_KW_MODEL_VERTEX]  := @SP_Interpret_MODEL_VERTEX;
+  InterpretProcs[SP_KW_MODEL_FACE]    := @SP_Interpret_MODEL_FACE;
+  InterpretProcs[SP_KW_MODEL_BUILD]   := @SP_Interpret_MODEL_BUILD;
+  InterpretProcs[SP_KW_MODEL_AT]      := @SP_Interpret_MODEL_AT;
+  InterpretProcs[SP_KW_MODEL_MOVE]    := @SP_Interpret_MODEL_MOVE;
+  InterpretProcs[SP_KW_MODEL_MOVE_TO] := @SP_Interpret_MODEL_MOVE_TO;
+  InterpretProcs[SP_KW_MODEL_ROTATE]  := @SP_Interpret_MODEL_ROTATE;
+  InterpretProcs[SP_KW_MODEL_ROTATE_TO]  := @SP_Interpret_MODEL_ROTATE_TO;
+  InterpretProcs[SP_KW_MODEL_SCALE]   := @SP_Interpret_MODEL_SCALE;
+  InterpretProcs[SP_KW_MODEL_ERASE]   := @SP_Interpret_MODEL_ERASE;
+  InterpretProcs[SP_KW_MODEL_HIDE]    := @SP_Interpret_MODEL_HIDE;
+  InterpretProcs[SP_KW_MODEL_SHOW]    := @SP_Interpret_MODEL_SHOW;
+  InterpretProcs[SP_KW_CAMERA]        := @SP_Interpret_CAMERA;
+  InterpretProcs[SP_KW_CAMERA_MOVE]   := @SP_Interpret_CAMERA_MOVE;
+  InterpretProcs[SP_KW_CAMERA_ROTATE] := @SP_Interpret_CAMERA_ROTATE;
+  InterpretProcs[SP_KW_RENDER]        := @SP_Interpret_RENDER;
+  InterpretProcs[SP_KW_LIGHT_TO]      := @SP_Interpret_LIGHT_TO;
+  InterpretProcs[SP_KW_LIGHT_AMBIENT] := @SP_Interpret_LIGHT_AMBIENT;
+  InterpretProcs[SP_KW_LIGHT_FOG]     := @SP_Interpret_LIGHT_FOG;
+  InterpretProcs[SP_KW_LIGHT_FOG_OFF] := @SP_Interpret_LIGHT_FOG_OFF;
+  InterpretProcs[SP_KW_MODEL_UV]      := @SP_Interpret_MODEL_UV;
+  InterpretProcs[SP_KW_MODEL_BILLBOARD] := @SP_Interpret_MODEL_BILLBOARD;
+  InterpretProcs[SP_KW_CAMERA_FACE]       := @SP_Interpret_CAMERA_FACE;
+  InterpretProcs[SP_KW_CAMERA_FACE_MODEL] := @SP_Interpret_CAMERA_FACE_MODEL;
+  InterpretProcs[SP_FN_MODELCOLL]         := @SP_Interpret_FN_MODELCOLL;
+  InterpretProcs[SP_FN_POINT3D]           := @SP_Interpret_FN_POINT3D;
+  InterpretProcs[SP_FN_FACEAT]            := @SP_Interpret_FN_FACEAT;
+  InterpretProcs[SP_KW_MODEL_VERTEXARRAY] := @SP_Interpret_MODEL_VERTEXARRAY;
+  InterpretProcs[SP_KW_MODEL_FACEARRAY]   := @SP_Interpret_MODEL_FACEARRAY;
+  InterpretProcs[SP_KW_MODEL_SHADING]     := @SP_Interpret_MODEL_SHADING;
+  InterpretProcs[SP_KW_MODEL_INK]         := @SP_Interpret_MODEL_INK;
+  InterpretProcs[SP_KW_MODEL_ADDFRAME]  := @SP_Interpret_MODEL_ADDFRAME;
+  InterpretProcs[SP_KW_MODEL_ANIM_PLAY] := @SP_Interpret_MODEL_ANIM_PLAY;
+  InterpretProcs[SP_KW_MODEL_ANIM_STOP] := @SP_Interpret_MODEL_ANIM_STOP;
+  InterpretProcs[SP_KW_MODEL_ANIM_FRAME]:= @SP_Interpret_MODEL_ANIM_FRAME;
+  InterpretProcs[SP_KW_MODEL_SETVERT] := @SP_Interpret_MODEL_SETVERT;
+  InterpretProcs[SP_KW_MODEL_PARENT] := @SP_Interpret_MODEL_PARENT;
+  InterpretProcs[SP_KW_SETNEAR] := @SP_Interpret_SETNEAR;
+  InterpretProcs[SP_KW_LIGHT_COLOUR] := @SP_Interpret_LIGHT_COLOUR;
 
   // Functions
 
+  InterpretProcs[SP_FN_MODELFRAME] := @SP_Interpret_FN_MODELFRAME;
   InterpretProcs[SP_FN_ITEM] := @SP_Interpret_FN_ITEM;
   InterpretProcs[SP_FN_GPOINT] := @SP_Interpret_FN_GPOINT;
   InterpretProcs[SP_FN_GRGB] := @SP_Interpret_FN_GRGB;
@@ -28952,6 +29608,21 @@ Initialization
   InterpretProcs[SP_FN_FILEREQ] := @SP_Interpret_FN_FILEREQ;
   InterpretProcs[SP_FN_CTRLATTR] := @SP_Interpret_FN_CTRLATTR;
   InterpretProcs[SP_FN_TRANSLATES] := @SP_Interpret_FN_TRANSLATES;
+  InterpretProcs[SP_FN_MODELPLAYING]    := @SP_Interpret_FN_MODELPLAYING;
+  InterpretProcs[SP_FN_MODELX]    := @SP_Interpret_FN_MODELX;
+  InterpretProcs[SP_FN_MODELY]    := @SP_Interpret_FN_MODELY;
+  InterpretProcs[SP_FN_MODELZ]    := @SP_Interpret_FN_MODELZ;
+  InterpretProcs[SP_FN_MODELRX]    := @SP_Interpret_FN_MODELRX;
+  InterpretProcs[SP_FN_MODELRY]    := @SP_Interpret_FN_MODELRY;
+  InterpretProcs[SP_FN_MODELRZ]    := @SP_Interpret_FN_MODELRZ;
+  InterpretProcs[SP_FN_MODELSCALE]    := @SP_Interpret_FN_MODELSCALE;
+  InterpretProcs[SP_FN_CAMERAX]    := @SP_Interpret_FN_CAMERAX;
+  InterpretProcs[SP_FN_CAMERAY]    := @SP_Interpret_FN_CAMERAY;
+  InterpretProcs[SP_FN_CAMERAZ]    := @SP_Interpret_FN_CAMERAZ;
+  InterpretProcs[SP_FN_CAMERARX]    := @SP_Interpret_FN_CAMERARX;
+  InterpretProcs[SP_FN_CAMERARY]    := @SP_Interpret_FN_CAMERARY;
+  InterpretProcs[SP_FN_CAMERARZ]    := @SP_Interpret_FN_CAMERARZ;
+  InterpretProcs[SP_FN_CAMERAFOV]    := @SP_Interpret_FN_CAMERAFOV;
   InterpretProcs[SP_FN_THREADCOUNT] := @SP_Interpret_FN_THREADCOUNT;
 
   // Tokens

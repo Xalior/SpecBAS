@@ -58,6 +58,7 @@ Procedure SP_RadToAngle(var Angle: aFloat); inline;
 Procedure SP_AngleToRad(var Angle: aFloat); inline;
 Procedure SP_InitialGfxSetup(W, H: Integer; IsNEW: Boolean);
 Procedure SP_CreateSystemUDGs(ID: Integer);
+Procedure SP_SetDefaultColours;
 Procedure SP_ForceScreenUpdate;
 Procedure SP_WaitForSync;
 Function  SP_GetPalette(Idx: Integer): LongWord;
@@ -101,6 +102,7 @@ Procedure SP_Restore_Lower;
 Function  SP_LineClip(Var x1, y1, x2, y2: Integer; cx1, cy1, cx2, cy2: Integer): Boolean;
 Procedure SP_DrawLine(X2, Y2: aFloat);
 Procedure SP_DrawLineEx(X1, Y1, X2, Y2: aFloat);
+Procedure SP_DrawLineTo(X1, Y1, X2, Y2: Integer; Ink: Byte);
 Procedure SP_DrawRect(x1, y1, x2, y2: Integer; Ink: Byte);
 Procedure SP_DrawSpeccyCurve(X, Y, Angle: aFloat);
 Procedure SP_DrawEllipse(CX, CY, Rx, Ry: Integer; Angle: aFloat);
@@ -834,7 +836,23 @@ Begin
 
   SP_GetFontCharMetrics(ID);
 
-ENd;
+End;
+
+Procedure SP_SetDefaultColours;
+Begin
+
+  CINK := 0;
+  CPAPER := 8;
+  CINVERSE := 0;
+  COVER := 0;
+  CSCALEX := 1;
+  CSCALEY := 1;
+  CSTROKE := 1;
+  CTRANSPARENT := False;
+  CPROP := 0;
+  SP_Reset_Temp_Colours;
+
+End;
 
 Procedure SP_InitialGfxSetup(W, H: Integer; IsNEW: Boolean);
 Var
@@ -850,16 +868,7 @@ Begin
 
   // Default colours
 
-  CINK := 0;
-  CPAPER := 8;
-  CINVERSE := 0;
-  COVER := 0;
-  CSCALEX := 1;
-  CSCALEY := 1;
-  CSTROKE := 1;
-  CTRANSPARENT := False;
-  CPROP := 0;
-
+  SP_SetDefaultColours;
   CHSPACE := 1;
 
   CBLACK := SP_Colour(0, 0, 0);
@@ -1151,6 +1160,7 @@ Begin
       w := Width;
       h := Height;
       b := 8;
+      SP_SetDefaultColours;
     End;
     Idx2 := 1;
     While Idx2 < Length(SP_BankList) Do Begin

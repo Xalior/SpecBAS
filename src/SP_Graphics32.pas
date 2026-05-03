@@ -67,6 +67,7 @@ Type
   Procedure SP_FillRect32(X, Y, W, H: Integer; Colour: LongWord);
   Procedure SP_DrawLine32(X2, Y2: aFloat);
   Procedure SP_DrawLine32Ex(X1, Y1, X2, Y2: aFloat);
+  Procedure SP_DrawLineTo32(X1, Y1, X2, Y2: Integer; Ink: LongWord);
   Procedure SP_DrawSpeccyCurve32(X, Y, Angle: aFloat);
   Procedure SP_DrawCurve32(CurveStartX, CurveStartY, X, Y, CurveEndX, CurveEndY: aFloat; N: Integer);
   Procedure SP_DrawCurveAdaptive32(x1, y1, cx, cy, x2, y2: aFloat);
@@ -1294,6 +1295,105 @@ begin
 
     DRPOSX := DrX;
     DRPOSY := DrY;
+
+  End;
+
+end;
+
+Procedure SP_DrawLineTo32(X1, Y1, X2, Y2: Integer; Ink: LongWord);
+var
+  x3, y3, d, ax, ay, sx, sy, dx, dy: Integer;
+  Ptr: pLongWord;
+  stsy: Integer;
+  flip: Boolean;
+  t: LongWord;
+begin
+
+  If T_STROKE > 1 Then Begin
+
+    t := T_INK;
+    T_INK := Ink;
+    SP_DrawThickLine32(X1, Y1, X2 + X1, Y2 + Y1);
+    T_INK := t;
+
+  End Else Begin
+
+    x3 := x2;
+    y3 := y2;
+
+    If (x1 < T_CLIPX1) or (y1 < T_CLIPY1) or (x1 >= T_CLIPX2) or (y1 >= T_CLIPY2) Then
+      SKIPFIRSTPOINT := False;
+
+    flip := False;
+    If y2 < y1 then Begin
+      flip := True;
+      y1 := y1 Xor y3; y3 := y1 Xor y3; y1 := y1 Xor y3;
+      x1 := x1 Xor x3; x3 := x1 Xor x3; x1 := x1 Xor x3;
+    End;
+
+    If SP_LineClip(x1, y1, x3, y3, T_CLIPX1, T_CLIPY1, T_CLIPX2, T_CLIPY2) Then Begin
+
+      If SCREENVISIBLE Then SP_SetDirtyRectEx(SCREENX +X1, SCREENY + Y1, SCREENX + X3, SCREENY + Y3);
+
+      dx := x3 - x1;
+      ax := Abs(dx) shl 1;
+      if dx < 0 then
+        sx := -1
+      else
+        sx := 1;
+
+      dy := y3 - y1;
+      ay := Abs(dy) shl 1;
+      if dy < 0 then
+        sy := -1
+      else
+        sy := 1;
+
+      SP_BankList[0]^.Changed := True;
+
+      Ptr := pLongWord(NativeUInt(SCREENPOINTER) + (y1 * SCREENSTRIDE) + (x1 * SizeOf(RGBA)));
+      stsy := SCREENWIDTH * sy;
+
+      If Not SKIPFIRSTPOINT Then
+        Ptr^ := Ink
+      Else
+        If Flip Then
+          Ptr^ := Ink;
+      If ax > ay Then Begin
+        d := ay - (ax shr 1);
+        If SKIPFIRSTPOINT And flip Then
+          if x1 < x3 then Dec(x3) else inc(x3);
+        while x1 <> x3 do begin
+          if d > -1 then begin
+            Inc(Ptr, stsy);
+            Dec(d, ax);
+          end;
+          Inc(Ptr, sx);
+          Inc(x1, sx);
+          Inc(d, ay);
+          Ptr^ := Ink;
+        end;
+      end else begin
+        d := ax - (ay shr 1);
+        If SKIPFIRSTPOINT And flip Then
+          Dec(y3);
+        while y1 < y3 do begin
+          if d > -1 then begin
+            Inc(Ptr, sx);
+            Dec(d, ay);
+          end;
+          Inc(Ptr, stsy);
+          Inc(y1, sy);
+          Inc(d, ax);
+          Ptr^ := Ink;
+        end;
+      end;
+      If Not SKIPFIRSTPOINT and flip Then
+        Ptr^ := Ink;
+
+      SP_BankList[0]^.Changed := True;
+
+    End;
 
   End;
 

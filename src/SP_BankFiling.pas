@@ -235,6 +235,20 @@ Type
   Function  SP_BankToString(BankID: Integer): aString;
   Procedure SP_BankFromString(InBank: aString);
 
+  // 3D bank filing hooks — registered by SP_3DEngineUnit at startup.
+  // SP_BankFiling does not depend on SP_3DEngineUnit; the hooks break the
+  // circular dependency and allow model/scene banks to participate in the
+  // normal SaveBankAsText / LoadBankFromText / BankFromString flows.
+Type
+  TSP_3DBankSaveHook     = Procedure(INI: TAnsiStringList; Bank: pSP_Bank);
+  TSP_3DBankLoadHook     = Procedure(BankType: aString; INI: TAnsiStringList; Bank: pSP_Bank);
+  TSP_3DBankPostLoadHook = Procedure(Bank: pSP_Bank);
+
+Var
+  SP_3D_Hook_SaveBank  : TSP_3DBankSaveHook     = Nil;
+  SP_3D_Hook_LoadBank  : TSP_3DBankLoadHook     = Nil;
+  SP_3D_Hook_PostLoad  : TSP_3DBankPostLoadHook = Nil;
+
 implementation
 
 Uses SP_FileIO, SP_Tokenise, SP_BankManager, SP_SysVars, SP_Graphics, SP_Sound;
@@ -802,7 +816,15 @@ Begin
 
                         Bank^.DataType := SP_TILEMAP_BANK;
 
-                      End;
+                      End Else
+                        If (BankType = 'Model Bank') Or (BankType = 'Scene Bank') Then Begin
+
+                          If Assigned(SP_3D_Hook_LoadBank) Then
+                            SP_3D_Hook_LoadBank(BankType, INI, Bank)
+                          Else
+                            Error.Code := SP_ERR_INVALID_BANK;
+
+                        End;
 
       End Else
         Error.Code := SP_ERR_INVALID_BANK;
@@ -897,6 +919,11 @@ Begin
         Begin
           SP_GetFontCharMetrics(SP_BankList[BankID].ID);
         End;
+
+      SP_MODEL_BANK,
+      SP_SCENE_BANK:
+        If Assigned(SP_3D_Hook_PostLoad) Then
+          SP_3D_Hook_PostLoad(SP_BankList[BankID]);
 
     End;
 
@@ -1155,6 +1182,10 @@ Begin
             INIWriteInt(INI, 'Info', 'DrawH', tMap^.DrawH);
             WriteData;
           End;
+        SP_MODEL_BANK,
+        SP_SCENE_BANK:
+          If Assigned(SP_3D_Hook_SaveBank) Then
+            SP_3D_Hook_SaveBank(INI, Bank);
       End;
 
       INIWriteInt(INI, 'Bank Info', 'OriginalID', Bank^.ID);
@@ -1254,6 +1285,10 @@ Begin
         Gfx := pSP_Graphic_Info(@SP_BankList[Idx].Info[0]);
         Gfx^.Data := @Bank^.Memory[0];
       End;
+    SP_MODEL_BANK,
+    SP_SCENE_BANK:
+      If Assigned(SP_3D_Hook_PostLoad) Then
+        SP_3D_Hook_PostLoad(SP_BankList[Idx]);
   End;
 
 End;
