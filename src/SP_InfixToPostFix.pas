@@ -138,6 +138,7 @@ Function  SP_Convert_FONT(Var KeyWordID: LongWord; Var Tokens: aString; Var Posi
 Function  SP_Convert_BANK(Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
 Function  SP_Convert_WAIT(Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
 Function  SP_Convert_STREAM(Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Function  SP_Convert_SOCKET(Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
 Function  SP_Convert_SETDIR(Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
 Function  SP_Convert_COMPILE(Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
 Function  SP_Convert_LABEL(Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
@@ -648,6 +649,7 @@ Begin
     SP_KW_BANK: Result := Result + SP_Convert_BANK(KeyWordID, Tokens, Position, Error);
     SP_KW_WAIT: Result := Result + SP_Convert_WAIT(KeyWordID, Tokens, Position, Error);
     SP_KW_STREAM: Result := Result + SP_Convert_STREAM(KeyWordID, Tokens, Position, Error);
+    SP_KW_SOCKET: Result := Result + SP_Convert_SOCKET(KeyWordID, Tokens, Position, Error);
     SP_KW_SETDIR, SP_KW_CD: Result := Result + SP_Convert_SETDIR(Tokens, Position, Error);
     SP_KW_COMPILE: Result := Result + SP_Convert_COMPILE(Tokens, Position, Error);
     SP_KW_LABEL: Result := Result + SP_Convert_LABEL(Tokens, Position, Error);
@@ -1255,7 +1257,8 @@ Begin
             SP_FN_LOBYTE, SP_FN_NUBMODE, SP_FN_NUBX, SP_FN_NUBY, SP_FN_LTOPX, SP_FN_LTOPY, SP_FN_PTOLX, SP_FN_PTOLY,
             SP_FN_SPFRAME, SP_FN_SPCOLL, SP_FN_MEMRD, SP_FN_DMEMRD, SP_FN_QMEMRD, SP_FN_FMEMRD, SP_FN_DATADDR, SP_FN_WINADDR, SP_FN_PAR,
             SP_FN_SINH, SP_FN_COSH, SP_FN_TANH, SP_FN_ASNH, SP_FN_ACSH, SP_FN_ATNH, SP_FN_BITCNT, SP_FN_HIBIT, SP_FN_MODELPLAYING,
-            SP_FN_MODELX, SP_FN_MODELY, SP_FN_MODELZ, SP_FN_MODELRX, SP_FN_MODELRY, SP_FN_MODELRZ, SP_FN_MODELSCALE:
+            SP_FN_MODELX, SP_FN_MODELY, SP_FN_MODELZ, SP_FN_MODELRX, SP_FN_MODELRY, SP_FN_MODELRZ, SP_FN_MODELSCALE,
+            SP_FN_SOCKETSIZE, SP_FN_SOCKETSTATE, SP_FN_SOCKETPORT:
               Begin
                 If (StackPtr < 0) or (Stack[StackPtr] <> SP_VALUE) Then Begin
                   Error.Code := SP_ERR_MISSING_NUMEXPR;
@@ -1278,7 +1281,8 @@ Begin
 
             // Functions that take one String parameter and return a numeric:
 
-            SP_FN_CODE, SP_FN_DCODE, SP_FN_QCODE, SP_FN_FCODE, SP_FN_VAL, SP_FN_LEN, SP_FN_GETOPT, SP_FN_FEXISTS, SP_FN_IVAL, SP_FN_DEXISTS:
+            SP_FN_CODE, SP_FN_DCODE, SP_FN_QCODE, SP_FN_FCODE, SP_FN_VAL, SP_FN_LEN, SP_FN_GETOPT, SP_FN_FEXISTS, SP_FN_IVAL, SP_FN_DEXISTS,
+            SP_FN_SOCKETADDRS:
               Begin
                 If (StackPtr < 0) Or (Stack[StackPtr] <> SP_STRING) Then Begin
                   Error.Code := SP_ERR_MISSING_STREXPR;
@@ -3214,7 +3218,7 @@ Begin
             SP_FN_DMEMRD, SP_FN_QMEMRD, SP_FN_FMEMRD, SP_FN_DATADDR, SP_FN_WINADDR, SP_FN_MILLISECONDS, SP_FN_PAR, SP_FN_SINH,
             SP_FN_COSH, SP_FN_TANH, SP_FN_ASNH, SP_FN_ACSH, SP_FN_ATNH, SP_FN_PARAMS, SP_FN_REVS, SP_FN_BITCNT, SP_FN_HIBIT, SP_FN_DEXISTS,
             SP_FN_TRANSLATES, SP_FN_MODELPLAYING, SP_FN_MODELX, SP_FN_MODELY, SP_FN_MODELZ, SP_FN_MODELRX, SP_FN_MODELRY, SP_FN_MODELRZ,
-            SP_FN_MODELSCALE:
+            SP_FN_MODELSCALE, SP_FN_SOCKETSIZE, SP_FN_SOCKETSTATE, SP_FN_SOCKETPORT, SP_FN_SOCKETADDRS:
               Begin
                 Inc(Position, SizeOf(LongWord));
                 FnResult := SP_Convert_Expr(Tokens, Position, Error, 14);
@@ -12442,6 +12446,231 @@ Begin
   If Error.Code = SP_ERR_OK Then
     If Error.ReturnType <> SP_STRING Then
       Error.Code := SP_ERR_MISSING_STREXPR;
+
+End;
+
+// ---------------------------------------------------------------------------
+// SP_Convert_SOCKET
+//   SOCKET CONNECT  host$, port TO numvar
+//   SOCKET LISTEN   port [, backlog] TO numvar
+//   SOCKET ACCEPT   listenid TO numvar
+//   SOCKET SEND     id, data$
+//   SOCKET RECV     id [, maxbytes] TO strvar
+//   SOCKET RECV LINE id TO strvar
+//   SOCKET CLOSE    id
+//   SOCKET NOBLOCK  id
+//   SOCKET TIMEOUT  id, ms
+//   SOCKET UDP      host$, port TO numvar
+// ---------------------------------------------------------------------------
+Function SP_Convert_SOCKET(Var KeyWordID: LongWord; Var Tokens: aString;
+                            Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Var
+  Expr, VarResult, Expr2: aString;
+  KeyWordPos: LongWord;
+  SubKW: LongWord;
+Begin
+  Result := '';
+
+  If Byte(Tokens[Position]) <> SP_KEYWORD Then Begin
+    Error.Code := SP_ERR_SYNTAX_ERROR; Exit;
+  End;
+
+  KeyWordPos := Position;
+  SubKW      := pLongWord(@Tokens[Position+1])^;
+  Inc(Position, 1 + SizeOf(LongWord));
+
+  Case SubKW Of
+
+    SP_KW_CONNECT: Begin
+      // SOCKET CONNECT host$, port TO numvar
+      Expr := SP_Convert_Expr(Tokens, Position, Error, -1);  // host$
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_STRING Then Begin Error.Code := SP_ERR_MISSING_STREXPR; Exit; End;
+      If Not ((Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',')) Then Begin Error.Code := SP_ERR_MISSING_COMMA; Exit; End;
+      Inc(Position, 2);
+      Expr2 := SP_Convert_Expr(Tokens, Position, Error, -1);  // port
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+      If Not ((Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position+1])^ = SP_KW_TO)) Then Begin Error.Code := SP_ERR_MISSING_TO; Exit; End;
+      Inc(Position, 1 + SizeOf(LongWord));
+      If Byte(Tokens[Position]) <> SP_NUMVAR Then Begin Error.Code := SP_ERR_MISSING_VARIABLE; Exit; End;
+      VarResult := SP_Convert_Var_Assign(Tokens, Position, Error);
+      If Error.Code <> SP_ERR_OK Then Exit;
+      // Stack: host$, port — result goes to VarResult
+      Result    := Expr2 + Expr +
+                   CreateToken(SP_KEYWORD, KeyWordPos, SizeOf(LongWord)) +
+                   LongWordToString(SP_KW_SOCKET_CONNECT) + VarResult;
+      If pToken(@VarResult[1])^.Token In [SP_STRVAR_LET, SP_NUMVAR_LET] Then
+        KeyWordID := 0
+      Else
+        KeyWordID := SP_KW_LET;
+    End;
+
+    SP_KW_LISTEN: Begin
+      // SOCKET LISTEN port [, backlog] TO numvar
+      Expr := SP_Convert_Expr(Tokens, Position, Error, -1);  // port
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+      // Optional backlog
+      If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',') Then Begin
+        Inc(Position, 2);
+        Expr2 := SP_Convert_Expr(Tokens, Position, Error, -1);
+        If Error.Code <> SP_ERR_OK Then Exit;
+        If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+      End Else
+        Expr2 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(5);  // default backlog
+      If Not ((Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position+1])^ = SP_KW_TO)) Then Begin Error.Code := SP_ERR_MISSING_TO; Exit; End;
+      Inc(Position, 1 + SizeOf(LongWord));
+      If Byte(Tokens[Position]) <> SP_NUMVAR Then Begin Error.Code := SP_ERR_MISSING_VARIABLE; Exit; End;
+      VarResult := SP_Convert_Var_Assign(Tokens, Position, Error);
+      If Error.Code <> SP_ERR_OK Then Exit;
+      Result    := Expr2 + Expr +
+                   CreateToken(SP_KEYWORD, KeyWordPos, SizeOf(LongWord)) +
+                   LongWordToString(SP_KW_SOCKET_LISTEN) + VarResult;
+      If pToken(@VarResult[1])^.Token In [SP_STRVAR_LET, SP_NUMVAR_LET] Then
+        KeyWordID := 0
+      Else
+        KeyWordID := SP_KW_LET;
+    End;
+
+    SP_KW_ACCEPT: Begin
+      // SOCKET ACCEPT listenid TO numvar
+      Expr := SP_Convert_Expr(Tokens, Position, Error, -1);  // listen stream id
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+      If Not ((Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position+1])^ = SP_KW_TO)) Then Begin Error.Code := SP_ERR_MISSING_TO; Exit; End;
+      Inc(Position, 1 + SizeOf(LongWord));
+      If Byte(Tokens[Position]) <> SP_NUMVAR Then Begin Error.Code := SP_ERR_MISSING_VARIABLE; Exit; End;
+      VarResult := SP_Convert_Var_Assign(Tokens, Position, Error);
+      If Error.Code <> SP_ERR_OK Then Exit;
+      Result    := Expr +
+                   CreateToken(SP_KEYWORD, KeyWordPos, SizeOf(LongWord)) +
+                   LongWordToString(SP_KW_SOCKET_ACCEPT) + VarResult;
+      If pToken(@VarResult[1])^.Token In [SP_STRVAR_LET, SP_NUMVAR_LET] Then
+        KeyWordID := 0
+      Else
+        KeyWordID := SP_KW_LET;
+    End;
+
+    SP_KW_SEND: Begin
+      // SOCKET SEND id, data$
+      Expr := SP_Convert_Expr(Tokens, Position, Error, -1);  // stream id
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+      If Not ((Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',')) Then Begin Error.Code := SP_ERR_MISSING_COMMA; Exit; End;
+      Inc(Position, 2);
+      Expr2 := SP_Convert_Expr(Tokens, Position, Error, -1);  // data$
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_STRING Then Begin Error.Code := SP_ERR_MISSING_STREXPR; Exit; End;
+      Result    := Expr2 + Expr;
+      KeyWordID := SP_KW_SOCKET_SEND;
+    End;
+
+    SP_KW_RECV: Begin
+      // SOCKET RECV [LINE] id [, maxbytes] TO strvar
+      If (Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position+1])^ = SP_KW_LINE) Then Begin
+        Inc(Position, 1 + SizeOf(LongWord));
+        Expr := SP_Convert_Expr(Tokens, Position, Error, -1);  // stream id
+        If Error.Code <> SP_ERR_OK Then Exit;
+        If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+        If Not ((Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position+1])^ = SP_KW_TO)) Then Begin Error.Code := SP_ERR_MISSING_TO; Exit; End;
+        Inc(Position, 1 + SizeOf(LongWord));
+        If Byte(Tokens[Position]) <> SP_STRVAR Then Begin Error.Code := SP_ERR_MISSING_VARIABLE; Exit; End;
+        VarResult := SP_Convert_Var_Assign(Tokens, Position, Error);
+        If Error.Code <> SP_ERR_OK Then Exit;
+        Result    := Expr +
+                     CreateToken(SP_KEYWORD, KeyWordPos, SizeOf(LongWord)) +
+                     LongWordToString(SP_KW_SOCKET_RECV_LINE) + VarResult;
+        If pToken(@VarResult[1])^.Token In [SP_STRVAR_LET, SP_NUMVAR_LET] Then
+          KeyWordID := 0
+        Else
+          KeyWordID := SP_KW_LET;
+      End Else Begin
+        Expr := SP_Convert_Expr(Tokens, Position, Error, -1);  // stream id
+        If Error.Code <> SP_ERR_OK Then Exit;
+        If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+        // Optional maxbytes
+        If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',') Then Begin
+          Inc(Position, 2);
+          Expr2 := SP_Convert_Expr(Tokens, Position, Error, -1);
+          If Error.Code <> SP_ERR_OK Then Exit;
+          If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+        End Else
+          Expr2 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(4096);
+        If Not ((Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position+1])^ = SP_KW_TO)) Then Begin Error.Code := SP_ERR_MISSING_TO; Exit; End;
+        Inc(Position, 1 + SizeOf(LongWord));
+        If Byte(Tokens[Position]) <> SP_STRVAR Then Begin Error.Code := SP_ERR_MISSING_VARIABLE; Exit; End;
+        VarResult := SP_Convert_Var_Assign(Tokens, Position, Error);
+        If Error.Code <> SP_ERR_OK Then Exit;
+        Result    := Expr2 + Expr +
+                     CreateToken(SP_KEYWORD, KeyWordPos, SizeOf(LongWord)) +
+                     LongWordToString(SP_KW_SOCKET_RECV) + VarResult;
+        If pToken(@VarResult[1])^.Token In [SP_STRVAR_LET, SP_NUMVAR_LET] Then
+          KeyWordID := 0
+        Else
+          KeyWordID := SP_KW_LET;
+      End;
+    End;
+
+    SP_KW_CLOSE: Begin
+      // SOCKET CLOSE id
+      Expr      := SP_Convert_Expr(Tokens, Position, Error, -1);
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+      Result    := Expr;
+      KeyWordID := SP_KW_SOCKET_CLOSE;
+    End;
+
+    SP_KW_NOBLOCK: Begin
+      // SOCKET NOBLOCK id
+      Expr      := SP_Convert_Expr(Tokens, Position, Error, -1);
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+      Result    := Expr;
+      KeyWordID := SP_KW_SOCKET_NOBLOCK;
+    End;
+
+    SP_KW_TIMEOUT: Begin
+      // SOCKET TIMEOUT id, ms
+      Expr := SP_Convert_Expr(Tokens, Position, Error, -1);  // stream id
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+      If Not ((Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',')) Then Begin Error.Code := SP_ERR_MISSING_COMMA; Exit; End;
+      Inc(Position, 2);
+      Expr2     := SP_Convert_Expr(Tokens, Position, Error, -1);  // ms
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+      Result    := Expr2 + Expr;
+      KeyWordID := SP_KW_SOCKET_TIMEOUT;
+    End;
+
+    SP_KW_UDP: Begin
+      // SOCKET UDP host$, port TO numvar
+      Expr := SP_Convert_Expr(Tokens, Position, Error, -1);  // host$
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_STRING Then Begin Error.Code := SP_ERR_MISSING_STREXPR; Exit; End;
+      If Not ((Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',')) Then Begin Error.Code := SP_ERR_MISSING_COMMA; Exit; End;
+      Inc(Position, 2);
+      Expr2 := SP_Convert_Expr(Tokens, Position, Error, -1);  // port
+      If Error.Code <> SP_ERR_OK Then Exit;
+      If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+      If Not ((Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position+1])^ = SP_KW_TO)) Then Begin Error.Code := SP_ERR_MISSING_TO; Exit; End;
+      Inc(Position, 1 + SizeOf(LongWord));
+      If Byte(Tokens[Position]) <> SP_NUMVAR Then Begin Error.Code := SP_ERR_MISSING_VARIABLE; Exit; End;
+      VarResult := SP_Convert_Var_Assign(Tokens, Position, Error);
+      If Error.Code <> SP_ERR_OK Then Exit;
+      Result    := Expr2 + Expr +
+                   CreateToken(SP_KEYWORD, KeyWordPos, SizeOf(LongWord)) +
+                   LongWordToString(SP_KW_SOCKET_UDP) + VarResult;
+      If pToken(@VarResult[1])^.Token In [SP_STRVAR_LET, SP_NUMVAR_LET] Then
+        KeyWordID := 0
+      Else
+        KeyWordID := SP_KW_LET;
+    End;
+
+  Else
+    Error.Code := SP_ERR_SYNTAX_ERROR;
+  End;
 
 End;
 

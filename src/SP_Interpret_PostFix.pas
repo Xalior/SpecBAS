@@ -597,6 +597,20 @@ Procedure SP_Interpret_STREAM_READFILE(Var Info: pSP_iInfo);
 Procedure SP_Interpret_STREAM_WRITE(Var Info: pSP_iInfo);
 Procedure SP_Interpret_STREAM_SEEK(Var Info: pSP_iInfo);
 Procedure SP_Interpret_STREAM_CLOSE(Var Info: pSP_iInfo);
+Procedure SP_Interpret_SOCKET_CONNECT(Var Info: pSP_iInfo);
+Procedure SP_Interpret_SOCKET_LISTEN(Var Info: pSP_iInfo);
+Procedure SP_Interpret_SOCKET_ACCEPT(Var Info: pSP_iInfo);
+Procedure SP_Interpret_SOCKET_SEND(Var Info: pSP_iInfo);
+Procedure SP_Interpret_SOCKET_RECV(Var Info: pSP_iInfo);
+Procedure SP_Interpret_SOCKET_RECV_LINE(Var Info: pSP_iInfo);
+Procedure SP_Interpret_SOCKET_CLOSE(Var Info: pSP_iInfo);
+Procedure SP_Interpret_SOCKET_NOBLOCK(Var Info: pSP_iInfo);
+Procedure SP_Interpret_SOCKET_TIMEOUT(Var Info: pSP_iInfo);
+Procedure SP_Interpret_SOCKET_UDP(Var Info: pSP_iInfo);
+Procedure SP_Interpret_FN_SOCKETSIZE(Var Info: pSP_iInfo);
+Procedure SP_Interpret_FN_SOCKETSTATE(Var Info: pSP_iInfo);
+Procedure SP_Interpret_FN_SOCKETADDRS(Var Info: pSP_iInfo);
+Procedure SP_Interpret_FN_SOCKETPORT(Var Info: pSP_iInfo);
 Procedure SP_Interpret_SETDIR(Var Info: pSP_iInfo);
 Procedure SP_Interpret_PAL_LOAD(Var Info: pSP_iInfo);
 Procedure SP_Interpret_PAL_SAVE(Var Info: pSP_iInfo);
@@ -1064,7 +1078,7 @@ Const
 implementation
 
 Uses SP_Compiler, SP_Main, SP_Editor, SP_FPEditor, SP_DebugPanel, RunTimeCompiler, SP_Util2, SP_Display, SP_BaseComponentUnit, SP_Graphics32Alpha,
-     SP_Narrator, SP_NarratorTranslator, SP_BASICInterpreter, SP_3DEngineUnit, SP_3DEngineUnit32;
+     SP_Narrator, SP_NarratorTranslator, SP_BASICInterpreter, SP_3DEngineUnit, SP_3DEngineUnit32, SP_Sockets;
 
 Procedure SP_Execute_Compiled(Line: aString; InitInterpreter: Boolean; Var Error: TSP_ErrorCode);
 Var
@@ -16673,6 +16687,116 @@ Begin
 
 End;
 
+// ---------------------------------------------------------------------------
+// Socket command handlers
+// ---------------------------------------------------------------------------
+
+Procedure SP_Interpret_SOCKET_CONNECT(Var Info: pSP_iInfo);
+Var Host: aString; Port: Integer;
+Begin
+  Host := SP_StackPtr^.Str;
+  Dec(SP_StackPtr);
+  Port := Round(SP_StackPtr^.Val);
+  SP_StackPtr^.Val := SP_SocketConnect(Host, Port, Info^.Error^);
+End;
+
+Procedure SP_Interpret_SOCKET_LISTEN(Var Info: pSP_iInfo);
+Var Port, Backlog: Integer;
+Begin
+  Port    := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  Backlog := Round(SP_StackPtr^.Val);
+  SP_StackPtr^.Val := SP_SocketListen(Port, Backlog, Info^.Error^);
+End;
+
+Procedure SP_Interpret_SOCKET_ACCEPT(Var Info: pSP_iInfo);
+Begin
+  SP_StackPtr^.Val := SP_SocketAccept(Round(SP_StackPtr^.Val), Info^.Error^);
+End;
+
+Procedure SP_Interpret_SOCKET_SEND(Var Info: pSP_iInfo);
+Var StreamID: Integer; Data: aString;
+Begin
+  Data     := SP_StackPtr^.Str;  Dec(SP_StackPtr);
+  StreamID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  SP_SocketSend(StreamID, Data, Info^.Error^);
+End;
+
+Procedure SP_Interpret_SOCKET_RECV(Var Info: pSP_iInfo);
+Var StreamID, MaxBytes: Integer;
+Begin
+  StreamID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  MaxBytes := Round(SP_StackPtr^.Val);
+  With SP_StackPtr^ Do Begin
+    Str    := SP_SocketRecv(StreamID, MaxBytes, Info^.Error^);
+    OpType := SP_STRING;
+  End;
+End;
+
+Procedure SP_Interpret_SOCKET_RECV_LINE(Var Info: pSP_iInfo);
+Begin
+  With SP_StackPtr^ Do Begin
+    Str    := SP_SocketRecvLine(Round(Val), Info^.Error^);
+    OpType := SP_STRING;
+  End;
+End;
+
+Procedure SP_Interpret_SOCKET_CLOSE(Var Info: pSP_iInfo);
+Var StreamID: Integer;
+Begin
+  StreamID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  If SP_StreamClose(StreamID, Info^.Error^) < 0 Then
+    Info^.Error^.Code := SP_ERR_INVALID_STREAM_ID;
+End;
+
+Procedure SP_Interpret_SOCKET_NOBLOCK(Var Info: pSP_iInfo);
+Begin
+  SP_SocketSetNonBlocking(Round(SP_StackPtr^.Val), Info^.Error^);
+  Dec(SP_StackPtr);
+End;
+
+Procedure SP_Interpret_SOCKET_TIMEOUT(Var Info: pSP_iInfo);
+Var StreamID, Ms: Integer;
+Begin
+  StreamID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  Ms       := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  SP_SocketSetTimeout(StreamID, Ms, Info^.Error^);
+End;
+
+Procedure SP_Interpret_SOCKET_UDP(Var Info: pSP_iInfo);
+Var Host: aString; Port: Integer;
+Begin
+  Host := SP_StackPtr^.Str;  Dec(SP_StackPtr);
+  Port := Round(SP_StackPtr^.Val);
+  SP_StackPtr^.Val := SP_SocketUDP(Host, Port, Info^.Error^);
+End;
+
+// ---------------------------------------------------------------------------
+// Socket query functions
+// ---------------------------------------------------------------------------
+
+Procedure SP_Interpret_FN_SOCKETSIZE(Var Info: pSP_iInfo);
+Begin
+  SP_StackPtr^.Val := SP_SocketSize(Round(SP_StackPtr^.Val), Info^.Error^);
+End;
+
+Procedure SP_Interpret_FN_SOCKETSTATE(Var Info: pSP_iInfo);
+Begin
+  SP_StackPtr^.Val := SP_SocketState(Round(SP_StackPtr^.Val), Info^.Error^);
+End;
+
+Procedure SP_Interpret_FN_SOCKETADDRS(Var Info: pSP_iInfo);
+Begin
+  With SP_StackPtr^ Do Begin
+    Str    := SP_SocketAddr(Round(Val), Info^.Error^);
+    OpType := SP_STRING;
+  End;
+End;
+
+Procedure SP_Interpret_FN_SOCKETPORT(Var Info: pSP_iInfo);
+Begin
+  SP_StackPtr^.Val := SP_SocketPort(Round(SP_StackPtr^.Val), Info^.Error^);
+End;
+
 Procedure SP_Interpret_SETDIR(Var Info: pSP_iInfo);
 Var
   Dir: aString;
@@ -28955,6 +29079,18 @@ Initialization
   InterpretProcs[SP_KW_STREAM_WRITE] := @SP_Interpret_STREAM_WRITE;
   InterpretProcs[SP_KW_STREAM_SEEK] := @SP_Interpret_STREAM_SEEK;
   InterpretProcs[SP_KW_STREAM_CLOSE] := @SP_Interpret_STREAM_CLOSE;
+
+  // Socket commands
+  InterpretProcs[SP_KW_SOCKET_CONNECT]   := @SP_Interpret_SOCKET_CONNECT;
+  InterpretProcs[SP_KW_SOCKET_LISTEN]    := @SP_Interpret_SOCKET_LISTEN;
+  InterpretProcs[SP_KW_SOCKET_ACCEPT]    := @SP_Interpret_SOCKET_ACCEPT;
+  InterpretProcs[SP_KW_SOCKET_SEND]      := @SP_Interpret_SOCKET_SEND;
+  InterpretProcs[SP_KW_SOCKET_RECV]      := @SP_Interpret_SOCKET_RECV;
+  InterpretProcs[SP_KW_SOCKET_RECV_LINE] := @SP_Interpret_SOCKET_RECV_LINE;
+  InterpretProcs[SP_KW_SOCKET_CLOSE]     := @SP_Interpret_SOCKET_CLOSE;
+  InterpretProcs[SP_KW_SOCKET_NOBLOCK]   := @SP_Interpret_SOCKET_NOBLOCK;
+  InterpretProcs[SP_KW_SOCKET_TIMEOUT]   := @SP_Interpret_SOCKET_TIMEOUT;
+  InterpretProcs[SP_KW_SOCKET_UDP]       := @SP_Interpret_SOCKET_UDP;
   InterpretProcs[SP_KW_SETDIR] := @SP_Interpret_SETDIR;
   InterpretProcs[SP_KW_CD] := @SP_Interpret_SETDIR;
   InterpretProcs[SP_KW_PAL_LOAD] := @SP_Interpret_PAL_LOAD;
@@ -29623,6 +29759,12 @@ Initialization
   InterpretProcs[SP_FN_CAMERARY]    := @SP_Interpret_FN_CAMERARY;
   InterpretProcs[SP_FN_CAMERARZ]    := @SP_Interpret_FN_CAMERARZ;
   InterpretProcs[SP_FN_CAMERAFOV]    := @SP_Interpret_FN_CAMERAFOV;
+
+  // Socket query functions
+  InterpretProcs[SP_FN_SOCKETSIZE]   := @SP_Interpret_FN_SOCKETSIZE;
+  InterpretProcs[SP_FN_SOCKETSTATE]  := @SP_Interpret_FN_SOCKETSTATE;
+  InterpretProcs[SP_FN_SOCKETADDRS]  := @SP_Interpret_FN_SOCKETADDRS;
+  InterpretProcs[SP_FN_SOCKETPORT]   := @SP_Interpret_FN_SOCKETPORT;
   InterpretProcs[SP_FN_THREADCOUNT] := @SP_Interpret_FN_THREADCOUNT;
 
   // Tokens

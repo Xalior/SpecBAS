@@ -72,6 +72,7 @@ SpecBAS is a modern, extended implementation of Sinclair BASIC for the PC, desig
 
 @{CODE}
 @{"  File I/O and Streams      " LINK Sec_Files}
+@{"  SOCKET - Networking       " LINK SOCKET}
 @{"  UI Controls               " LINK Sec_Controls}
 @{"  Mathematical Functions    " LINK Sec_Maths}
 @{"  Time and Date             " LINK Sec_Time}
@@ -572,6 +573,20 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"SIN             " LINK SIN}
 @{"SINH            " LINK SINH}
 @{"SLEN            " LINK SLEN}
+@{"SOCKET          " LINK SOCKET}
+@{"SOCKET ACCEPT   " LINK SOCKET}
+@{"SOCKET CLOSE    " LINK SOCKET}
+@{"SOCKET CONNECT  " LINK SOCKET}
+@{"SOCKET LISTEN   " LINK SOCKET}
+@{"SOCKET NOBLOCK  " LINK SOCKET}
+@{"SOCKET RECV     " LINK SOCKET}
+@{"SOCKET SEND     " LINK SOCKET}
+@{"SOCKET TIMEOUT  " LINK SOCKET}
+@{"SOCKET UDP      " LINK SOCKET}
+@{"SOCKETADDR$     " LINK SOCKET}
+@{"SOCKETPORT      " LINK SOCKET}
+@{"SOCKETSIZE      " LINK SOCKET}
+@{"SOCKETSTATE     " LINK SOCKET}
 @{"SORT            " LINK SORT}
 @{"SPCOLL          " LINK SPCOLL}
 @{"SPCLX           " LINK SPCLX}
@@ -15287,4 +15302,193 @@ with fresh copies from the bundle.
 @{"SAVE          " LINK SAVE}
 @{BODY}
 
+@ENDNODE
+
+@NODE SOCKET "SOCKET"
+@{b}SOCKET@{ub}
+
+@{CODE}
+@{fg 1}SOCKET CONNECT host$, port TO numvar@{fg text}
+@{fg 1}SOCKET LISTEN port [, backlog] TO numvar@{fg text}
+@{fg 1}SOCKET ACCEPT listenid TO numvar@{fg text}
+@{fg 1}SOCKET SEND id, data$@{fg text}
+@{fg 1}SOCKET RECV id [, maxbytes] TO strvar@{fg text}
+@{fg 1}SOCKET RECV LINE id TO strvar@{fg text}
+@{fg 1}SOCKET CLOSE id@{fg text}
+@{fg 1}SOCKET NOBLOCK id@{fg text}
+@{fg 1}SOCKET TIMEOUT id, ms@{fg text}
+@{fg 1}SOCKET UDP host$, port TO numvar@{fg text}
+@{fg 1}SOCKETsize(id)@{fg text}
+@{fg 1}SOCKETstate(id)@{fg text}
+@{fg 1}SOCKETaddr$(id)@{fg text}
+@{fg 1}SOCKETport(id)@{fg text}
+@{BODY}
+
+Sockets allow SpecBAS programs to communicate over a network using
+TCP or UDP. A socket is opened as a stream -- its ID can be used
+wherever a stream ID is accepted, including as the target of
+@{b}OUT@{ub}, which routes all subsequent @{b}PRINT@{ub} output across the
+network connection.
+
+@{b}SOCKET CONNECT host$, port TO numvar@{ub} opens a TCP connection to
+@{b}host$@{ub} (a hostname or dotted IP address) on the given @{b}port@{ub} and
+stores the resulting stream ID in @{b}numvar@{ub}. The call blocks until the
+connection is established or an error occurs.
+
+@{b}SOCKET LISTEN port [, backlog] TO numvar@{ub} creates a TCP server
+socket that listens for incoming connections on @{b}port@{ub}. @{b}backlog@{ub} is
+the maximum number of pending connections (default 5). The stream ID
+stored in @{b}numvar@{ub} is a listen socket, not a data socket; pass it
+to @{b}SOCKET ACCEPT@{ub} to receive an actual connection.
+
+@{b}SOCKET ACCEPT listenid TO numvar@{ub} waits for an incoming connection
+on a listening socket and stores the new connection's stream ID in
+@{b}numvar@{ub}. The listen socket remains open and can accept further
+connections. Since @{b}SOCKET ACCEPT@{ub} blocks until a client connects,
+it is normally called from a secondary thread so the main program
+remains responsive.
+
+@{b}SOCKET SEND id, data$@{ub} transmits the bytes of @{b}data$@{ub} over the
+socket. For text protocols, append the required line ending manually:
+@{b}data$ + CHR$(13) + CHR$(10)@{ub} for CRLF or @{b}data$ + CHR$(10)@{ub} for
+LF only. Alternatively, @{b}OUT id@{ub} followed by @{b}PRINT@{ub} sends text
+via the normal print mechanism and appends a newline automatically.
+
+@{b}SOCKET RECV id [, maxbytes] TO strvar@{ub} receives up to @{b}maxbytes@{ub}
+bytes (default 4096) from the socket and stores them in @{b}strvar@{ub}.
+The call blocks until data arrives, the connection is closed, or a
+timeout set by @{b}SOCKET TIMEOUT@{ub} expires.
+
+@{b}SOCKET RECV LINE id TO strvar@{ub} receives bytes until a line ending
+(LF or CRLF) is found and stores the line without the line ending in
+@{b}strvar@{ub}. Useful for text protocols such as HTTP, SMTP or IRC where
+the server sends one response per line.
+
+@{b}SOCKET CLOSE id@{ub} closes the socket and releases its stream ID.
+@{b}STREAM CLOSE id@{ub} is equivalent.
+
+@{b}SOCKET NOBLOCK id@{ub} switches the socket into non-blocking mode.
+After this call, @{b}SOCKET RECV@{ub} returns immediately with an empty
+string if no data is available rather than blocking. Use
+@{b}SOCKETsize(id)@{ub} to poll before receiving to avoid unnecessary empty
+reads.
+
+@{b}SOCKET TIMEOUT id, ms@{ub} sets a receive timeout in milliseconds.
+@{b}SOCKET RECV@{ub} and @{b}SOCKET RECV LINE@{ub} will return with an error if no
+data arrives within @{b}ms@{ub} milliseconds. Pass 0 to block indefinitely
+(the default).
+
+@{b}SOCKET UDP host$, port TO numvar@{ub} creates a UDP datagram socket
+aimed at @{b}host$@{ub}:@{b}port@{ub}. @{b}SOCKET SEND@{ub} transmits a single datagram
+per call. @{b}SOCKET RECV@{ub} receives one datagram per call. UDP provides
+no delivery guarantees and no connection state.
+
+@{b}Query functions@{ub}
+
+@{b}SOCKETsize(id)@{ub} returns the number of bytes waiting to be read from
+the socket without blocking. Useful for polling in the main loop.
+
+@{b}SOCKETstate(id)@{ub} returns the current state of the socket:
+0 = closed or invalid, 1 = connected, 2 = listening, 3 = UDP.
+
+@{b}SOCKETaddr$(id)@{ub} returns the remote address of the socket as a
+string in the form @{b}"address:port"@{ub}, for example @{b}"93.184.216.34:80"@{ub}.
+
+@{b}SOCKETport(id)@{ub} returns the remote port number of the socket.
+
+@{b}OUT and PRINT with sockets@{ub}
+
+Because socket IDs are stream IDs, @{b}OUT id@{ub} redirects all subsequent
+@{b}PRINT@{ub} output to the socket exactly as it would to a file or bank
+stream. This makes it straightforward to speak line-oriented protocols
+without building strings manually. Use @{b}OUT SCREEN@{ub} to restore normal
+output when done.
+
+@{CODE}
+@{BASIC}
+10 REM  Simple HTTP GET
+20 SOCKET CONNECT "example.com", 80 TO sock
+30 IF SOCKETstate(sock) <> 1 THEN PRINT "Connection failed" : STOP
+40 OUT sock
+50 PRINT "GET / HTTP/1.0"
+60 PRINT "Host: example.com"
+70 PRINT ""
+80 OUT SCREEN
+90 DO
+100  IF SOCKETstate(sock) = 0 THEN EXIT DO
+110  IF SOCKETsize(sock) > 0 THEN
+120    SOCKET RECV LINE sock TO s$
+130    PRINT s$
+140  END IF
+150 LOOP
+160 SOCKET CLOSE sock
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  TCP echo server (server in a thread, client in main program)
+20 THREAD
+30   SOCKET LISTEN 9999 TO srv
+40   SOCKET ACCEPT srv TO client
+50   SOCKET RECV LINE client TO s$
+60   SOCKET SEND client, s$ + CHR$(13) + CHR$(10)
+70   SOCKET CLOSE client
+80   SOCKET CLOSE srv
+90 END THREAD
+100 PAUSE 50
+110 SOCKET CONNECT "127.0.0.1", 9999 TO c
+120 SOCKET SEND c, "Hello" + CHR$(13) + CHR$(10)
+130 SOCKET RECV LINE c TO r$
+140 PRINT r$        : REM prints "Hello"
+150 SOCKET CLOSE c
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Non-blocking receive loop
+20 SOCKET CONNECT "example.com", 80 TO sock
+30 OUT sock
+40 PRINT "GET / HTTP/1.0"
+50 PRINT "Host: example.com"
+60 PRINT ""
+70 OUT SCREEN
+80 SOCKET NOBLOCK sock
+90 DO
+100  IF SOCKETstate(sock) = 0 THEN EXIT DO
+110  IF SOCKETsize(sock) > 0 THEN
+120    SOCKET RECV sock, 1024 TO chunk$
+130    PRINT chunk$;
+140  END IF
+150  REM  Main loop can do other work here
+160 LOOP
+170 SOCKET CLOSE sock
+@{ENDBASIC}
+@{BODY}
+
+@{b}See Also@{ub}
+
+@{CODE}
+@{"STREAM        " LINK STREAM}
+@{"OUT           " LINK OUT}
+@{"THREADS       " LINK THREADS}
+@{BODY}
+
+@ENDNODE
+
+@NODE SOCKETsize "SOCKETsize"
+@REDIRECT SOCKET
+@ENDNODE
+
+@NODE SOCKETstate "SOCKETstate"
+@REDIRECT SOCKET
+@ENDNODE
+
+@NODE SOCKETaddr "SOCKETaddr$"
+@REDIRECT SOCKET
+@ENDNODE
+
+@NODE SOCKETport "SOCKETport"
+@REDIRECT SOCKET
 @ENDNODE

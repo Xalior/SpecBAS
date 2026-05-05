@@ -80,7 +80,7 @@ Const
   // List of keywords that are used in statements.
   // MUST Be in this order - add new commands to the end of the list.
 
-  SP_KEYWORDS_EXTRA: Array[0..282] of aString =
+  SP_KEYWORDS_EXTRA: Array[0..291] of aString =
     ('SPECTRUM ', 'PLAY ', 'AT ', 'TAB ', 'LINE ', ' THEN ', ' TO ', ' STEP ',
      'DEF ', 'CAT ', ' FORMAT ', 'MOVE ', 'ERASE ', 'OPEN ', 'CLOSE ', 'MERGE ', 'BEEP ',
      'CIRCLE ', 'INK ', 'PAPER ', 'INVERSE ', 'OUT ', 'STOP ', 'READ ', ' DATA ',
@@ -114,7 +114,8 @@ Const
      ' PITCH ', ' SEX ', 'DECOR ', ' CAPTION ', ' VERTEX ', ' AMBIENT ', ' USE ', ' BUILD ',
      'SCENE ', 'MODEL ', 'CAMERA ', 'LIGHT ', 'RENDER ', 'FOG ', ' UV ', ' BILLBOARD ', ' SMOOTH ',
      ' FLAT ', ' SHADING ',  'WIRE ', ' NOCULL ', ' SOLID ', ' SETVERT ', ' PARENT ', ' UNPARENT ',
-     'SETNEAR ');
+     'SETNEAR ', 'SOCKET ', 'CONNECT ', 'LISTEN ', 'ACCEPT ', 'SEND ', 'RECV ', 'NOBLOCK ',
+     'TIMEOUT ', 'UDP ');
 
   // Constants used to quickly identify keywords when in token form. Each keyword listed
   // above has a corresponding constant, which must be SP_KEYWORD_BASE + (Index of Keyword above).
@@ -404,6 +405,15 @@ Const
   SP_KW_PARENT              = 1280;
   SP_KW_UNPARENT            = 1281;
   SP_KW_SETNEAR             = 1282;
+  SP_KW_SOCKET              = 1283;
+  SP_KW_CONNECT             = 1284;
+  SP_KW_LISTEN              = 1285;
+  SP_KW_ACCEPT              = 1286;
+  SP_KW_SEND                = 1287;
+  SP_KW_RECV                = 1288;
+  SP_KW_NOBLOCK             = 1289;
+  SP_KW_TIMEOUT             = 1290;
+  SP_KW_UDP                 = 1291;
 
   // These are meta-commands; they do not appear in listings, and are used during
   // execution only, having been inserted by the pre-processor.
@@ -829,10 +839,20 @@ Const
   SP_KW_MODEL_MOVE_TO       = 4469;
   SP_KW_MODEL_ROTATE_TO     = 4470;
   SP_KW_LIGHT_COLOUR        = 4471;
+  SP_KW_SOCKET_CONNECT      = 4472;
+  SP_KW_SOCKET_LISTEN       = 4473;
+  SP_KW_SOCKET_ACCEPT       = 4474;
+  SP_KW_SOCKET_SEND         = 4475;
+  SP_KW_SOCKET_RECV         = 4476;
+  SP_KW_SOCKET_RECV_LINE    = 4477;
+  SP_KW_SOCKET_CLOSE        = 4478;
+  SP_KW_SOCKET_NOBLOCK      = 4479;
+  SP_KW_SOCKET_TIMEOUT      = 4480;
+  SP_KW_SOCKET_UDP          = 4481;
 
   // Names of the above meta-keywords - for use by the DEBUG command.
 
-  SP_Keyword_Names: Array[0..420] of aString =
+  SP_Keyword_Names: Array[0..430] of aString =
     ('PR INK', 'PR PAPER', 'PR INVERSE', 'PR TAB', 'PR AT', 'PR MOVE', 'GOTO', 'GOSUB', 'PALSHIFT',
      'READ ASSIGN', 'DRAWTO', 'SCR LOCK', 'SCR UNLOCK', 'SCR UPDATE', 'SCR RES', 'WIN NEW', 'WIN DEL',
      'WIN MOVE', 'WIN SIZE', 'WIN FRONT', 'WIN BACK', 'WIN SHOW', 'WIN HIDE', 'SCR GRAB', 'WIN GRAB',
@@ -891,12 +911,14 @@ Const
      'MODEL SHOW', 'CAMERA MOVE', 'CAMERA ROTATE', 'LIGHT TO', 'LIGHT AMBIENT', 'LIGHT FOG', 'LIGHT FOG OFF', 'MODEL UV',
      'MODEL BILLBOARD', 'CAMERA FACE', 'CAMERA FACE MODEL', 'MODEL SHADING', 'MODEL VERTEX ARRAY', 'MODEL FACE ARRAY',
      'MODEL INK', 'MODEL ANIM PLAY ', 'MODEL ANIM STOP ', 'MODEL ANIUM FRAME ', 'MODEL ADD FRAME', 'MODEL SETVERT',
-     'MODEL PARENT', 'MODEL UNPARENT', 'MODEL MOVE TO', 'MODEL ROTATE TO', 'LIGHT COLOUR');
+     'MODEL PARENT', 'MODEL UNPARENT', 'MODEL MOVE TO', 'MODEL ROTATE TO', 'LIGHT COLOUR', 'SOCKET CONNECT',
+     'SOCKET LISTEN', 'SOCKET ACCEPT', 'SOCKET SEND', 'SOCKET RECV', 'SOCKET RECV LINE', 'SOCKET CLOSE', 'SOCKET NOBLOCK',
+     'SOCKET TIMEOUT', 'SOCKET UDP');
 
   // List of Functions that are used in expressions. Again, MUST be in order.
   // Functions that take only one parameter have a space at the end of their name. All others have no spaces.
 
-  SP_FUNCTIONS_EXTRA: Array[0..297] of aString =
+  SP_FUNCTIONS_EXTRA: Array[0..308] of aString =
     ('nRND', 'nINKEY$', 'oPI', 'nVAL$ ', 'oCODE ', 'oVAL ', 'oLEN ', 'nSIN ', 'nCOS ',
      'nTAN ', 'nASN ', 'nACS ', 'nATN ', 'oLN ', 'oEXP ', 'oINT ', 'oSQR ', 'oSGN ', 'oABS ', 'n IN ',
      'nUSR ', 'oSTR$ ','oCHR$ ', 'nPEEK ', 'oNOT ', 'o OR ', 'o AND ', 'o MOD ', 'o XOR ', 'o SHL ',
@@ -930,7 +952,8 @@ Const
      'oACSH ', 'oATNH ', 'oMID', 'nPARAM$', 'nSTK', 'nSTK$', 'oREV$ ', 'nCLIP$', 'oINSTR', 'oFMOD',
      'oBITCNT', 'oHIBIT', 'oCPAD$', 'nINKEY', 'nFILEREQ', 'nCTRLGET', 'oLOG ', 'oTRANSLATE$', 'nTHREADCOUNT',
      'nMVERT', 'nMODELCOLL', 'nPOINT3D', 'nFACEAT', 'nMODELFRAME', 'nMODELPLAYING', 'nMODELX', 'nMODELY',
-     'nMODELZ', 'nMODELRX', 'nMODELRY', 'nMODELRZ', 'nMODELSCALE');
+     'nMODELZ', 'nMODELRX', 'nMODELRY', 'nMODELRZ', 'nMODELSCALE', 'nCAMERAX', 'nCAMERAY', 'nCAMERAZ', 'nCAMERARX',
+     'nCAMERARY', 'nCAMERARZ', 'nCAMERAFOV', 'nSOCKETSIZE', 'nSOCKETSTATE', 'nSOCKETADDR$', 'nSOCKETPORT');
 
   // Constants, like above, for identifying Functions in token form
 
@@ -1233,14 +1256,18 @@ Const
   SP_FN_MODELRX             = 2294;
   SP_FN_MODELRY             = 2295;
   SP_FN_MODELRZ             = 2296;
-  SP_FN_MODELSCALE          = 2298;
-  SP_FN_CAMERAX             = 2299;
-  SP_FN_CAMERAY             = 2300;
-  SP_FN_CAMERAZ             = 2301;
-  SP_FN_CAMERARX            = 2302;
-  SP_FN_CAMERARY            = 2303;
-  SP_FN_CAMERARZ            = 2304;
-  SP_FN_CAMERAFOV           = 2305;
+  SP_FN_MODELSCALE          = 2297;
+  SP_FN_CAMERAX             = 2298;
+  SP_FN_CAMERAY             = 2299;
+  SP_FN_CAMERAZ             = 2300;
+  SP_FN_CAMERARX            = 2301;
+  SP_FN_CAMERARY            = 2302;
+  SP_FN_CAMERARZ            = 2303;
+  SP_FN_CAMERAFOV           = 2304;
+  SP_FN_SOCKETSIZE          = 2305;
+  SP_FN_SOCKETSTATE         = 2306;
+  SP_FN_SOCKETADDRS         = 2307;
+  SP_FN_SOCKETPORT          = 2308;
 
   // Meta-functions
 

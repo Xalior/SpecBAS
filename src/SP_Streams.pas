@@ -25,7 +25,7 @@ unit SP_Streams;
 
 interface
 
-Uses SysUtils, SP_SysVars, SP_FileIO, SP_Errors, Math, SP_Util;
+Uses SysUtils, SP_SysVars, SP_FileIO, SP_Errors, Math, SP_Util, SP_Sockets;
 
 Type
 
@@ -33,6 +33,10 @@ Type
     ID, BankID, FileID, Position: Integer;
     Filename: aString;
     PackageStream: Boolean;
+    SocketHandle : NativeInt;   // socket fd / SOCKET; -1 = not a socket
+    SocketState  : Integer;     // SP_SOCKET_* constants from SP_Sockets
+    RemoteAddr   : aString;     // "addr:port" of remote end
+    NonBlocking  : Boolean;
   End;
   pSP_Stream = ^SP_Stream;
 
@@ -81,6 +85,10 @@ Begin
 
   Stream := New(pSP_Stream);
   Stream^.PackageStream := False;
+  Stream^.SocketHandle  := -1;
+  Stream^.SocketState   := SP_SOCKET_CLOSED;
+  Stream^.RemoteAddr    := '';
+  Stream^.NonBlocking   := False;
   SetLength(SP_StreamList, Length(SP_StreamList) +1);
   SP_StreamList[Length(SP_StreamList) -1] := Stream;
 
@@ -137,7 +145,9 @@ Begin
   StreamIdx := SP_FindStreamID(StreamID, Error);
   If StreamIdx > -1 Then Begin
     Stream := SP_StreamList[StreamIdx];
-    If Stream^.BankID > -1 Then Begin
+    If Stream^.SocketHandle >= 0 Then
+      Result := SP_SocketSize(StreamID, Error)
+    Else If Stream^.BankID > -1 Then Begin
       Bank := SP_BankList[SP_FindBankID(Stream^.BankID)];
       Result := Length(Bank^.Memory);
     End Else
@@ -169,13 +179,18 @@ Var
   StreamIdx, Idx: Integer;
   Stream: pSP_Stream;
   Bank: pSP_Bank;
+  Data: aString;
 Begin
 
   Result := 0;
   StreamIdx := SP_FindStreamID(StreamID, Error);
   If StreamIdx > -1 Then Begin
     Stream := SP_StreamList[StreamIdx];
-    If Stream^.BankID > -1 Then Begin
+    If Stream^.SocketHandle >= 0 Then Begin
+      Data   := SP_SocketRecv(StreamID, Count, Error);
+      Result := Length(Data);
+      If Result > 0 Then CopyMem(Buffer, @Data[1], Result);
+    End Else If Stream^.BankID > -1 Then Begin
       Bank := SP_BankList[SP_FindBankID(Stream^.BankID)];
       If Stream^.Position < Length(Bank^.Memory) Then Begin
         If Stream^.Position + Count -1 >= Length(Bank^.Memory) Then
@@ -283,13 +298,18 @@ Var
   StreamIdx, Idx: Integer;
   Stream: pSP_Stream;
   Bank: pSP_Bank;
+  Data: aString;
 Begin
 
   Result := 0;
   StreamIdx := SP_FindStreamID(StreamID, Error);
   If StreamIdx > -1 Then Begin
     Stream := SP_StreamList[StreamIdx];
-    If Stream^.BankID > -1 Then Begin
+    If Stream^.SocketHandle >= 0 Then Begin
+      SetLength(Data, Count);
+      CopyMem(@Data[1], Buffer, Count);
+      Result := SP_SocketSend(StreamID, Data, Error);
+    End Else If Stream^.BankID > -1 Then Begin
       Bank := SP_BankList[SP_FindBankID(Stream^.BankID)];
       If Stream^.Position + Count -1 >= Length(Bank^.Memory) Then
         SetLength(Bank^.Memory, Stream^.Position + Count);
@@ -319,7 +339,9 @@ Begin
   StreamIdx := SP_FindStreamID(StreamID, Error);
   If StreamIdx > -1 Then Begin
     Stream := SP_StreamList[StreamIdx];
-    If Stream^.BankID > -1 Then Begin
+    If Stream^.SocketHandle >= 0 Then Begin
+      Error.Code := SP_ERR_NOT_A_SOCKET;  // seeking on a socket is meaningless
+    End Else If Stream^.BankID > -1 Then Begin
       Bank := SP_BankList[SP_FindBankID(Stream^.BankID)];
       Stream^.Position := Max(0, Min(Position, Length(Bank^.Memory)));
     End Else Begin
@@ -341,6 +363,10 @@ Begin
   If StreamIdx > -1 Then Begin
     Stream := SP_StreamList[StreamIdx];
     If Assigned(Stream) Then Begin
+      If Stream^.SocketHandle >= 0 Then Begin
+        SP_SocketCloseHandle(Stream^.SocketHandle);
+        Stream^.SocketHandle := -1;
+      End;
       If Stream^.FileID > -1 Then
         SP_FileClose(Stream^.FileID, Error);
       For Idx := StreamIdx To Length(SP_StreamList) -2 Do

@@ -215,8 +215,14 @@ Const
   SP_ERR_INVALID_METHOD_NAME = 167;
   SP_ERR_NOT_IN_SECONDARY = 168;
   SP_ERR_INVALID_OBJECT = 169;
+  SP_ERR_SOCKET_CONNECT = 170;
+  SP_ERR_SOCKET_CLOSED  = 171;
+  SP_ERR_SOCKET_TIMEOUT = 172;
+  SP_ERR_NOT_A_SOCKET   = 173;
+  SP_ERR_SOCKET_LISTEN  = 174;
+  SP_ERR_SOCKET_ACCEPT  = 175;
 
-  MAXERROR = 169;
+  MAXERROR = 175;
 
   // Runtime error codes.
 
@@ -397,7 +403,13 @@ Const
      'Invalid component',
      'Invalid method',
      'Not available in secondary thread',
-     'Invalid object');
+     'Invalid object',
+     'Socket connection failed',
+     'Socket closed by peer',
+     'Socket timed out',
+     'Not a socket stream',
+     'Socket listen failed',
+     'Socket accept failed');
 
 
 Var
