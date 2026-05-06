@@ -918,7 +918,7 @@ Const
   // List of Functions that are used in expressions. Again, MUST be in order.
   // Functions that take only one parameter have a space at the end of their name. All others have no spaces.
 
-  SP_FUNCTIONS_EXTRA: Array[0..308] of aString =
+  SP_FUNCTIONS_EXTRA: Array[0..314] of aString =
     ('nRND', 'nINKEY$', 'oPI', 'nVAL$ ', 'oCODE ', 'oVAL ', 'oLEN ', 'nSIN ', 'nCOS ',
      'nTAN ', 'nASN ', 'nACS ', 'nATN ', 'oLN ', 'oEXP ', 'oINT ', 'oSQR ', 'oSGN ', 'oABS ', 'n IN ',
      'nUSR ', 'oSTR$ ','oCHR$ ', 'nPEEK ', 'oNOT ', 'o OR ', 'o AND ', 'o MOD ', 'o XOR ', 'o SHL ',
@@ -953,7 +953,8 @@ Const
      'oBITCNT', 'oHIBIT', 'oCPAD$', 'nINKEY', 'nFILEREQ', 'nCTRLGET', 'oLOG ', 'oTRANSLATE$', 'nTHREADCOUNT',
      'nMVERT', 'nMODELCOLL', 'nPOINT3D', 'nFACEAT', 'nMODELFRAME', 'nMODELPLAYING', 'nMODELX', 'nMODELY',
      'nMODELZ', 'nMODELRX', 'nMODELRY', 'nMODELRZ', 'nMODELSCALE', 'nCAMERAX', 'nCAMERAY', 'nCAMERAZ', 'nCAMERARX',
-     'nCAMERARY', 'nCAMERARZ', 'nCAMERAFOV', 'nSOCKETSIZE', 'nSOCKETSTATE', 'nSOCKETADDR$', 'nSOCKETPORT');
+     'nCAMERARY', 'nCAMERARZ', 'nCAMERAFOV', 'nSOCKETSIZE', 'nSOCKETSTATE', 'nSOCKETADDR$', 'nSOCKETPORT',
+     'nURLENCODE$', 'nURLDECODE$', 'nBASE64$', 'nUNBASE64$', 'nHTTPGET$', 'nHTTPPOST$');
 
   // Constants, like above, for identifying Functions in token form
 
@@ -1268,6 +1269,12 @@ Const
   SP_FN_SOCKETSTATE         = 2306;
   SP_FN_SOCKETADDRS         = 2307;
   SP_FN_SOCKETPORT          = 2308;
+  SP_FN_URLENCODE           = 2309;
+  SP_FN_URLDECODE           = 2310;
+  SP_FN_BASE64              = 2311;
+  SP_FN_UNBASE64            = 2312;
+  SP_FN_HTTPGET             = 2313;
+  SP_FN_HTTPPOST            = 2314;
 
   // Meta-functions
 

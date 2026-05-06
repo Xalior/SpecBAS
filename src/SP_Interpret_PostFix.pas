@@ -408,6 +408,12 @@ Procedure SP_Interpret_FN_INTERP(Var Info: pSP_iInfo);
 Procedure SP_Interpret_FN_PAR(Var Info: pSP_iInfo);
 Procedure SP_Interpret_FN_TRANSLATES(Var Info: pSP_iInfo);
 Procedure SP_Interpret_FN_THREADCOUNT(Var Info: pSP_iInfo);
+Procedure SP_Interpret_FN_URLENCODE(Var Info: pSP_iInfo);
+Procedure SP_Interpret_FN_URLDECODE(Var Info: pSP_iInfo);
+Procedure SP_Interpret_FN_BASE64(Var Info: pSP_iInfo);
+Procedure SP_Interpret_FN_UNBASE64(Var Info: pSP_iInfo);
+Procedure SP_Interpret_FN_HTTPGET(Var Info: pSP_iInfo);
+Procedure SP_Interpret_FN_HTTPPOST(Var Info: pSP_iInfo);
 
 Procedure SP_FlushCentreBuffer(Var Info: pSP_iInfo);
 Procedure SP_FlushOUTBuffer(Var Info: pSP_iInfo);
@@ -16716,8 +16722,8 @@ End;
 Procedure SP_Interpret_SOCKET_SEND(Var Info: pSP_iInfo);
 Var StreamID: Integer; Data: aString;
 Begin
-  Data     := SP_StackPtr^.Str;  Dec(SP_StackPtr);
   StreamID := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  Data     := SP_StackPtr^.Str;         Dec(SP_StackPtr);
   SP_SocketSend(StreamID, Data, Info^.Error^);
 End;
 
@@ -16795,6 +16801,82 @@ End;
 Procedure SP_Interpret_FN_SOCKETPORT(Var Info: pSP_iInfo);
 Begin
   SP_StackPtr^.Val := SP_SocketPort(Round(SP_StackPtr^.Val), Info^.Error^);
+End;
+
+Procedure SP_Interpret_FN_URLENCODE(Var Info: pSP_iInfo);
+Begin
+  With SP_StackPtr^ Do Begin
+    Str    := SP_URLEncode(Str);
+    OpType := SP_STRING;
+  End;
+End;
+
+Procedure SP_Interpret_FN_URLDECODE(Var Info: pSP_iInfo);
+Begin
+  With SP_StackPtr^ Do Begin
+    Str    := SP_URLDecode(Str);
+    OpType := SP_STRING;
+  End;
+End;
+
+Procedure SP_Interpret_FN_BASE64(Var Info: pSP_iInfo);
+Begin
+  With SP_StackPtr^ Do Begin
+    Str    := SP_Base64Encode(Str);
+    OpType := SP_STRING;
+  End;
+End;
+
+Procedure SP_Interpret_FN_UNBASE64(Var Info: pSP_iInfo);
+Begin
+  With SP_StackPtr^ Do Begin
+    Str    := SP_Base64Decode(Str);
+    OpType := SP_STRING;
+  End;
+End;
+
+Procedure SP_Interpret_FN_HTTPGET(Var Info: pSP_iInfo);
+Var
+  Host, Path : aString;
+  Port       : Integer;
+  NumParams  : Integer;
+Begin
+  NumParams := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  If NumParams = 3 Then Begin
+    Port := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  End Else
+    Port := 80;
+  Path := SP_StackPtr^.Str;  Dec(SP_StackPtr);
+  Host := SP_StackPtr^.Str;
+  With SP_StackPtr^ Do Begin
+    Str    := SP_HTTPGet(Host, Path, Port, Info^.Error^);
+    OpType := SP_STRING;
+  End;
+End;
+
+Procedure SP_Interpret_FN_HTTPPOST(Var Info: pSP_iInfo);
+Var
+  Host, Path, Body, CT : aString;
+  Port                 : Integer;
+  NumParams            : Integer;
+Begin
+  // Stack (pushed first to last): host$, path$, body$ [, contenttype$] [, port], paramcount
+  NumParams := Round(SP_StackPtr^.Val);  Dec(SP_StackPtr);
+  Port := 80;
+  CT   := '';
+  If NumParams >= 5 Then Begin
+    Port := Round(SP_StackPtr^.Val);    Dec(SP_StackPtr);
+  End;
+  If NumParams >= 4 Then Begin
+    CT   := SP_StackPtr^.Str;           Dec(SP_StackPtr);
+  End;
+  Body := SP_StackPtr^.Str;             Dec(SP_StackPtr);
+  Path := SP_StackPtr^.Str;             Dec(SP_StackPtr);
+  Host := SP_StackPtr^.Str;
+  With SP_StackPtr^ Do Begin
+    Str    := SP_HTTPPost(Host, Path, Body, CT, Port, Info^.Error^);
+    OpType := SP_STRING;
+  End;
 End;
 
 Procedure SP_Interpret_SETDIR(Var Info: pSP_iInfo);
@@ -29765,6 +29847,12 @@ Initialization
   InterpretProcs[SP_FN_SOCKETSTATE]  := @SP_Interpret_FN_SOCKETSTATE;
   InterpretProcs[SP_FN_SOCKETADDRS]  := @SP_Interpret_FN_SOCKETADDRS;
   InterpretProcs[SP_FN_SOCKETPORT]   := @SP_Interpret_FN_SOCKETPORT;
+  InterpretProcs[SP_FN_URLENCODE]    := @SP_Interpret_FN_URLENCODE;
+  InterpretProcs[SP_FN_URLDECODE]    := @SP_Interpret_FN_URLDECODE;
+  InterpretProcs[SP_FN_BASE64]       := @SP_Interpret_FN_BASE64;
+  InterpretProcs[SP_FN_UNBASE64]     := @SP_Interpret_FN_UNBASE64;
+  InterpretProcs[SP_FN_HTTPGET]      := @SP_Interpret_FN_HTTPGET;
+  InterpretProcs[SP_FN_HTTPPOST]     := @SP_Interpret_FN_HTTPPOST;
   InterpretProcs[SP_FN_THREADCOUNT] := @SP_Interpret_FN_THREADCOUNT;
 
   // Tokens

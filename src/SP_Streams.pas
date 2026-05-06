@@ -41,6 +41,7 @@ Type
   pSP_Stream = ^SP_Stream;
 
   Function SP_NewStream(BankID: Integer; Filename: aString; Var Error: TSP_ErrorCode): Integer;
+  Function SP_NewSocketStream(Handle: NativeInt; Const RemoteAddr: aString; State: Integer; Var Error: TSP_ErrorCode): Integer;
   Function SP_FindStreamID(StreamID: Integer; Var Error: TSP_ErrorCode): Integer;
   Function SP_StreamRead(StreamID: Integer; Buffer: Pointer; Count: Integer; Var Error: TSP_ErrorCode): Integer;
   Function SP_StreamReadLine(StreamID: Integer; Var Error: TSP_ErrorCode): aString;
@@ -86,6 +87,10 @@ Begin
   Stream := New(pSP_Stream);
   Stream^.PackageStream := False;
   Stream^.SocketHandle  := -1;
+  Stream^.SocketState   := 0;
+  Stream^.RemoteAddr    := '';
+  Stream^.NonBlocking   := False;
+  Stream^.SocketHandle  := -1;
   Stream^.SocketState   := SP_SOCKET_CLOSED;
   Stream^.RemoteAddr    := '';
   Stream^.NonBlocking   := False;
@@ -120,7 +125,46 @@ Begin
 
 End;
 
-Function  SP_StreamPos(StreamID: Integer; Var Error: TSP_ErrorCode): Integer;
+Function SP_NewSocketStream(Handle: NativeInt; Const RemoteAddr: aString;
+                            State: Integer; Var Error: TSP_ErrorCode): Integer;
+Var
+  NewID, Idx : Integer;
+  Done, Found: Boolean;
+  Stream     : pSP_Stream;
+Begin
+  NewID := 0;
+  Done := Length(SP_StreamList) = 0;
+  While Not Done Do Begin
+    Found := False;
+    For Idx := 0 To Length(SP_StreamList) - 1 Do
+      If SP_StreamList[Idx]^.ID = NewID Then Begin
+        Inc(NewID);
+        Found := True;
+        Break;
+      End;
+    If Not Found Then Done := True;
+  End;
+
+  Stream := New(pSP_Stream);
+  SetLength(SP_StreamList, Length(SP_StreamList) + 1);
+  SP_StreamList[Length(SP_StreamList) - 1] := Stream;
+
+  Stream^.ID            := NewID;
+  Stream^.BankID        := -1;
+  Stream^.FileID        := -1;
+  Stream^.Position      := 0;
+  Stream^.Filename      := '';
+  Stream^.PackageStream := False;
+  Stream^.SocketHandle  := Handle;
+  Stream^.SocketState   := State;
+  Stream^.RemoteAddr    := RemoteAddr;
+  Stream^.NonBlocking   := False;
+
+  Result := NewID;
+  Inc(NUMSTREAMS);
+End;
+
+Function SP_StreamPos(StreamID: Integer; Var Error: TSP_ErrorCode): Integer;
 Var
   StreamIdx: Integer;
   Stream: pSP_Stream;

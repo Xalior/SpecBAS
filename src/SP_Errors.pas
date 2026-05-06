@@ -404,11 +404,11 @@ Const
      'Invalid method',
      'Not available in secondary thread',
      'Invalid object',
-     'Socket connection failed',
+     'Socket connection failed: %v',
      'Socket closed by peer',
      'Socket timed out',
      'Not a socket stream',
-     'Socket listen failed',
+     'Socket listen failed: %v',
      'Socket accept failed');
 
 

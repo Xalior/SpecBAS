@@ -1367,7 +1367,7 @@ Begin
             // Functions that take one String parameter and return a String:
 
             SP_FN_VALS, SP_FN_UPS, SP_FN_LOWS, SP_FN_TRIMS, SP_FN_LTRIMS, SP_FN_RTRIMS, SP_FN_TOKENS, SP_FN_GETOPTS, SP_FN_FPATH, SP_FN_TEXTURES,
-            SP_FN_FNAME, SP_FN_REVS, SP_FN_TRANSLATES:
+            SP_FN_FNAME, SP_FN_REVS, SP_FN_TRANSLATES, SP_FN_URLENCODE, SP_FN_URLDECODE, SP_FN_BASE64, SP_FN_UNBASE64:
               Begin
                 If (StackPtr < 0) Or (Stack[StackPtr] <> SP_STRING) Then Begin
                   Error.Code := SP_ERR_MISSING_STREXPR;
@@ -1991,11 +1991,41 @@ Begin
 
               End;
 
+            SP_FN_HTTPGET:
+              Begin
+                // Stack: host$(StackPtr-2), path$(StackPtr-1), paramcount(StackPtr=SP_VALUE)
+                If (StackPtr < 2) Or (Stack[StackPtr] <> SP_VALUE) Or
+                   (Stack[StackPtr-1] <> SP_STRING) Or
+                   (Stack[StackPtr-2] <> SP_STRING) Then Begin
+                  Error.Code := SP_ERR_MISSING_STREXPR;
+                  Position   := Token^.TokenPos;
+                  Exit;
+                End;
+                // Consume host$, path$ and paramcount; leave result type
+                Dec(StackPtr, 2);
+                Stack[StackPtr] := SP_STRING;
+              End;
+
+            SP_FN_HTTPPOST:
+              Begin
+                // Stack: host$, path$, body$ [,contenttype$] [,port], paramcount(top=SP_VALUE)
+                // Minimum: host$(StackPtr-3), path$(StackPtr-2), body$(StackPtr-1), paramcount(StackPtr)
+                If (StackPtr < 3) Or (Stack[StackPtr] <> SP_VALUE) Or
+                   (Stack[StackPtr-1] <> SP_STRING) Or
+                   (Stack[StackPtr-2] <> SP_STRING) Or
+                   (Stack[StackPtr-3] <> SP_STRING) Then Begin
+                  Error.Code := SP_ERR_MISSING_STREXPR;
+                  Position   := Token^.TokenPos;
+                  Exit;
+                End;
+                // Consume all args; leave result type
+                // StackPtr held the paramcount value — use it to know how many to pop
+                StackPtr := 0;
+                Stack[StackPtr] := SP_STRING;
+              End;
+
             SP_FN_LBOUND, SP_FN_UBOUND:
               Begin
-
-                // Takes an array as a parameter, then one numeric
-
                 If StackPtr >= 1 Then Begin
                   If Stack[StackPtr -1] = SP_NUMVAR Then Begin
                     If Stack[StackPtr] <> SP_VALUE Then Begin
@@ -3218,7 +3248,8 @@ Begin
             SP_FN_DMEMRD, SP_FN_QMEMRD, SP_FN_FMEMRD, SP_FN_DATADDR, SP_FN_WINADDR, SP_FN_MILLISECONDS, SP_FN_PAR, SP_FN_SINH,
             SP_FN_COSH, SP_FN_TANH, SP_FN_ASNH, SP_FN_ACSH, SP_FN_ATNH, SP_FN_PARAMS, SP_FN_REVS, SP_FN_BITCNT, SP_FN_HIBIT, SP_FN_DEXISTS,
             SP_FN_TRANSLATES, SP_FN_MODELPLAYING, SP_FN_MODELX, SP_FN_MODELY, SP_FN_MODELZ, SP_FN_MODELRX, SP_FN_MODELRY, SP_FN_MODELRZ,
-            SP_FN_MODELSCALE, SP_FN_SOCKETSIZE, SP_FN_SOCKETSTATE, SP_FN_SOCKETPORT, SP_FN_SOCKETADDRS:
+            SP_FN_MODELSCALE, SP_FN_SOCKETSIZE, SP_FN_SOCKETSTATE, SP_FN_SOCKETPORT, SP_FN_SOCKETADDRS, SP_FN_URLENCODE, SP_FN_URLDECODE, 
+            SP_FN_BASE64, SP_FN_UNBASE64:
               Begin
                 Inc(Position, SizeOf(LongWord));
                 FnResult := SP_Convert_Expr(Tokens, Position, Error, 14);
@@ -5104,6 +5135,88 @@ Begin
                 If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position +1] = '(') Then Begin
                   Inc(Position, 2);
                   FnResult := SP_ProcessExprList(SP_STRING, Tokens, Position, Error);
+                End Else
+                  Error.Code := SP_ERR_SYNTAX_ERROR;
+              End;
+
+            SP_FN_HTTPGET:
+              Begin
+                // HTTPGET$(host$, path$ [, port])
+                FnResult := '';
+                Inc(Position, SizeOf(LongWord));
+                If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = '(') Then Begin
+                  Inc(Position, 2);
+                  // host$
+                  FnResult := SP_Convert_Expr(Tokens, Position, Error, -1);
+                  If Error.Code <> SP_ERR_OK Then Exit;
+                  If Error.ReturnType <> SP_STRING Then Begin Error.Code := SP_ERR_MISSING_STREXPR; Exit; End;
+                  // , path$
+                  If Not ((Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',')) Then Begin Error.Code := SP_ERR_MISSING_COMMA; Exit; End;
+                  Inc(Position, 2);
+                  FnResult := FnResult + SP_Convert_Expr(Tokens, Position, Error, -1);
+                  If Error.Code <> SP_ERR_OK Then Exit;
+                  If Error.ReturnType <> SP_STRING Then Begin Error.Code := SP_ERR_MISSING_STREXPR; Exit; End;
+                  // optional , port
+                  If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',') Then Begin
+                    Inc(Position, 2);
+                    FnResult := FnResult + SP_Convert_Expr(Tokens, Position, Error, -1);
+                    If Error.Code <> SP_ERR_OK Then Exit;
+                    If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+                    FnResult := FnResult + CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(3);
+                  End Else
+                    FnResult := FnResult + CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(2);
+                  // closing )
+                  If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ')') Then
+                    Inc(Position, 2)
+                  Else Begin Error.Code := SP_ERR_MISSING_BRACKET; Exit; End;
+                End Else
+                  Error.Code := SP_ERR_SYNTAX_ERROR;
+              End;
+
+            SP_FN_HTTPPOST:
+              Begin
+                // HTTPPOST$(host$, path$, body$ [, contenttype$ [, port]])
+                FnResult := '';
+                Inc(Position, SizeOf(LongWord));
+                If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = '(') Then Begin
+                  Inc(Position, 2);
+                  // host$
+                  FnResult := SP_Convert_Expr(Tokens, Position, Error, -1);
+                  If Error.Code <> SP_ERR_OK Then Exit;
+                  If Error.ReturnType <> SP_STRING Then Begin Error.Code := SP_ERR_MISSING_STREXPR; Exit; End;
+                  // , path$
+                  If Not ((Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',')) Then Begin Error.Code := SP_ERR_MISSING_COMMA; Exit; End;
+                  Inc(Position, 2);
+                  FnResult := FnResult + SP_Convert_Expr(Tokens, Position, Error, -1);
+                  If Error.Code <> SP_ERR_OK Then Exit;
+                  If Error.ReturnType <> SP_STRING Then Begin Error.Code := SP_ERR_MISSING_STREXPR; Exit; End;
+                  // , body$
+                  If Not ((Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',')) Then Begin Error.Code := SP_ERR_MISSING_COMMA; Exit; End;
+                  Inc(Position, 2);
+                  FnResult := FnResult + SP_Convert_Expr(Tokens, Position, Error, -1);
+                  If Error.Code <> SP_ERR_OK Then Exit;
+                  If Error.ReturnType <> SP_STRING Then Begin Error.Code := SP_ERR_MISSING_STREXPR; Exit; End;
+                  // Count params: host$, path$, body$ = 3 so far
+                  // optional , contenttype$
+                  If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',') Then Begin
+                    Inc(Position, 2);
+                    FnResult := FnResult + SP_Convert_Expr(Tokens, Position, Error, -1);
+                    If Error.Code <> SP_ERR_OK Then Exit;
+                    If Error.ReturnType <> SP_STRING Then Begin Error.Code := SP_ERR_MISSING_STREXPR; Exit; End;
+                    // optional , port
+                    If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',') Then Begin
+                      Inc(Position, 2);
+                      FnResult := FnResult + SP_Convert_Expr(Tokens, Position, Error, -1);
+                      If Error.Code <> SP_ERR_OK Then Exit;
+                      If Error.ReturnType <> SP_VALUE Then Begin Error.Code := SP_ERR_MISSING_NUMEXPR; Exit; End;
+                      FnResult := FnResult + CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(5);
+                    End Else
+                      FnResult := FnResult + CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(4);
+                  End Else
+                    FnResult := FnResult + CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(3);
+                  If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ')') Then
+                    Inc(Position, 2)
+                  Else Begin Error.Code := SP_ERR_MISSING_BRACKET; Exit; End;
                 End Else
                   Error.Code := SP_ERR_SYNTAX_ERROR;
               End;

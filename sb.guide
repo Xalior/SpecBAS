@@ -126,6 +126,7 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"BANK            " LINK BANK}
 @{"BANKLEN         " LINK BANKLEN}
 @{"BASE$           " LINK BASE$}
+@{"BASE64$         " LINK BASE64}
 @{"BEEP            " LINK BEEP}
 @{"BIN             " LINK BIN}
 @{"BIN$            " LINK BIN$}
@@ -295,6 +296,9 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"HSV             " LINK HSV}
 @{"HSVTOINT        " LINK HSVTOINT}
 @{"HSVTORGB        " LINK HSVTORGB}
+@{"HTTPGET$        " LINK HTTPGET}
+@{"HTTPPOST$       " LINK HTTPPOST}
+@{"HTTPSTATUS      " LINK HTTPSTATUS}
 @{"HUE             " LINK HUE}
 @{BODY}
 
@@ -656,9 +660,12 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{CODE}
 @{"UBOUND          " LINK UBOUND}
 @{"UDG$            " LINK UDG$}
+@{"UNBASE64$       " LINK UNBASE64}
 @{"UNDIM           " LINK UNDIM}
 @{"UNTIL           " LINK UNTIL}
 @{"UP$             " LINK UP$}
+@{"URLENCODE$      " LINK URLENCODE}
+@{"URLDECODE$      " LINK URLDECODE}
 @{"USING           " LINK USING}
 @{"USING$          " LINK USING$}
 @{BODY}
@@ -12921,7 +12928,7 @@ Each thread checks the signal at every statement boundary, so it will exit promp
 
 
 @NODE THREAD_COUNT "THREADCOUNT"
-@{b}THREAD COUNT@{ub}
+@{b}THREADCOUNT@{ub}
 @{LINE}
 @{LINE}
 @{CODE}
@@ -12939,7 +12946,7 @@ It is commonly used to limit the number of threads launched at once, or to poll 
 @{BASIC}
 10 REM Launch up to 4 threads at a time
 20 FOR i=1 TO 20
-30   DO WHILE THREAD COUNT >= 4
+30   DO WHILE THREADCOUNT >= 4
 40     WAIT 20
 50   LOOP
 60   EXECUTE work$(i) ASYNC
@@ -15308,20 +15315,27 @@ with fresh copies from the bundle.
 @{b}SOCKET@{ub}
 
 @{CODE}
-@{fg 1}SOCKET CONNECT host$, port TO numvar@{fg text}
-@{fg 1}SOCKET LISTEN port [, backlog] TO numvar@{fg text}
+@{fg 1}SOCKET CONNECT host$,port TO numvar@{fg text}
+@{fg 1}SOCKET LISTEN port[,backlog] TO numvar@{fg text}
 @{fg 1}SOCKET ACCEPT listenid TO numvar@{fg text}
-@{fg 1}SOCKET SEND id, data$@{fg text}
-@{fg 1}SOCKET RECV id [, maxbytes] TO strvar@{fg text}
+@{fg 1}SOCKET SEND id,data$@{fg text}
+@{fg 1}SOCKET RECV id [,maxbytes] TO strvar@{fg text}
 @{fg 1}SOCKET RECV LINE id TO strvar@{fg text}
 @{fg 1}SOCKET CLOSE id@{fg text}
 @{fg 1}SOCKET NOBLOCK id@{fg text}
-@{fg 1}SOCKET TIMEOUT id, ms@{fg text}
-@{fg 1}SOCKET UDP host$, port TO numvar@{fg text}
+@{fg 1}SOCKET TIMEOUT id,ms@{fg text}
+@{fg 1}SOCKET UDP host$,port TO numvar@{fg text}
 @{fg 1}SOCKETsize(id)@{fg text}
 @{fg 1}SOCKETstate(id)@{fg text}
 @{fg 1}SOCKETaddr$(id)@{fg text}
 @{fg 1}SOCKETport(id)@{fg text}
+@{fg 1}URLENCODE$(s$)@{fg text}
+@{fg 1}URLDECODE$(s$)@{fg text}
+@{fg 1}BASE64$(s$)@{fg text}
+@{fg 1}UNBASE64$(s$)@{fg text}
+@{fg 1}HTTPGET$(host$,path$[,port])@{fg text}
+@{fg 1}HTTPPOST$(host$,path$,body$[,contenttype$[,port]])@{fg text}
+@{fg 1}HTTPSTATUS@{fg text}
 @{BODY}
 
 Sockets allow SpecBAS programs to communicate over a network using
@@ -15396,6 +15410,39 @@ string in the form @{b}"address:port"@{ub}, for example @{b}"93.184.216.34:80"@{
 
 @{b}SOCKETport(id)@{ub} returns the remote port number of the socket.
 
+@{b}Network Utility Functions@{ub}
+
+@{b}URLENCODE$(s$)@{ub} percent-encodes a string for safe use in a URL query
+string or path. Characters outside the unreserved set (A-Z a-z 0-9
+- _ . ~) are replaced with their %XX hex equivalents. Spaces become
+%20. Use this on any user-supplied value before appending it to a URL.
+
+@{b}URLDECODE$(s$)@{ub} reverses URLENCODE$. Also converts + to a space,
+which is the convention used by HTML form encoding.
+
+@{b}BASE64$(s$)@{ub} encodes a string in standard Base64. Useful for HTTP
+Basic Authentication and for encoding binary data in text protocols.
+
+@{b}UNBASE64$(s$)@{ub} decodes a Base64-encoded string back to its original
+form.
+
+@{b}HTTPGET$(host$, path$ [, port])@{ub} performs a complete HTTP GET
+request and returns the response body as a string. Headers are
+discarded. @{b}port@{ub} defaults to 80. Sets @{b}HTTPSTATUS@{ub} to the HTTP
+response code. On a connection error returns an empty string and
+sets the error code.
+
+@{b}HTTPPOST$(host$, path$, body$ [, contenttype$ [, port]])@{ub} performs
+an HTTP POST and returns the response body. @{b}contenttype$@{ub} defaults
+to @{b}"application/x-www-form-urlencoded"@{ub} if omitted; pass
+@{b}"application/json"@{ub} for JSON APIs. @{b}port@{ub} defaults to 80. Sets
+@{b}HTTPSTATUS@{ub} on return.
+
+@{b}HTTPSTATUS@{ub} is a read-only system variable set after each call to
+@{b}HTTPGET$@{ub} or @{b}HTTPPOST$@{ub}. It holds the HTTP response code: 200 for
+success, 404 for not found, 500 for server error and so on. It is
+set to 0 if the connection failed before a response was received.
+
 @{b}OUT and PRINT with sockets@{ub}
 
 Because socket IDs are stream IDs, @{b}OUT id@{ub} redirects all subsequent
@@ -15415,7 +15462,7 @@ output when done.
 70 PRINT ""
 80 OUT SCREEN
 90 DO
-100  IF SOCKETstate(sock) = 0 THEN EXIT DO
+100  IF SOCKETstate(sock) = 0 THEN GO TO 160
 110  IF SOCKETsize(sock) > 0 THEN
 120    SOCKET RECV LINE sock TO s$
 130    PRINT s$
@@ -15428,14 +15475,13 @@ output when done.
 @{CODE}
 @{BASIC}
 10 REM  TCP echo server (server in a thread, client in main program)
-20 THREAD
-30   SOCKET LISTEN 9999 TO srv
-40   SOCKET ACCEPT srv TO client
-50   SOCKET RECV LINE client TO s$
-60   SOCKET SEND client, s$ + CHR$(13) + CHR$(10)
-70   SOCKET CLOSE client
-80   SOCKET CLOSE srv
-90 END THREAD
+20 LET t$="SOCKET LISTEN 9999 TO srv: 
+   SOCKET ACCEPT srv TO client: 
+   SOCKET RECV LINE client TO s$: 
+   SOCKET SEND client, s$ + CHR$(13) + CHR$(10):
+   SOCKET CLOSE client:
+   SOCKET CLOSE srv"
+90 EXECUTE t$ ASYNC
 100 PAUSE 50
 110 SOCKET CONNECT "127.0.0.1", 9999 TO c
 120 SOCKET SEND c, "Hello" + CHR$(13) + CHR$(10)
@@ -15456,7 +15502,7 @@ output when done.
 70 OUT SCREEN
 80 SOCKET NOBLOCK sock
 90 DO
-100  IF SOCKETstate(sock) = 0 THEN EXIT DO
+100  IF SOCKETstate(sock) = 0 THEN GO TO 170
 110  IF SOCKETsize(sock) > 0 THEN
 120    SOCKET RECV sock, 1024 TO chunk$
 130    PRINT chunk$;
@@ -15467,12 +15513,54 @@ output when done.
 @{ENDBASIC}
 @{BODY}
 
+@{CODE}
+@{BASIC}
+10 REM  Simple HTTP GET with status check
+20 LET body$ = HTTPGET$("neverssl.com", "/")
+30 IF GETOPT "HTTPSTATUS" <> 200 THEN 
+      PRINT "HTTP error ";STR$ GETOPT "HTTPSTATUS": STOP
+40 PRINT body$
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  JSON POST to a REST API
+20 LET json$ = "{""name"":""SpecBAS"",""version"":""1.0""}"
+30 LET body$ = HTTPPOST$("httpbin.org", "/post", json$, "application/json")
+40 PRINT "Status: ";STR$ GETOPT "HTTPSTATUS"
+50 PRINT body$
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  Form POST with URL-encoded fields
+20 LET data$ = "user=" + URLENCODE$("Paul Smith") + "&lang=SpecBAS"
+30 LET body$ = HTTPPOST$("httpbin.org", "/post", data$)
+40 PRINT body$
+@{ENDBASIC}
+@{BODY}
+
+@{CODE}
+@{BASIC}
+10 REM  HTTP Basic Authentication
+20 LET auth$ = "Authorization: Basic " + BASE64$("user:password")
+30 REM  (manual SOCKET path needed for custom headers)
+40 LET encoded$ = BASE64$("hello world")
+50 LET decoded$ = UNBASE64$(encoded$)
+60 PRINT encoded$    : REM  aGVsbG8gd29ybGQ=
+70 PRINT decoded$    : REM  hello world
+@{ENDBASIC}
+@{BODY}
+
 @{b}See Also@{ub}
 
 @{CODE}
 @{"STREAM        " LINK STREAM}
 @{"OUT           " LINK OUT}
-@{"THREADS       " LINK THREADS}
+@{"HTTPGET$      " LINK SOCKET}
+@{"HTTPPOST$     " LINK SOCKET}
 @{BODY}
 
 @ENDNODE
@@ -15490,5 +15578,33 @@ output when done.
 @ENDNODE
 
 @NODE SOCKETport "SOCKETport"
+@REDIRECT SOCKET
+@ENDNODE
+
+@NODE URLENCODE "URLENCODE$"
+@REDIRECT SOCKET
+@ENDNODE
+
+@NODE URLDECODE "URLDECODE$"
+@REDIRECT SOCKET
+@ENDNODE
+
+@NODE BASE64 "BASE64$"
+@REDIRECT SOCKET
+@ENDNODE
+
+@NODE UNBASE64 "UNBASE64$"
+@REDIRECT SOCKET
+@ENDNODE
+
+@NODE HTTPGET "HTTPGET$"
+@REDIRECT SOCKET
+@ENDNODE
+
+@NODE HTTPPOST "HTTPPOST$"
+@REDIRECT SOCKET
+@ENDNODE
+
+@NODE HTTPSTATUS "HTTPSTATUS"
 @REDIRECT SOCKET
 @ENDNODE

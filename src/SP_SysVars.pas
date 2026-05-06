@@ -360,6 +360,8 @@ Var
   scrollThumb:              Integer;
   BSize:                    Integer;
 
+  HTTPSTATUS:               Integer;
+
   debugPanel:               Integer;
   debugCombo:               Integer;
   debugNew:                 Integer;
@@ -1650,7 +1652,7 @@ Const
     (Name: 'SPBASIC'; Value: spBASIC)
     );
 
-  SysVars: Array[0..259] of TSysVar =
+  SysVars: Array[0..260] of TSysVar =
   ((Name: 'BUILDSTR'; svType: svString; Size: 0; Data: @BUILDSTR),
    (Name: 'SCROLLBTNS'; svType: svBoolean; Size: 1; Data: @SCROLLBTNS),
    (Name: 'ANIMSPEED'; svType: svLongWord; Size: 4; Data: @ANIMSPEED),
@@ -1880,6 +1882,7 @@ Const
    (Name: 'NOSEARCHCLR'; svType: svString; Size: 0; Data: @noSearchClr),
    (Name: 'BRACEHLTCLR'; svType: svString; Size: 0; Data: @BraceHltClr),
    (Name: 'BRACECLR'; svType: svString; Size: 0; Data: @BraceClr),
+   (Name: 'HTTPSTATUS'; svType: svInteger; Size: 4; Data: @HTTPSTATUS),
 
    (Name: 'LINECLR'; svType: svInteger; Size: 4; Data: @lineClr),
    (Name: 'LINEERRCLR'; svTYpe: svInteger; Size: 4; Data: @LineErrClr),
