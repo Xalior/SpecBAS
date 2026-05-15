@@ -1,4 +1,4 @@
-unit SP_DebugPanel;
+﻿unit SP_DebugPanel;
 
 {$INCLUDE SpecBAS.inc}
 
@@ -73,7 +73,7 @@ Const
 
 implementation
 
-Uses Vcl.ClipBrd, SP_FPEditor, SP_Errors, SP_Graphics, SP_BankManager, SP_BankFiling, SP_SysVars, SP_Components, SP_Variables, SP_AnsiStringList,
+Uses {$IFNDEF FPC}Vcl.ClipBrd{$ELSE}ClipBrd{$ENDIF}, SP_FPEditor, SP_Errors, SP_Graphics, SP_BankManager, SP_BankFiling, SP_SysVars, SP_Components, SP_Variables, SP_AnsiStringList,
      SP_Interpret_PostFix, SP_FileIO, SP_Main, SP_MenuActions, SP_BASICEditorHostUnit, SP_MemoUnit;
 
 Procedure SP_UpdateAfterDebug;
@@ -395,7 +395,7 @@ Begin
 
     List := TAnsiStringlist.Create;
 
-    // Help tab manages its own content — nothing for SP_FillDebugPanel to do.
+    // Help tab manages its own content - nothing for SP_FillDebugPanel to do.
     If FPDebugCombo.ItemIndex = 7 Then Begin List.Free; Exit; End;
 
     With FPDebugPanel Do Begin
@@ -763,7 +763,7 @@ Begin
       FPHelpViewer.RefreshNavBar;
       FPDebugContent.AlignChildren;
     End Else Begin
-      // Switching AWAY from Help — restore list, hide viewer.
+      // Switching AWAY from Help - restore list, hide viewer.
       FPHelpViewer.Visible := False;
       FPDebugPanel.Visible := True;
     End;

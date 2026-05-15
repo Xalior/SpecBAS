@@ -450,8 +450,6 @@ Var
   s, t: AnsiString;
 Begin
 
-  Assert(Index >= 0);
-
   fUndoLock.Enter;
 
   If not fUndoInProgress Then Begin

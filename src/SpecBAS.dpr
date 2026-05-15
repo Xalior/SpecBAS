@@ -20,8 +20,9 @@ program SpecBAS;
 
 {$IFDEF FPC}
   {$MODE Delphi}
-{$ENDIF}
+{$ELSE}
 {$WEAKLINKRTTI ON}
+{$ENDIF}
 
 {$IFDEF FULLDEBUG} // This, and the FastMM4 below in Uses, will SLOW DOWN specbas massively. Use for leak diagnosis only.
 {$DEFINE FullDebugMode}
@@ -29,21 +30,22 @@ program SpecBAS;
 {$ENDIF}
 
 uses
+  {$IFDEF FPC}HeapTrc,{$ENDIF}
   {$IFDEF DEBUG}
-  {$IFDEF FULLDEBUG}
-  FastMM4,
+    {$IFDEF FULLDEBUG}
+      FastMM4,
+    {$ENDIF}
+    madExcept,
+    madLinkDisAsm,
+    madListHardware,
+    madListProcesses,
+    madListModules,
   {$ENDIF}
-  madExcept,
-  madLinkDisAsm,
-  madListHardware,
-  madListProcesses,
-  madListModules,
-  {$ENDIF }
   {$IFNDEF FPC}
-  Windows,
+    Windows,
   {$ELSE}
-  Interfaces,
-  {$ENDIF }
+    Interfaces,
+  {$ENDIF}
   Forms,
   Dialogs,
   SysUtils,
@@ -52,6 +54,7 @@ uses
 
 {$R *.res}
 begin
+  {$IFDEF FPC}SetHeapTraceOutput('heap.log');{$ENDIF}
   {$IFNDEF FPC}
   SetProcessDPIAware;
   {$IFDEF DEBUG}

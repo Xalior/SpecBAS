@@ -27,6 +27,9 @@
     </RunParams>
     <RequiredPackages>
       <Item>
+        <PackageName Value="lazopenglcontext"/>
+      </Item>
+      <Item>
         <PackageName Value="LCL"/>
       </Item>
     </RequiredPackages>
@@ -56,10 +59,17 @@
         <SyntaxMode Value="Delphi"/>
       </SyntaxOptions>
     </Parsing>
+    <CodeGeneration>
+      <SmartLinkUnit Value="True"/>
+      <Optimizations>
+        <OptimizationLevel Value="4"/>
+      </Optimizations>
+    </CodeGeneration>
     <Linking>
       <Debugging>
         <DebugInfoType Value="dsDwarf2Set"/>
       </Debugging>
+      <LinkSmart Value="True"/>
       <Options>
         <Win32>
           <GraphicApplication Value="True"/>
@@ -67,7 +77,11 @@
       </Options>
     </Linking>
     <Other>
-      <CustomOptions Value="-dBorland -dVer150 -dDelphi7 -dCompiler6_Up -dPUREPASCAL"/>
+      <Verbosity>
+        <ShowNotes Value="False"/>
+      </Verbosity>
+      <WriteFPCLogo Value="False"/>
+      <CustomOptions Value="-dPUREPASCAL -CX -XX"/>
     </Other>
   </CompilerOptions>
   <Debugging>

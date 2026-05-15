@@ -4,7 +4,7 @@ unit SP_FileListBoxUnit;
 
 interface
 
-Uses Windows, Classes, Math, System.Generics.Collections,
+Uses {$IFNDEF FPC}Windows{$ELSE}LCLType{$ENDIF}, Classes, Math, {$IFNDEF FPC}System.Generics.Collections{$ELSE}Generics.Collections{$ENDIF},
      SP_BaseComponentUnit, SP_Components, SP_ListBoxUnit, SP_Util, SP_AnsiStringlist, SP_Errors;
 
 Type

@@ -97,7 +97,7 @@ End;
 
 implementation
 
-Uses Math, SysUtils, SP_Components, SP_SysVars, SP_Input, SP_Sound, ClipBrd, SP_Interpret_PostFix, SP_BankManager, SP_BankFiling;
+Uses Math, SysUtils, SP_Components, SP_SysVars, SP_Input, SP_Sound, {$IFNDEF FPC}Vcl.ClipBrd{$ELSE}ClipBrd{$ENDIF}, SP_Interpret_PostFix, SP_BankManager, SP_BankFiling;
 
 // SP_Edit
 

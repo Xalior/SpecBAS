@@ -296,7 +296,7 @@ Begin
   // "+" button: square, inset SP_TabEdgeGap from top, bottom, and right edge.
   btnSide := fHeight - SP_TabEdgeGap * 2;
   If btnSide < 4 Then btnSide := 4;
-  btnX := fWidth - SP_TabEdgeGap - btnSide +2;
+  btnX := fWidth - SP_TabEdgeGap - btnSide +1;
   btnY := SP_TabEdgeGap;
   fAddBtn.SetBounds(btnX, btnY, btnSide, btnSide);
   fAddBtn.Proportional := False;

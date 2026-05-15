@@ -223,7 +223,7 @@ Function  SP_Convert_SCENE (Var KeyWordID: LongWord; Var Tokens: aString; Var Po
 Function  SP_Convert_CAMERA(Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
 Function  SP_Convert_LIGHT (Var KeyWordID: LongWord; Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
 Function  SP_Convert_RENDER(Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
-Function  SP_Convert_SETNEAR(Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
+Function  SP_Convert_SETNEAR(Var Tokens: aString; Var Position: Integer; Var Error: TSP_ErrorCode): aString;
 
 Var
 
@@ -2019,7 +2019,7 @@ Begin
                   Exit;
                 End;
                 // Consume all args; leave result type
-                // StackPtr held the paramcount value — use it to know how many to pop
+                // StackPtr held the paramcount value - use it to know how many to pop
                 StackPtr := 0;
                 Stack[StackPtr] := SP_STRING;
               End;
@@ -3001,7 +3001,7 @@ Label
       l := l + SizeOf(TToken) + Length(SP_OperandStack[i].Content);
 
     SetLength(Result, l);
-    ptr := pByte(pNativeUInt(@Result)^);
+    ptr := pByte(Pointer(Result));
 
     for i := min to max do
       With pToken(ptr)^, SP_OperandStack[i] Do Begin
@@ -3015,8 +3015,8 @@ Label
         {$IFNDEF FPC}
         MoveMemory(ptr, pByte(pNativeUInt(@Content)^), TokenLen);
         {$ELSE}
-        t := pByte(pNativeUInt(@Content)^);
-        Move(t, ptr, TokenLen);
+        t := pByte(Pointer(Content));
+        Move(t^, ptr^, TokenLen);
         {$ENDIF}
         Inc(Ptr, TokenLen);
       End;
@@ -5586,8 +5586,9 @@ Finish:
 
   // Now add handlers to the finished code
 
-  If Error.Code = SP_ERR_OK Then
+  If Error.Code = SP_ERR_OK Then begin
     SP_AddHandlers(Result);
+  end;
 
 End;
 
@@ -10383,7 +10384,7 @@ Begin
                 End;
               End Else
                 Expr := CreateToken(SP_STRING, Position, 0) + '' + Expr;
-              // Optional CAPTION "caption" — enables decoration, draggable+resizable by default
+              // Optional CAPTION "caption"  enables decoration, draggable+resizable by default
               If (Byte(Tokens[Position]) = SP_KEYWORD) And
                  (pLongWord(@Tokens[Position +1])^ = SP_KW_CAPTION) Then Begin
                 Inc(Position, 1 + SizeOf(LongWord));
@@ -12609,7 +12610,7 @@ Begin
       If Byte(Tokens[Position]) <> SP_NUMVAR Then Begin Error.Code := SP_ERR_MISSING_VARIABLE; Exit; End;
       VarResult := SP_Convert_Var_Assign(Tokens, Position, Error);
       If Error.Code <> SP_ERR_OK Then Exit;
-      // Stack: host$, port — result goes to VarResult
+      // Stack: host$, port - result goes to VarResult
       Result    := Expr2 + Expr +
                    CreateToken(SP_KEYWORD, KeyWordPos, SizeOf(LongWord)) +
                    LongWordToString(SP_KW_SOCKET_CONNECT) + VarResult;
@@ -15047,7 +15048,7 @@ Begin
           End;
         End Else
           Error.Code := SP_ERR_SYNTAX_ERROR;
-      If KeyWordID <> SP_KW_GFX_NEW_GFXS Then
+      If KeyWordID <> SP_KW_GFX_NEW_GFXS Then Begin
         If (Byte(Tokens[Position]) = SP_KEYWORD) And ((pLongWord(@Tokens[Position +1])^ = SP_KW_TRANSPARENT) or (pLongWord(@Tokens[Position +1])^ = SP_KW_TRANS)) Then Begin
           Inc(Position, 1 + SizeOf(LongWord));
           Expr := SP_Convert_Expr(Tokens, Position, Error, -1) + Expr;
@@ -15058,6 +15059,18 @@ Begin
           End;
         End Else
           Expr := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(-1) + Expr;
+        // Optional DEPTH n - defaults to -1 (use SCREENBPP at runtime).
+        If (Byte(Tokens[Position]) = SP_KEYWORD) And (pLongWord(@Tokens[Position +1])^ = SP_KW_DEPTH) Then Begin
+          Inc(Position, 1 + SizeOf(LongWord));
+          Expr := SP_Convert_Expr(Tokens, Position, Error, -1) + Expr;
+          If Error.Code <> SP_ERR_OK Then Exit;
+          If Error.ReturnType <> SP_VALUE Then Begin
+            Error.Code := SP_ERR_MISSING_NUMEXPR;
+            Exit;
+          End;
+        End Else
+          Expr := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(-1) + Expr;
+      End;
       Result := Expr + CreateToken(SP_KEYWORD, KeyWordPos, SizeOf(LongWord)) + LongWordToString(KeyWordID) + VarResult;
       If pToken(@VarResult[1])^.Token in [SP_STRVAR_LET, SP_NUMVAR_LET] Then KeyWordID := 0 Else KeyWordID := SP_KW_LET;
     End Else
@@ -19598,7 +19611,7 @@ Begin
   Case SubKW Of
 
     SP_KW_NEW: Begin
-      // SCENE NEW numvar  —  auto-allocate, assign ID to numvar
+      // SCENE NEW numvar  -  auto-allocate, assign ID to numvar
       If Byte(Tokens[Position]) = SP_NUMVAR Then Begin
         VarResult := SP_Convert_Var_Assign(Tokens, Position, Error);
         If Error.Code <> SP_ERR_OK Then Exit;
@@ -19622,7 +19635,7 @@ Begin
     End;
 
     SP_KW_CLEAR: Begin
-      // Optional scene ID — if absent, handler uses active scene
+      // Optional scene ID - if absent, handler uses active scene
       If (Byte(Tokens[Position]) <> SP_TERMINAL) And
          Not ((Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ':')) Then Begin
         Expr := SP_Convert_Expr(Tokens, Position, Error, -1);
@@ -19662,7 +19675,7 @@ End;
 //   MODEL SHOW   inst%
 //   MODEL SETVERT m, idx, x, y, z
 //   MODEL UV     inst%, face%, u0,v0,u1,v1,u2,v2 - moves u/v coords of face
-//   MODEL BILLBOARD inst%  — toggle billboard on existing instance
+//   MODEL BILLBOARD inst%  - toggle billboard on existing instance
 //   MODEL SHADING inst% [FLAT|SMOOTH|WIRE[NOCULL|SOLID]]
 // ---------------------------------------------------------------------------
 Function SP_Convert_MODEL(Var KeyWordID: LongWord; Var Tokens: aString;
@@ -19715,7 +19728,7 @@ Begin
   Case SubKW Of
 
     SP_KW_NEW: Begin
-      // MODEL NEW numvar  —  auto-allocate, assign ID to numvar
+      // MODEL NEW numvar  -  auto-allocate, assign ID to numvar
       If Byte(Tokens[Position]) = SP_NUMVAR Then Begin
         VarResult := SP_Convert_Var_Assign(Tokens, Position, Error);
         If Error.Code <> SP_ERR_OK Then Exit;
@@ -19733,7 +19746,7 @@ Begin
       E1 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
       // Check if next token is an array variable
       If Byte(Tokens[Position]) = SP_NUMVAR Then Begin
-        // MODEL VERTEX bank%, arr()  — array load
+        // MODEL VERTEX bank%, arr()  - array load
         If Byte(Tokens[Position]) = SP_NUMVAR Then Begin
           VarPos := Position;
           VarType := Tokens[Position];
@@ -19759,7 +19772,7 @@ Begin
         E2 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
         E3 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;
         E4 := Num; If Error.Code <> SP_ERR_OK Then Exit;
-        // Optional colour — default to T_INK
+        // Optional colour - default to T_INK
         E5 := CreateToken(SP_VALUE, 0, SizeOf(aFloat)) + aFloatToString(-1);
         If (Byte(Tokens[Position]) = SP_SYMBOL) And (Tokens[Position+1] = ',') Then Begin
           Inc(Position, 2);
@@ -19775,7 +19788,7 @@ Begin
       E1 := Num; If Error.Code <> SP_ERR_OK Then Exit; Comma; If Error.Code <> SP_ERR_OK Then Exit;  // Bank
       // Check if next token is an array variable
       If Byte(Tokens[Position]) = SP_NUMVAR Then Begin
-        // MODEL FACE bank%, arr()  — array load
+        // MODEL FACE bank%, arr()  - array load
         If Byte(Tokens[Position]) = SP_NUMVAR Then Begin
           VarPos := Position;
           VarType := Tokens[Position];
@@ -20083,7 +20096,7 @@ Begin
     End;
 
     SP_KW_UNPARENT: Begin
-      // MODEL UNPARENT inst%  — equivalent to MODEL PARENT inst%, -1
+      // MODEL UNPARENT inst%  - equivalent to MODEL PARENT inst%, -1
       E1 := Num; If Error.Code <> SP_ERR_OK Then Exit;
       KeyWordID := SP_KW_MODEL_PARENT;
       // Push -1 as the parent ID

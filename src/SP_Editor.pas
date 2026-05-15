@@ -25,9 +25,8 @@ unit SP_Editor;
 
 interface
 
-Uses Windows, Types, Math, SP_SysVars, SysUtils, SP_Util, SP_Graphics, SP_BankManager, SP_Tokenise, SP_Errors, SP_Input,
-     Classes, SP_InfixToPostFix, SP_Interpret_PostFix, SP_Variables, SP_Sound, SP_Package, SP_FileIO,
-     SP_Graphics32, SP_BankFiling, SP_AnsiStringlist, RunTimeCompiler;
+Uses {$IFNDEF FPC}Windows{$ELSE}LCLType{$ENDIF}, Types, Math, SP_SysVars, SysUtils, SP_Util, SP_Graphics, SP_BankManager, SP_Tokenise, SP_Errors, SP_Input,
+     Classes, SP_InfixToPostFix, SP_Interpret_PostFix, SP_Variables, SP_Sound, SP_Package, SP_FileIO, SP_Graphics32, SP_BankFiling, SP_AnsiStringlist, RunTimeCompiler;
 
 Procedure SP_DrawStripe(Dst: pByte; Width, StripeWidth, StripeHeight: Integer);
 Procedure SP_EditLoop(Var Error: TSP_ErrorCode);

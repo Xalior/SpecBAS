@@ -27,15 +27,20 @@ unit MainForm;
 interface
 
 uses
-  {$IFNDEF FPC}Dialogs, System.Types, SyncObjs, SHellAPI, PNGImage, GIFImg, Windows, Messages,{$ELSE} LCLIntf, LCLType, {$IFDEF Windows}Windows, Messages{$ELSE}LMessages{$ENDIF}, {$ENDIF}
-  SHFolder, SysUtils, Variants, Classes, Graphics, Controls, Forms, Math, SP_SysVars, SP_Graphics, SP_Graphics32, SP_BankManager, SP_Util, SP_Main, SP_FileIO,
-  ExtCtrls, SP_Input, MMSystem, SP_Errors, SP_Sound, Bass, SP_Tokenise, SP_Menu, RunTimeCompiler, SP_Components, SP_BaseComponentUnit, Clipbrd;
+  {$IFNDEF FPC}SHFolder, MMSystem, Dialogs, System.Types, SyncObjs, SHellAPI, PNGImage, GIFImg, Windows, Messages,
+  {$ELSE} LCLIntf, LCLType, FPReadPNG, FPImage, OpenGLContext,
+
+  {$IFDEF Windows}Windows, Messages, MMSystem {$ELSE}LMessages{$ENDIF}, {$ENDIF}
+  SysUtils, Variants, Classes, Graphics, Controls, Forms, Math, SP_SysVars, SP_Graphics, SP_Graphics32, SP_BankManager, SP_Util, SP_Main, SP_FileIO,
+  ExtCtrls, SP_Input, SP_Errors, SP_Sound, Bass, SP_Tokenise, SP_Menu, RunTimeCompiler, SP_Components, SP_BaseComponentUnit, {$IFNDEF FPC}Vcl.ClipBrd{$ELSE}ClipBrd{$ENDIF};
 
 Const
 
   WM_RESIZEMAIN = WM_USER + 1;
 
 type
+
+  { TMain }
 
   TMain = class(TForm)
     Timer1: TTimer;
@@ -68,13 +73,27 @@ type
     procedure OnAppMessage(var Msg: TMsg; var Handled: Boolean);
     procedure CMDialogKey( Var msg: TCMDialogKey ); message CM_DIALOGKEY;
     Procedure OnResizeMain(Var Msg: TMessage); Message WM_RESIZEMAIN;
+    {$IFNDEF FPC}
     procedure WMMenuChar(var MessageRec: TWMMenuChar); message WM_MENUCHAR;
+    {$ENDIF}
   public
     { Public declarations }
     Function  GetCharFromVirtualKey(Var Key: Word): astring;
     procedure DropFiles(var msg: TMessage ); message WM_DROPFILES;
     Procedure CreateGDIBitmap;
+    {$IFDEF FPC}
+    Procedure DoResizeMain(l, t, w, h: Integer);
+    Procedure AppDropFiles(Sender: TObject; const FileNames: array of String);
+    {$ENDIF}
   end;
+
+  {$IFDEF FPC}
+  TLoadImageSync = Class
+    FFilename: aString;
+    FError:    TSP_ErrorCode;
+    Procedure  Run;
+  End;
+  {$ENDIF}
 
   TSpecBAS_Thread = Class(TThread)
     Procedure Execute; Override;
@@ -108,6 +127,10 @@ var
   AltChars: aString;
   CaptionString: String;
   MainCanResize: Boolean = True;
+  {$IFDEF FPC}
+  PendingKeyInfo:  SP_KeyInfo;
+  PendingKeyValid: Boolean = False;
+  {$ENDIF}
 
 {$IFDEF OPENGL}
 Const
@@ -117,8 +140,13 @@ Const
 
 implementation
 
-Uses {$IFDEF FPC}ShlObj, {$ENDIF}SP_FPEditor, SP_ToolTipWindow, SP_Display, SP_BASICEditorHostUnit, SP_WindowMenuUnit, SP_PopUpMenuUnit,
-      SP_BASICInterpreter, SP_BankFiling, SP_Interpret_PostFix;
+Uses {$IFDEF FPC}
+      {$IFDEF UNIX}
+        Unix, BaseUnix,
+      {$ENDIF}
+    {$ENDIF}
+    SP_FPEditor, SP_ToolTipWindow, SP_Display, SP_BASICEditorHostUnit, SP_WindowMenuUnit, SP_PopUpMenuUnit,
+    SP_BASICInterpreter, SP_BankFiling, SP_Interpret_PostFix;
 
 {$IFDEF FPC}
   {$R *.lfm}
@@ -132,6 +160,29 @@ Begin
   If MainCanResize Then
     FrameLoop;
   Done := False;
+End;
+{$ENDIF}
+
+{$IFDEF FPC}
+Procedure TLoadImageSync.Run;
+Begin
+  CB_Load_Image(FFilename, FError);
+End;
+
+Procedure TMain.DoResizeMain(l, t, w, h: Integer);
+Begin
+  MainCanResize := False;
+  FPSIMAGE := '';
+  Left         := l;
+  Top          := t;
+  ClientWidth  := w;
+  ClientHeight := h;
+  // Call SetScaling directly with the TARGET dimensions
+  // rather than reading back from GLControl which may not have resized yet
+  SetScaling(DISPLAYWIDTH, DISPLAYHEIGHT, w, h);
+  GLResize;
+  SIZINGMAIN   := False;
+  MainCanResize := True;
 End;
 {$ENDIF}
 
@@ -188,8 +239,17 @@ begin
 end;
 
 Function GetTicks: aFloat;
+{$IFDEF UNIX}
+Var
+  ts: TimeSpec;
+{$ENDIF}
 Begin
+  {$IFNDEF UNIX}
   Result := TimeGetTime - baseTime;
+  {$ELSE}
+  clock_gettime(CLOCK_MONOTONIC, @ts);
+  Result := (ts.tv_sec * 1000.0) + (ts.tv_nsec / 1000000.0) - baseTime;
+  {$ENDIF}
 End;
 
 procedure TMain.OnAppMessage(var Msg: TMsg; var Handled: Boolean);
@@ -695,15 +755,69 @@ Begin
   Main.Caption := CaptionString;
 End;
 
+{$IFDEF FPC}
+Procedure TMain.AppDropFiles(Sender: TObject; const FileNames: array of String);
+Var
+  sl: TStringList;
+  paste, s: aString;
+  i: Integer;
+Begin
+  sl := TStringList.Create;
+  For i := 0 To Length(FileNames) -1 Do
+    sl.Add(FileNames[i]);
+  s := Filenames[0];
+  sl.LoadFromHost(String(s));
+  Paste := '';
+  If sl.Count > 0 Then Begin
+    if sl[0] = 'ZXASCII' Then Begin
+      for i := 0 To sl.Count -1 Do Begin
+        s := aString(sl[i]);
+        If (Copy(s, 1, 7) <> 'ZXASCII') and (Copy(s, 1, 4) <> 'AUTO') and (Copy(s, 1, 4) <> 'PROG') and (Copy(s, 1, 7) <> 'CHANGED') Then
+          paste := paste + s + #13#10;
+      End;
+    End;
+    FPBASICEditor.SetFocus(True);
+    FPBASICEditor.InsertText(paste);
+    FPBASICEditor.EnsureCursorVisible;
+    FPBASICEditor.Paint;
+  end;
+  sl.Free;
+End;
+{$ENDIF}
+
 procedure TMain.FormCreate(Sender: TObject);
 Var
   Path: Array [0..MAX_PATH] of Char;
   idx: Integer;
   p: TPoint;
   s, dir: String;
+  {$IFDEF UNIX}
+  ts: TimeSpec;
+  {$ENDIF}
 begin
 
+  {$IFDEF FPC}
+  SP_Display.GLControl := TOpenGLControl.Create(Self);
+  SP_Display.GLControl.Parent := Self;
+  SP_Display.GLControl.Align := alClient;
+  SP_Display.GLControl.AutoResizeViewport := False;
+  SP_Display.GLControl.MultiSampling := 0;  // no MSAA - we don't need it
+  SP_Display.GLControl.Cursor := crNone;
+  SP_Display.GLControl.OnMouseMove  := Main.FormMouseMove;   // forward to existing handler
+  SP_Display.GLControl.OnMouseDown  := Main.FormMouseDown;
+  SP_Display.GLControl.OnMouseUp    := Main.FormMouseUp;
+  SP_Display.GLControl.OnMouseWheelDown := Main.FormMouseWheelDown;
+  SP_Display.GLControl.OnMouseWheelUp := Main.FormMouseWheelUp;
+  SP_Display.GLControl.OnKeyDown    := Main.FormKeyDown;
+  SP_Display.GLControl.OnKeyUp      := Main.FormKeyUp;
+  SP_Display.GLControl.OnKeyPress   := Main.FormKeyPress;
+  {$ENDIF}
+
+  {$IFDEF FPC}
+  Application.OnDropFiles := AppDropFiles;
+  {$ELSE}
   DragAcceptFiles(Handle, True);
+  {$ENDIF}
 
   INSTARTUP := True;
   HELPFILE := '/specbas.guide';
@@ -711,8 +825,6 @@ begin
   DisplaySection.Enter;
 
   SP_GetMonitorMetrics;
-//  REALSCREENWIDTH := Round(Screen.Width);
-//  REALSCREENHEIGHT := Round(Screen.Height);
   OrgWidth := REALSCREENWIDTH;
   OrgHeight := REALSCREENHEIGHT;
 
@@ -748,25 +860,33 @@ begin
     End;
 
     dir := GetCurrentDir;
-    If (PCOUNT = 0) And FileExists(dir + '\autorun') Then Begin
+    If (PCOUNT = 0) And FileExists(dir + PathDelim + 'autorun') Then Begin
       PCOUNT := 1;
-      PARAMS.Add(aString(dir)+'\autorun');
+      PARAMS.Add(aString(dir)+ PathDelim + 'autorun');
     End;
 
   End;
 
   Cursor := CrNone;
 
+  {$IFNDEF UNIX}
   SetPriorityClass(GetCurrentProcess, $8000{ABOVE_NORMAL_PRIORITY_CLASS});
-
   TimeBeginPeriod(10);
   baseTime := TimeGetTime;
+  {$ELSE}
+  clock_gettime(CLOCK_MONOTONIC, @ts);
+  baseTime := (ts.tv_sec * 1000.0) + (ts.tv_nsec / 1000000.0);
+  {$ENDIF}
   InitTime := Round(GetTicks);
 
   If Not PAYLOADPRESENT Then Begin
 
-    BUILDSTR := aString(Sto_GetFmtFileVersion('', '%d.%d.%d.%d'));
-    If IsDebuggerPresent Then UpdateLinuxBuildStr;// Else Timer1.Enabled := False;
+    {$IFNDEF UNIX}
+      BUILDSTR := aString(Sto_GetFmtFileVersion('', '%d.%d.%d.%d'));
+      If IsDebuggerPresent Then UpdateLinuxBuildStr;
+    {$ELSE}
+      BUILDSTR := '0.0.0.0';
+    {$ENDIF}
     {$IFDEF OPENGL}
       BUILDSTR := BUILDSTR + '-GL';
     {$ENDIF}
@@ -787,11 +907,16 @@ begin
     // directory and set that as HOMEFOLDER
 
     If PCOUNT <= 0 Then Begin
-
+      {$IFNDEF FPC}
       CaptionString := 'SpecBAS for Windows v';
       Main.Caption := CaptionString + String(BuildStr);
       SHGetFolderPath(0,$0028,0,SHGFP_TYPE_CURRENT,@path[0]);
-      HOMEFOLDER := Path + aString('\specbas');
+      HOMEFOLDER := aString(Path) + aString(PathDelim + 'specbas');
+      {$ELSE}
+      CaptionString := 'SpecBAS v';
+      Main.Caption := CaptionString + String(BuildStr);
+      HOMEFOLDER := aString(GetUserDir) + aString('specbas');
+      {$ENDIF}
 
     End Else Begin
 
@@ -812,14 +937,13 @@ begin
 
   If Not DirectoryExists(String(HOMEFOLDER)) Then
     CreateDir(String(HOMEFOLDER));
-  If Not DirectoryExists(String(HOMEFOLDER) + '\temp') Then
-    CreateDir(String(HOMEFOLDER) + '\temp');
-  TEMPDIR := HOMEFOLDER + '\temp\';
-
+  If Not DirectoryExists(String(HOMEFOLDER) + PathDelim + 'temp') Then
+    CreateDir(String(HOMEFOLDER) + PathDelim + 'temp');
+  TEMPDIR := HOMEFOLDER + aString(PathDelim + 'temp' + PathDelim);
   SetCurrentDir(String(HOMEFOLDER));
   HOMEFOLDER := Lower(HOMEFOLDER);
-  If HOMEFOLDER[Length(HOMEFOLDER)] <> '\' Then
-    HOMEFOLDER := HOMEFOLDER + '\';
+  If HOMEFOLDER[Length(HOMEFOLDER)] <> aChar(PathDelim) Then
+    HOMEFOLDER := HOMEFOLDER + aChar(PathDelim);
 
   AUTOSAVE := Not PAYLOADPRESENT;
 
@@ -879,16 +1003,13 @@ begin
   SP_Init_Sound;
 
   CORECOUNT := System.CPUCount;
-//  Setpriorityclass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
-//  SetProcessAffinityMask(GetCurrentProcess, $F);
 
   BASThread := TSpecBAS_Thread.Create(True);
   {$IFNDEF FPC}
   Application.OnMessage := OnAppMessage;
   {$ENDIF}
-//  SetThreadAffinityMask(GetCurrentThread(), 1);
-//  SetThreadAffinityMask(BASThread.ThreadID, 2);
-  {$IFDEF RefreshThread}
+
+  {$IF DEFINED(RefreshThread) AND NOT DEFINED(FPC)}
   SetThreadAffinityMask(RefreshTimer.ThreadID, 4);
   {$ENDIF}
 
@@ -944,10 +1065,18 @@ begin
 
   SP_FinalizeThreadVars;
 
+  {$IFNDEF FPC}
   TimeEndPeriod(10);
+  {$ENDIF}
 
 end;
 
+{$IFDEF FPC}
+Function TMain.GetCharFromVirtualKey(Var Key: Word): aString;
+Begin
+  Result := '';
+End;
+{$ELSE}
 Function TMain.GetCharFromVirtualKey(Var Key: Word): astring;
 var
   keyboardState: TKeyboardState;
@@ -979,6 +1108,7 @@ begin
   End;
 
 end;
+{$ENDIF}
 
 procedure TMain.CMDialogKey(var msg: TCMDialogKey);
 begin
@@ -987,10 +1117,32 @@ begin
 end;
 
 procedure TMain.FormKeyPress(Sender: TObject; var Key: Char);
+{$IFDEF FPC}
+Begin
+  If PendingKeyValid And (Key >= ' ') And (Key <> #127) Then Begin
+    PendingKeyInfo.KeyChar := aChar(Key);
+    PendingKeyValid := False;
+    If ControlsAreInUse Then Begin
+      DisplaySection.Enter;
+      If ControlKeyEvent(PendingKeyInfo.KeyChar, PendingKeyInfo.KeyCode,
+                         True, PendingKeyInfo.IsKey) Then Begin
+        DisplaySection.Leave;
+        Key := #0;
+        Exit;
+      End Else
+        DisplaySection.Leave;
+    End;
+    SP_AddKey(PendingKeyInfo);
+  End;
+  Key := #0;
+End;
+{$ELSE}
 Begin
   Key := #32;
 End;
+{$ENDIF}
 
+{$IFNDEF FPC}
 procedure TMain.WMMenuChar(var MessageRec: TWMMenuChar);
 Begin
   if IgnoreNextMenuChar Then Begin
@@ -998,6 +1150,7 @@ Begin
     IgnoreNextMenuChar := False;
   End;
 End;
+{$ENDIF}
 
 procedure TMain.FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
 Var
@@ -1020,6 +1173,22 @@ begin
   kInfo.KeyCode := Key And $7F;
   kInfo.NextFrameTime := FRAMES;
   kInfo.WindowID := FocusedWindow;
+
+  {$IFDEF FPC}
+  If Not (Key In [VK_ESCAPE, VK_BACK, VK_TAB, VK_RETURN,
+                  VK_F1, VK_F2, VK_F3, VK_F4, VK_F5, VK_F6,
+                  VK_F7, VK_F8, VK_F9, VK_F10, VK_F11, VK_F12,
+                  VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN,
+                  VK_INSERT, VK_DELETE, VK_HOME, VK_END,
+                  VK_PRIOR, VK_NEXT, VK_CAPITAL, VK_NUMLOCK,
+                  VK_SCROLL, VK_SHIFT, VK_CONTROL, VK_MENU,
+                  VK_LSHIFT, VK_RSHIFT, VK_LCONTROL, VK_RCONTROL,
+                  VK_LMENU, VK_RMENU]) Then Begin
+    PendingKeyInfo  := kInfo;
+    PendingKeyValid := True;
+    Exit;
+  End;
+  {$ENDIF}
 
   If Key = $12 Then Begin // ALT went down
 
@@ -1202,6 +1371,13 @@ begin
 
     {$IFDEF OPENGL}
 
+      {$IFDEF FPC}
+      If Assigned(SP_Display.GLControl) Then
+        SetScaling(DISPLAYWIDTH, DISPLAYHEIGHT,
+                   SP_Display.GLControl.Width,
+                   SP_Display.GLControl.Height);
+      {$ENDIF}
+
       If WindowState = wsMinimized Then Begin
         Minimised := True;
         Exit;
@@ -1235,7 +1411,11 @@ end;
 Procedure TMain.CreateGDIBitmap;
 {$IFNDEF OPENGL}
 Var
+  {$IFDEF FPC}
+  BmInfo: BITMAPINFO;
+  {$ELSE}
   BmInfo: tagBITMAPINFO;
+  {$ENDIF}
 {$ENDIF}
 Begin
 
@@ -1268,24 +1448,32 @@ End;
 procedure TMain.FormShow(Sender: TObject);
 Begin
 
+  {$IFDEF FPC}
+  GLControl.MakeCurrent(True);  // Make current once on main thread
+  {$ENDIF}
   SetFocus;
 
 end;
 
 Procedure Quit;
 Begin
-
   Quitting := True;
+  {$IFNDEF FPC}
   PostMessage(Main.Handle, WM_CLOSE, 0, 0);
-
+  {$ELSE}
+  Application.Terminate;
+  {$ENDIF}
 End;
 
 Procedure GetKeyState;
 Begin
-
-  CAPSLOCK := Windows.GetKeyState(VK_CAPITAL) and 1;
-  NUMLOCK := WIndows.GetKeyState(VK_NUMLOCK) and 1;
-
+  {$IFNDEF FPC}
+  CAPSLOCK := Windows.GetKeyState(VK_CAPITAL) And 1;
+  NUMLOCK  := Windows.GetKeyState(VK_NUMLOCK)  And 1;
+  {$ELSE}
+  CAPSLOCK := Ord(LCLIntf.GetKeyState(VK_CAPITAL) And 1 <> 0);
+  NUMLOCK  := Ord(LCLIntf.GetKeyState(VK_NUMLOCK)  And 1 <> 0);
+  {$ENDIF}
 End;
 
 Procedure YieldProc(const ms: aFloat); inline;
@@ -1340,109 +1528,371 @@ begin
   end;
 end;
 
-Procedure LoadImage(Filename: aString; Var Error: TSP_ErrorCode);
-Var
-  Bmp: TPicture;
-  NewBmp: TBitmap;
-  Idx, y: Integer;
-  MaxPal: TMaxLogPalette;
-  r, g, b: Byte;
-  DPtr: pByte;
-  Ext, FirstBytes, OldFilename, tStr: aString;
-  FS: TFileStream;
-  RGBQ: Array[0..255] of RGBQUAD;
 {$IFDEF FPC}
+// TFPReaderPNG exposes ColorType and BitDepth directly from the PNG IHDR chunk,
+// which is the only reliable way to determine palette vs direct-colour depth.
+// ColorType = 0: grayscale        -> 8bpp
+// ColorType = 2: truecolour       -> 32bpp
+// ColorType = 3: indexed/palette  -> 8bpp
+// ColorType = 4: grayscale+alpha  -> 32bpp
+// ColorType = 6: truecolour+alpha -> 32bpp
 Type
   TPNGImage = TPortableNetworkGraphic;
 {$ENDIF}
 
+Procedure LoadImage(Filename: aString; Var Error: TSP_ErrorCode);
+Var
+  NewBmp:     TBitmap;
+  Idx, y:     Integer;
+  DPtr:       pByte;
+  Ext,
+  FirstBytes,
+  OldFilename,
+  tStr:       aString;
+  FS:         TFileStream;
+  MagicBuf:   Array[0..7] of Byte;
+  {$IFNDEF FPC}
+  Bmp:        TPicture;
+  MaxPal:     TMaxLogPalette;
+  r, g, b:    Byte;
+  RGBQ:       Array[0..255] of RGBQUAD;
+  {$ELSE}
+  SrcBmp:    TBitmap;
+  Jpg:       TJPEGImage;
+  Gif:       TGIFImage;
+  Reader:    TFPReaderPNG;
+  FPStream:  TFileStream;
+  FPImg:     TFPMemoryImage;
+  Png:       TPortableNetworkGraphic;
+  ColorType: Byte;
+  BitDepth:  Byte;
+  ColMap:   Array[0..255] Of LongWord;
+  ColCount,
+  ci:       Integer;
+  Found:    Boolean;
+  Row32:    pLongWord;
+  pixel:    LongWord;
+  {$ENDIF}
 Begin
 
-  // Loads (using arch-specific routines - GraphicEx under Win32, SDL_Image under linux) an image,
-  // and fills the supplied pointer and w/h/s vars with info about the image. Use the "FreeImageResource"
-  // proc when we're done with the image.
-
-  // FUCKING UGLY HACK ALERT!
-
   OldFilename := '';
-  If FileExists(String(Filename)) Then Begin
-    Ext := Lower(aString(ExtractFileExt(String(Filename))));
-    FS := TFileStream.Create(String(FileName), fmOpenRead or fmShareDenyNone);
-    SetLength(FirstBytes, 8);
-    FS.Read(FirstBytes[1], 8);
-    FS.Free;
-    Ext := '';
-    if Copy(FirstBytes, 1, 2) = 'BM' then Ext := '.bmp';
-    if FirstBytes = #137'PNG'#13#10#26#10 then Ext := '.png';
-    if Copy(FirstBytes, 1, 3) =  'GIF' then Ext := '.gif';
-    if Copy(FirstBytes, 1, 2) = #$FF#$D8 then Ext := '.jpg';
-    OldFilename := Filename;
-    tStr := aString(ExtractFilename(String(Filename)));
-    tStr := Copy(tStr, 1, Length(tStr) - Length(Ext));
-    Filename := aString(ExtractFilePath(String(Filename))) + tStr + Ext;
-    RenameFile(String(OldFilename), String(Filename));
+
+  If Not FileExists(String(Filename)) Then Begin
+    Error.Code := SP_ERR_FILE_MISSING;
+    Exit;
   End;
 
+  // Detect format from magic bytes - never trust the file extension
+  FS := TFileStream.Create(String(FileName), fmOpenRead Or fmShareDenyNone);
+  FS.Read(MagicBuf[0], 8);
+  FS.Free;
+  SetLength(FirstBytes, 8);
+  Move(MagicBuf[0], FirstBytes[1], 8);
+
+  Ext := '';
+  If Copy(FirstBytes, 1, 2) = 'BM'     Then Ext := '.bmp';
+  If FirstBytes = #137'PNG'#13#10#26#10 Then Ext := '.png';
+  If Copy(FirstBytes, 1, 3) = 'GIF'    Then Ext := '.gif';
+  If Copy(FirstBytes, 1, 2) = #$FF#$D8 Then Ext := '.jpg';
+
+  If Ext = '' Then Begin
+    Error.Code := SP_ERR_UNSUPPORTED_IMAGE_FORMAT;
+    Exit;
+  End;
+
+  // Rename to correct extension if needed so loaders can identify the format
+  OldFilename := Filename;
+  tStr := aString(ExtractFilename(String(Filename)));
+  tStr := Copy(tStr, 1, Length(tStr) - Length(aString(ExtractFileExt(String(Filename)))));
+  Filename := aString(ExtractFilePath(String(Filename))) + tStr + Ext;
+  If Filename = OldFilename Then
+    OldFilename := ''  // no rename needed, clear so we don't rename back at end
+  Else
+    RenameFile(String(OldFilename), String(Filename));
+
   ERRStr := Filename;
-  If FileExists(String(Filename)) Then Begin
+
+  NewBmp := TBitmap.Create;
+  Try
+
+    {$IFDEF FPC}
+
+    // -------------------------------------------------------------------------
+    // FPC / macOS path
+    // Load each format directly into its concrete type to avoid TPicture's
+    // deferred-initialisation issues on the Cocoa backend.
+    // All formats are drawn onto a pf32Bit TBitmap as the common intermediate.
+    // Depth (ImgBpp) is determined from authoritative format metadata, not
+    // from PixelFormat which is unreliable after LCL normalisation.
+    // -------------------------------------------------------------------------
+
+    ImgBpp := 32;
+
+    If Ext = '.png' Then Begin
+
+      // Use TFPReaderPNG to read ColorType/BitDepth from the IHDR chunk.
+      // This is the authoritative depth source - PixelFormat is unreliable.
+      Begin
+        FPImg  := TFPMemoryImage.Create(0, 0);
+        Reader := TFPReaderPNG.Create;
+        FPStream := TFileStream.Create(String(Filename), fmOpenRead Or fmShareDenyNone);
+        Try
+          Reader.ImageRead(FPStream, FPImg);
+          ColorType := Reader.ColorType;
+          BitDepth  := Reader.BitDepth;
+        Finally
+          FPStream.Free;
+          Reader.Free;
+          FPImg.Free;
+        End;
+
+        // ColorType 0 = grayscale, 3 = indexed palette -> 8bpp
+        // ColorType 2 = truecolour, 4 = grey+alpha, 6 = truecolour+alpha -> 32bpp
+        If (ColorType In [0, 3]) And (BitDepth <= 8) Then
+          ImgBpp := 8;
+
+        // Now load via TPortableNetworkGraphic for proper LCL canvas integration
+        Png := TPortableNetworkGraphic.Create;
+        Try
+          Png.LoadFromFile(String(Filename));
+          NewBmp.PixelFormat := pf32Bit;
+          NewBmp.Width       := Png.Width;
+          NewBmp.Height      := Png.Height;
+          NewBmp.Canvas.Draw(0, 0, Png);
+        Finally
+          Png.Free;
+        End;
+      End;
+
+    End Else If Ext = '.bmp' Then Begin
+
+      SrcBmp := TBitmap.Create;
+      Try
+        SrcBmp.LoadFromFile(String(Filename));
+        // TBitmap.PixelFormat is reliable for BMP files
+        If SrcBmp.PixelFormat In [pf1Bit, pf4Bit, pf8Bit] Then
+          ImgBpp := 8;
+        NewBmp.PixelFormat := pf32Bit;
+        NewBmp.Width       := SrcBmp.Width;
+        NewBmp.Height      := SrcBmp.Height;
+        NewBmp.Canvas.Draw(0, 0, SrcBmp);
+      Finally
+        SrcBmp.Free;
+      End;
+
+    End Else If (Ext = '.jpg') Or (Ext = '.jpeg') Then Begin
+
+      // JPEG has no palette support - always 32bpp
+      Jpg := TJPEGImage.Create;
+      Try
+        Jpg.LoadFromFile(String(Filename));
+        NewBmp.PixelFormat := pf32Bit;
+        NewBmp.Width       := Jpg.Width;
+        NewBmp.Height      := Jpg.Height;
+        NewBmp.Canvas.Draw(0, 0, Jpg);
+      Finally
+        Jpg.Free;
+      End;
+
+    End Else If Ext = '.gif' Then Begin
+
+      // GIF is always palette/indexed - always 8bpp
+      ImgBpp := 8;
+      Gif := TGIFImage.Create;
+      Try
+        Gif.LoadFromFile(String(Filename));
+        NewBmp.PixelFormat := pf32Bit;
+        NewBmp.Width       := Gif.Width;
+        NewBmp.Height      := Gif.Height;
+        NewBmp.Canvas.Draw(0, 0, Gif);
+      Finally
+        Gif.Free;
+      End;
+
+    End Else Begin
+      Error.Code := SP_ERR_UNSUPPORTED_IMAGE_FORMAT;
+      Exit;
+    End;
+
+    // NewBmp is now pf32Bit BGRA with image drawn onto it.
+
+    If ImgBpp = 8 Then Begin
+
+      // 8bpp output: extract palette and build index array from 32bpp canvas.
+      // A genuine palette image has <= 256 unique colours so the scan is exact.
+      // pf32Bit scanline layout: byte0=B, byte1=G, byte2=R, byte3=A
+      Begin
+        ColCount := 0;
+        FillChar(ColMap, SizeOf(ColMap), 0);
+
+        // Pass 1: collect unique colours (ignore alpha byte)
+        For y := 0 To NewBmp.Height - 1 Do Begin
+          Row32 := pLongWord(NewBmp.Scanline[y]);
+          For Idx := 0 To NewBmp.Width - 1 Do Begin
+            pixel := (Row32 + Idx)^ And $00FFFFFF;
+            Found := False;
+            For ci := 0 To ColCount - 1 Do
+              If ColMap[ci] = pixel Then Begin Found := True; Break; End;
+            If Not Found Then Begin
+              If ColCount < 256 Then Begin
+                ColMap[ColCount] := pixel;
+                Inc(ColCount);
+              End;
+              // If ColCount would exceed 256 something is wrong with the source
+              // image - we carry on and clip, which is better than crashing.
+            End;
+          End;
+        End;
+
+        // Build ImgPalette from collected BGR values
+        For ci := 0 To ColCount - 1 Do Begin
+          ImgPalette[ci].B := (ColMap[ci]       ) And $FF;
+          ImgPalette[ci].G := (ColMap[ci] Shr 8 ) And $FF;
+          ImgPalette[ci].R := (ColMap[ci] Shr 16) And $FF;
+        End;
+
+        // Pass 2: build palette index array
+        SetLength(ImgResource, NewBmp.Width * NewBmp.Height);
+        DPtr := @ImgResource[0];
+        ImgPtr := DPtr;
+        For y := 0 To NewBmp.Height - 1 Do Begin
+          Row32 := pLongWord(NewBmp.Scanline[y]);
+          For Idx := 0 To NewBmp.Width - 1 Do Begin
+            pixel := (Row32 + Idx)^ And $00FFFFFF;
+            DPtr^ := 0; // default index 0 if not found (shouldn't happen)
+            For ci := 0 To ColCount - 1 Do
+              If ColMap[ci] = pixel Then Begin DPtr^ := ci; Break; End;
+            Inc(DPtr);
+          End;
+        End;
+        ImgStride := NewBmp.Width;
+      End;
+
+    End Else Begin
+
+      // 32bpp output: copy BGRA scanlines directly
+      SetLength(ImgResource, NewBmp.Width * NewBmp.Height * 4);
+      DPtr := @ImgResource[0];
+      ImgPtr := DPtr;
+      For y := 0 To NewBmp.Height - 1 Do Begin
+        CopyMem(DPtr, NewBmp.Scanline[y], NewBmp.Width * 4);
+        Inc(DPtr, NewBmp.Width * 4);
+      End;
+      ImgStride := NewBmp.Width * 4;
+
+      // Patch alpha=0 to $FF for formats that have no alpha channel.
+      // PNG alpha is preserved as-is (may have genuine transparent pixels).
+      If (Ext = '.jpg') Or (Ext = '.jpeg') Or
+         (Ext = '.bmp') Or (Ext = '.gif') Then Begin
+        DPtr := @ImgResource[3]; // first alpha byte
+        For Idx := 0 To NewBmp.Width * NewBmp.Height - 1 Do Begin
+          If DPtr^ = 0 Then DPtr^ := $FF;
+          Inc(DPtr, 4);
+        End;
+      End;
+
+    End;
+
+    {$ELSE}
+
+    // -------------------------------------------------------------------------
+    // Delphi / Windows path - original TPicture-based code, unchanged.
+    // -------------------------------------------------------------------------
+
     Bmp := TPicture.Create;
     Try
-      Bmp.LoadFromFile(String(Filename));
-    Except
-      On E: Exception Do Begin
-        Bmp.Free;
-        Error.Code := SP_ERR_UNSUPPORTED_IMAGE_FORMAT;
-      End;
-    End;
-    If Error.Code = SP_ERR_OK Then Begin
-      If Bmp.Graphic Is TPNGImage Then Begin
-        {$IFNDEF FPC}
-        If ((Bmp.Graphic as TPNGImage).Header.ColorType <> COLOR_PALETTE) And ((Bmp.Graphic as TPNGImage).Header.ColorType <> COLOR_GRAYSCALE) Then
-        {$ELSE}
-        If ((Bmp.Graphic as TPNGImage).PixelFormat <> pf8Bit) Then
-        {$ENDIF}
-          Error.Code := SP_ERR_INVALID_IMAGE_FORMAT
-      End Else
-        If Bmp.Graphic is TBitmap Then Begin
-          If (Bmp.Graphic As TBitmap).PixelFormat <> pf8Bit Then
-            Error.Code := SP_ERR_INVALID_IMAGE_FORMAT;
+
+      Try
+        Bmp.LoadFromFile(String(Filename));
+      Except
+        On E: Exception Do Begin
+          Error.Code := SP_ERR_UNSUPPORTED_IMAGE_FORMAT;
+          Exit;
         End;
-      If Error.Code = SP_ERR_OK Then Begin
+      End;
+
+      If (Bmp.Graphic = Nil) Or (Bmp.Graphic.Width = 0) Then Begin
+        Error.Code := SP_ERR_UNSUPPORTED_IMAGE_FORMAT;
+        Exit;
+      End;
+
+      ImgBpp := 32;
+      If Bmp.Graphic Is TPngImage Then Begin
+        If ((Bmp.Graphic As TPngImage).Header.ColorType = COLOR_PALETTE) Or
+           ((Bmp.Graphic As TPngImage).Header.ColorType = COLOR_GRAYSCALE) Then
+          ImgBpp := 8;
+      End Else
+        If Bmp.Graphic Is TBitmap Then Begin
+          If (Bmp.Graphic As TBitmap).PixelFormat = pf8Bit Then
+            ImgBpp := 8;
+        End Else
+          If Bmp.Graphic Is TGIFImage Then
+            ImgBpp := 8;
+
+      NewBmp.Width  := Bmp.Graphic.Width;
+      NewBmp.Height := Bmp.Graphic.Height;
+
+      If ImgBpp = 8 Then Begin
+
         SetLength(ImgResource, Bmp.Graphic.Width * Bmp.Graphic.Height);
-        NewBmp := TBitmap.Create;
-        NewBmp.Width := Bmp.Graphic.Width;
-        NewBmp.Height := Bmp.Graphic.Height;
         NewBmp.PixelFormat := pf8Bit;
         GetPaletteEntries(Bmp.Graphic.Palette, 0, 256, MaxPal.palPalEntry);
         For Idx := 0 To 255 Do Begin
           r := MaxPal.palPalEntry[Idx].peRed;
           g := MaxPal.palPalEntry[Idx].peGreen;
           b := MaxPal.palPalEntry[Idx].peBlue;
-          ImgPalette[Idx].R := r; RGBQ[Idx].rgbRed := r;
-          ImgPalette[Idx].G := g; RGBQ[Idx].rgbGreen := g;
-          ImgPalette[Idx].B := b; RGBQ[Idx].rgbBlue := b;
+          ImgPalette[Idx].R := r;  RGBQ[Idx].rgbRed   := r;
+          ImgPalette[Idx].G := g;  RGBQ[Idx].rgbGreen := g;
+          ImgPalette[Idx].B := b;  RGBQ[Idx].rgbBlue  := b;
         End;
         SetDIBColorTable(NewBmp.Canvas.Handle, 0, 256, RGBQ);
         NewBmp.Canvas.Draw(0, 0, Bmp.Graphic);
         DPtr := @ImgResource[0];
         ImgPtr := DPtr;
-        For y := 0 To NewBmp.Height -1 Do Begin
+        For y := 0 To NewBmp.Height - 1 Do Begin
           CopyMem(DPtr, NewBmp.Scanline[y], NewBmp.Width);
           Inc(DPtr, NewBmp.Width);
         End;
         ImgStride := NewBmp.Width;
-        ImgHeight := NewBmp.Height;
-        ImgWidth := NewBmp.Width;
-        NewBmp.Free;
+
+      End Else Begin
+
+        SetLength(ImgResource, Bmp.Graphic.Width * Bmp.Graphic.Height * 4);
+        NewBmp.PixelFormat := pf32Bit;
+        NewBmp.Canvas.Draw(0, 0, Bmp.Graphic);
+        DPtr := @ImgResource[0];
+        ImgPtr := DPtr;
+        For y := 0 To NewBmp.Height - 1 Do Begin
+          CopyMem(DPtr, NewBmp.Scanline[y], NewBmp.Width * 4);
+          Inc(DPtr, NewBmp.Width * 4);
+        End;
+        ImgStride := NewBmp.Width * 4;
+        // Preserve PNG alpha; patch everything else to opaque
+        If Not (Bmp.Graphic Is TPngImage) Then Begin
+          DPtr := @ImgResource[3];
+          For Idx := 0 To NewBmp.Width * NewBmp.Height - 1 Do Begin
+            If DPtr^ = 0 Then DPtr^ := $FF;
+            Inc(DPtr, 4);
+          End;
+        End;
+
       End;
+
+    Finally
       Bmp.Free;
-    End Else
-      Error.Code := SP_ERR_FILE_MISSING;
-  End Else
-    Error.Code := SP_ERR_FILE_MISSING;
+    End;
+
+    {$ENDIF}
+
+    ImgHeight := NewBmp.Height;
+    ImgWidth  := NewBmp.Width;
+
+  Finally
+    NewBmp.Free;
+  End;
 
   If OldFilename <> '' Then
-    RenameFile(String(Filename), String(OldFileName));
+    RenameFile(String(Filename), String(OldFilename));
 
 End;
 
@@ -1580,8 +2030,10 @@ end;
 
 Initialization
 
+  {$IFNDEF FPC}
   {$IFDEF OPENGL}
   RC := 0;
+  {$ENDIF}
   {$ENDIF}
 
 end.

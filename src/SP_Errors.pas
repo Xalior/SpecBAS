@@ -221,8 +221,10 @@ Const
   SP_ERR_NOT_A_SOCKET   = 173;
   SP_ERR_SOCKET_LISTEN  = 174;
   SP_ERR_SOCKET_ACCEPT  = 175;
+  SP_ERR_DEPTH_MISMATCH       = 176;   // palette op on 32bpp bank, or bpp conflict between src/dst
+  SP_ERR_UNSUPPORTED_32BPP_OP = 177; // 32bpp variant not yet implemented (temporary guard)
 
-  MAXERROR = 175;
+  MAXERROR = 177;
 
   // Runtime error codes.
 
@@ -409,8 +411,9 @@ Const
      'Socket timed out',
      'Not a socket stream',
      'Socket listen failed: %v',
-     'Socket accept failed');
-
+     'Socket accept failed',
+     'Invalid or mismatched depth',
+     'Operation not supported for 32bpp');
 
 Var
 

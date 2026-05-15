@@ -206,8 +206,8 @@ End;
 // bar is part of the editor window regardless of which sub-window has focus.
 Function AppendBlob(Const name: aString; Changed: Boolean): aString;
 Const
-  cl_changed = 2;   // red   — matches SP_GetProgName editor-focused changed
-  cl_normal  = 4;   // green — matches SP_GetProgName editor-focused normal
+  cl_changed = 2;   // red   - matches SP_GetProgName editor-focused changed
+  cl_normal  = 4;   // green - matches SP_GetProgName editor-focused normal
 Begin
   If Changed Then
     Result := name + aChar(#16) + LongWordToString(cl_changed) + ' ' + BlobChar
@@ -331,7 +331,7 @@ Begin
   // Discard stale EditorState - undo entries reference the old file's content.
   SP_EditorTabs[SP_ActiveTab].EditorState        := '';
   SP_EditorTabs[SP_ActiveTab].StoredProgName     := PROGNAME;
-  // Strip blob suffix before storing — TabDisplayName appends it fresh.
+  // Strip blob suffix before storing - TabDisplayName appends it fresh.
   SP_EditorTabs[SP_ActiveTab].StoredDisplayName  := FormatTabName(sNewProgName);
   SP_EditorTabs[SP_ActiveTab].StoredProgLine     := PROGLINE;
   SP_EditorTabs[SP_ActiveTab].StoredFileChanged  := False;

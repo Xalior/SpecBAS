@@ -134,7 +134,7 @@ Function  SP_NewNumVar: Integer;
 Function  New_NumVarContent: pSP_NumVarContent; inline;
 Function  New_StrVarContent: pSP_StrVarContent; inline;
 Function  SP_UpdateNumVar(Idx: Integer; const Name: aString; Var Value: aFloat; Var Error: TSP_ErrorCode; Ptr: pLongWord): Integer;
-Procedure SP_UpdateNumVarIndex(Idx: Integer; Var Value: aFloat); inline;
+Procedure SP_UpdateNumVarIndex(Idx: Integer; Value: aFloat); inline;
 Function  SP_IncNumVar(Idx: Integer; const Name: aString; Var Value: aFloat; Var Error: TSP_ErrorCode; Ptr: pLongWord): Integer;
 Procedure SP_IncNumVarIndex(Idx: Integer; Var Value: aFloat); inline;
 Function  SP_DecNumVar(Idx: Integer; const Name: aString; Var Value: aFloat; Var Error: TSP_ErrorCode; Ptr: pLongWord): Integer;
@@ -528,7 +528,7 @@ Begin
 
 End;
 
-Procedure SP_UpdateNumVarIndex(Idx: Integer; Var Value: aFloat); inline;
+Procedure SP_UpdateNumVarIndex(Idx: Integer; Value: aFloat); inline;
 Begin
 
   NumVars[Idx -1]^.ContentPtr^.Value := Value;
@@ -1259,7 +1259,7 @@ Begin
     If Key = '' Then Begin
       Ln := Length(Indices) Div SizeOf(LongWord);
       If Ln <> NumArrays[Idx].NumIndices Then Goto SubWrong;
-      pIdx := pLongWord(pNativeUInt(@Indices)^);
+      pIdx := pLongWord(Pointer(Indices));
       iIdx := 0;
       Result := 0;
       vLen := NumArrays[Idx].Size;

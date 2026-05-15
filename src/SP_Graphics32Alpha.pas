@@ -34,8 +34,8 @@ interface
 
   Procedure SP_FloodFill32Alpha(Dst: pLongWord; dX, dY, dW, dH, Clr: LongWord);
 
-  Procedure SP_PolygonFill32Alpha(Var Points: Array of TSP_Point; TextureStr: aString; tW, tH: LongWord);
-  Procedure SP_PolygonSolidFill32Alpha(Var Points: Array of TSP_Point; Outline: Boolean);
+  Procedure SP_PolygonFill32Alpha(Const Points: Array of TSP_Point; TextureStr: aString; tW, tH: LongWord);
+  Procedure SP_PolygonSolidFill32Alpha(Const Points: Array of TSP_Point; Outline: Boolean);
 
   Function  SP_PRINT32Alpha(BankID, X, Y, CPos: Integer; const Text: aString; Ink, Paper: LongWord; var Error: TSP_ErrorCode): Integer;
   Function  SP_TextOut32Alpha(BankID, X, Y: Integer; const Text: aString; Ink, Paper: LongWord; Proportional: Boolean): Integer;
@@ -889,7 +889,7 @@ Begin
 
 End;
 
-Procedure SP_PolygonSolidFill32Alpha(Var Points: Array of TSP_Point; Outline: Boolean);
+Procedure SP_PolygonSolidFill32Alpha(Const Points: Array of TSP_Point; Outline: Boolean);
 Var
   MinX, MinY, MaxX, MaxY, Idx, I, J, Nodes, NumPoints, PixelY, Swap: Integer;
   NodeX: Array of Integer;
@@ -1302,10 +1302,14 @@ Begin
                       End Else
                         If FontBank^.FontType = SP_FONT_TYPE_32BIT Then Begin
                           Coord^ := SP_AlphaBlend(Coord^, pLongWord(Char)^);
-                          Inc(Char, SizeOf(RGBA));
+                          Inc(Coord);
+                          Inc(pByte(Char), SizeOf(RGBA));
+                          Inc(X); Inc(xc);
+                          Dec(CharW);
+                          Continue;
                         End;
-                  Inc(Coord);
                   Inc(Char);
+                  Inc(Coord);
                   Inc(X); Inc(xc);
                   Dec(CharW);
                 End;
@@ -1722,10 +1726,14 @@ Begin
                     End Else
                       If FontBank^.FontType = SP_FONT_TYPE_32BIT Then Begin
                         Coord^ := SP_AlphaBlend(Coord^, pLongWord(Char)^);
-                        Inc(Char, SizeOf(RGBA));
+                        Inc(Coord);
+                        Inc(pByte(Char), SizeOf(RGBA));
+                        Inc(X); Inc(xc);
+                        Dec(CharW);
+                        Continue;
                       End;
-              Inc(Coord);
               Inc(Char);
+              Inc(Coord);
               Inc(X); Inc(xc);
               Dec(CharW);
             End;
@@ -1969,19 +1977,241 @@ Begin
 
 End;
 
-Procedure SP_PolygonFill32Alpha(Var Points: Array of TSP_Point; TextureStr: aString; tW, tH: LongWord);
+Procedure SP_PolygonFill32Alpha(Const Points: Array of TSP_Point; TextureStr: aString; tW, tH: LongWord);
+Var
+  MinY, MaxY, MinX, MaxX, Idx, I, J, Nodes, NumPoints, PixelY: Integer;
+  NodeX: Array of Integer;
+  Dst: pLongWord;
+  TexBase: pLongWord;
+  Graphic: pSP_Graphic_Info;
+  PixVal: LongWord;
 Begin
-  // TODO Alpha
+
+  If TextureStr = '' Then Begin
+    TexBase := pLongWord(tW);
+    Graphic := pSP_Graphic_Info(tH);
+    tW := Graphic^.Width;
+    tH := Graphic^.Height;
+  End Else
+    TexBase := pLongWord(@TextureStr[13]);
+
+  NumPoints := Length(Points);
+  SetLength(NodeX, NumPoints);
+  Idx := NumPoints - 1;
+  MinY := 32768; MaxY := -32768;
+  MinX := 32768; MaxX := -32768;
+
+  While Idx >= 0 Do Begin
+    If Points[Idx].Y < MinY Then MinY := Floor(Points[Idx].Y);
+    If Points[Idx].Y > MaxY Then MaxY := Ceil(Points[Idx].Y);
+    If Points[Idx].X < MinX Then MinX := Floor(Points[Idx].X);
+    If Points[Idx].X > MaxX Then MaxX := Ceil(Points[Idx].X);
+    Dec(Idx);
+  End;
+
+  MaxY := Min(MaxY, T_CLIPY2 - 1);
+  MaxX := Min(MaxX, T_CLIPX2 - 1);
+  MinY := Max(MinY, T_CLIPY1);
+  MinX := Max(MinX, T_CLIPX1);
+
+  If SCREENVISIBLE Then SP_SetDirtyRect(SCREENX + MinX, SCREENY + MinY, SCREENX + MaxX, SCREENY + MaxY);
+
+  For PixelY := MinY To MaxY Do Begin
+
+    Nodes := 0;
+    J := NumPoints - 1;
+    For I := 0 To NumPoints - 1 Do Begin
+      If ((Points[I].Y < PixelY) And (Points[J].Y >= PixelY)) Or
+         ((Points[J].Y < PixelY) And (Points[I].Y >= PixelY)) Then Begin
+        NodeX[Nodes] := Round(Points[I].X + (PixelY - Points[I].Y) /
+          (Points[J].Y - Points[I].Y) * (Points[J].X - Points[I].X));
+        Inc(Nodes);
+      End;
+      J := I;
+    End;
+
+    I := 0;
+    While I < Nodes - 1 Do
+      If NodeX[I] > NodeX[I+1] Then Begin
+        NodeX[I]   := NodeX[I]   Xor NodeX[I+1];
+        NodeX[I+1] := NodeX[I]   Xor NodeX[I+1];
+        NodeX[I]   := NodeX[I]   Xor NodeX[I+1];
+        If I > 0 Then Dec(I);
+      End Else
+        Inc(I);
+
+    I := 0;
+    While I < Nodes Do Begin
+      If NodeX[I] >= T_CLIPX2 Then Break;
+      If NodeX[I+1] > T_CLIPX1 Then Begin
+        If NodeX[I]   < T_CLIPX1  Then NodeX[I]   := T_CLIPX1;
+        If NodeX[I+1] >= T_CLIPX2 Then NodeX[I+1] := T_CLIPX2;
+        Dst := pLongWord(NativeUInt(SCREENPOINTER) +
+          LongWord(PixelY * SCREENSTRIDE + NodeX[I] * SizeOf(LongWord)));
+        For J := NodeX[I] To NodeX[I+1] - 1 Do Begin
+          PixVal := pLongWord(NativeUInt(TexBase) +
+            LongWord(((LongWord(PixelY) Mod tH) * tW + (LongWord(J) Mod tW)) * SizeOf(LongWord)))^;
+          Case PixVal Shr 24 Of
+            0:   ;
+            $FF: Dst^ := PixVal;
+          Else   Dst^ := SP_AlphaBlend(Dst^, PixVal);
+          End;
+          Inc(Dst);
+        End;
+      End;
+      Inc(I, 2);
+    End;
+
+  End;
+
+  SP_BankList[0]^.Changed := True;
+
 End;
 
 Procedure SP_DrawTexRectangle32Alpha(X1, Y1, X2, Y2: Integer; TextureStr: aString; tW, tH: LongWord);
+Var
+  T, W: Integer;
+  Dst: pLongWord;
+  TexBase: pLongWord;
+  Graphic: pSP_Graphic_Info;
+  PixVal: LongWord;
 Begin
-  // TODO Alpha
+
+  DRPOSX := X2;
+  DRPOSY := Y2;
+
+  If X1 > X2 Then Begin T := X1; X1 := X2; X2 := T; End;
+  If Y1 > Y2 Then Begin T := Y1; Y1 := Y2; Y2 := T; End;
+
+  If X1 < 0 Then X1 := 0; If X1 >= SCREENWIDTH  Then Exit;
+  If Y1 < 0 Then Y1 := 0; If Y1 >= SCREENHEIGHT Then Exit;
+  If X2 < 0 Then Exit;    If X2 >= SCREENWIDTH  Then X2 := SCREENWIDTH  - 1;
+  If Y2 < 0 Then Exit;    If Y2 >= SCREENHEIGHT Then Y2 := SCREENHEIGHT - 1;
+
+  If SCREENVISIBLE Then SP_SetDirtyRect(SCREENX + X1, SCREENY + Y1, SCREENX + X2, SCREENY + Y2);
+
+  // Texture source - either a grab string or a graphic bank pointer pair.
+  If TextureStr = '' Then Begin
+    TexBase := pLongWord(tW);
+    Graphic := pSP_Graphic_Info(tH);
+    tW := Graphic^.Width;
+    tH := Graphic^.Height;
+  End Else
+    TexBase := pLongWord(@TextureStr[13]);   // 12-byte unified header
+
+  Dst := pLongWord(NativeUInt(SCREENPOINTER) + LongWord(SCREENSTRIDE * Y1 + X1 * SizeOf(LongWord)));
+
+  While Y1 <= Y2 Do Begin
+    If (Y1 >= T_CLIPY1) And (Y1 < T_CLIPY2) Then Begin
+      W := X1;
+      While W <= X2 Do Begin
+        If (W >= T_CLIPX1) And (W < T_CLIPX2) Then Begin
+          PixVal := pLongWord(NativeUInt(TexBase) +
+            LongWord(((LongWord(W) Mod tW) + (LongWord(Y1) Mod tH) * tW) * SizeOf(LongWord)))^;
+          Case PixVal Shr 24 Of
+            0:   ;
+            $FF: Dst^ := PixVal;
+          Else   Dst^ := SP_AlphaBlend(Dst^, PixVal);
+          End;
+        End;
+        Inc(Dst);
+        Inc(W);
+      End;
+      Inc(Dst, SCREENWIDTH - (X2 - X1) - 1);
+    End Else
+      Inc(pByte(Dst), SCREENSTRIDE);
+    Inc(Y1);
+  End;
+
+  SP_BankList[0]^.Changed := True;
+
 End;
 
 Procedure SP_DrawTexEllipse32Alpha(CX, CY, Rx, Ry: Integer; Angle: aFloat; TextureStr: aString; tW, tH: LongWord);
+Var
+  fr1, fr2, cosA, sinA: aFloat;
+  y, minY, maxY: NativeInt;
+  DstA, TexBase: pLongWord;
+  Graphic: pSP_Graphic_Info;
+  PixVal: LongWord;
+
+  Procedure DrawTexSpan(X1, X2, Y: Integer);
+  Begin
+    X1 := Max(T_CLIPX1, X1);
+    X2 := Min(T_CLIPX2, X2);
+    If X2 > X1 Then Begin
+      DstA := pLongWord(NativeUInt(SCREENPOINTER) + X1 * SizeOf(RGBA) + (Y * SCREENSTRIDE));
+      While X2 >= X1 Do Begin
+        PixVal := pLongWord(NativeUInt(TexBase) +
+          LongWord((X1 Mod Integer(tW)) * SizeOf(RGBA)) +
+          LongWord((Y  Mod Integer(tH)) * Integer(tW) * SizeOf(RGBA)))^;
+        Case PixVal Shr 24 Of
+          0:   ;
+          $FF: DstA^ := PixVal;
+        Else   DstA^ := SP_AlphaBlend(DstA^, PixVal);
+        End;
+        Inc(DstA);
+        Inc(X1);
+      End;
+    End;
+  End;
+
+  Function SolveEllipseForX(rowY: aFloat; Out x1, x2: aFloat): Boolean;
+  Var
+    A, B, C, discriminant, sqrtDisc: aFloat;
+    cos2, sin2, cossin: aFloat;
+  Begin
+    cos2   := cosA * cosA;
+    sin2   := sinA * sinA;
+    cossin := cosA * sinA;
+    A := cos2/(fr1*fr1) + sin2/(fr2*fr2);
+    B := 2 * rowY * cossin * (1/(fr1*fr1) - 1/(fr2*fr2));
+    C := rowY*rowY * (sin2/(fr1*fr1) + cos2/(fr2*fr2)) - 1;
+    discriminant := B*B - 4*A*C;
+    If discriminant < 0 Then Begin
+      Result := False;
+      Exit;
+    End;
+    sqrtDisc := Sqrt(discriminant);
+    x1 := (-B - sqrtDisc) / (2*A);
+    x2 := (-B + sqrtDisc) / (2*A);
+    Result := True;
+  End;
+
+  Procedure DrawSpansForRow(rowY: Integer);
+  Var
+    x1, x2: aFloat;
+  Begin
+    If SolveEllipseForX(rowY, x1, x2) Then
+      DrawTexSpan(Round(x1) + CX, Round(x2) + CX, rowY + CY);
+  End;
+
 Begin
-  // TODO Alpha
+
+  If (rX = 0) Or (rY = 0) Then Exit;
+
+  If TextureStr = '' Then Begin
+    TexBase := pLongWord(tW);
+    Graphic := pSP_Graphic_Info(tH);
+    tW := Graphic^.Width;
+    tH := Graphic^.Height;
+  End Else
+    TexBase := pLongWord(@TextureStr[13]);   // unified 12-byte header
+
+  fr1  := rX;
+  fr2  := rY;
+  cosA := Cos(Angle);
+  sinA := Sin(Angle);
+  minY := -Round(Sqrt(fr1*fr1*sinA*sinA + fr2*fr2*cosA*cosA)) - 1;
+  maxY :=  Round(Sqrt(fr1*fr1*sinA*sinA + fr2*fr2*cosA*cosA)) + 1;
+
+  For y := Max(T_CLIPY1 - CY, minY) To Min(T_CLIPY2 - CY, maxY) Do
+    DrawSpansForRow(y);
+
+  If SCREENVISIBLE Then
+    SP_SetDirtyRect((SCREENX + CX) - RX, (SCREENY + CY) - RY, SCREENX + CX + RX, SCREENY + CY + RY);
+  SP_BankList[0]^.Changed := True;
+
 End;
 
 end.

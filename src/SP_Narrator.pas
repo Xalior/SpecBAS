@@ -63,8 +63,8 @@ Const
   // SP_AMIGA_REFERENCE_PITCH is retained as documentation of the Amiga's
   // Paula default period (0xA0 = 160 samples at 22254 Hz = 139 Hz).
   // Duration is calibrated to this value in the DurMs table but is no longer
-  // coupled to Params.Pitch at runtime — see ComputeDurSamples.
-  SP_AMIGA_REFERENCE_PITCH   = 139.0; // Hz — Amiga Paula period=160 at 22254 Hz
+  // coupled to Params.Pitch at runtime - see ComputeDurSamples.
+  SP_AMIGA_REFERENCE_PITCH   = 139.0; // Hz - Amiga Paula period=160 at 22254 Hz
   SP_NARRATOR_WFL_SCALE      = 1.20;  // word-final lengthening factor
 
   // Coefficient update interval - recalculate filter coefficients every N samples.
@@ -116,9 +116,9 @@ Type
   //                           / [1 - exp(-(1-Te)/Ta)]
   //
   // The Rd parameter maps to voice quality:
-  //   Rd = 0.5  — pressed/creaky (bright harmonics, tight larynx)
-  //   Rd = 1.0  — modal voice (natural male speech)
-  //   Rd = 2.0  — breathy (softer closure, darker spectrum)
+  //   Rd = 0.5  - pressed/creaky (bright harmonics, tight larynx)
+  //   Rd = 1.0  - modal voice (natural male speech)
+  //   Rd = 2.0  - breathy (softer closure, darker spectrum)
   //   Rd is driven from stress level so stressed syllables are slightly more pressed.
   TLFState = Record
     E0:     Double;   // open-phase amplitude normalisation (peak -> 1.0)
@@ -633,7 +633,7 @@ Begin
     End;
     If (Idx >= 0) And (Count < Length(Indices)) Then Begin
       Indices[Count] := Idx;
-      // Schwa (AX) and reduced vowel (IX) are inherently unstressed —
+      // Schwa (AX) and reduced vowel (IX) are inherently unstressed -
       // the Amiga translator never inserts a stress digit for them.
       // Force level 0 regardless of what the rules said.
       If (Token = 'AX') Or (Token = 'IX') Then
@@ -658,7 +658,7 @@ End;
 //   The Amiga pitch model (FUN_002211b8):
 //     - All pitch-buffer slots initialise to period 0xA0 = 160 at 22254 Hz = 139 Hz.
 //     - Non-stressed phonemes receive no pitch write -> stay at 139 Hz (1.00×).
-//     - Stressed (level 1) phonemes fall to ~134 Hz (0.964×) — British nuclear fall.
+//     - Stressed (level 1) phonemes fall to ~134 Hz (0.964×) - British nuclear fall.
 //     - Very unstressed / schwa can rise to ~178 Hz (1.28×).
 //   We use Params.Pitch as the NEUTRAL anchor (Amiga 139 Hz ≡ our Params.Pitch).
 //   Stressed fall and unstressed rise are expressed as fixed ratios of that anchor.
@@ -673,7 +673,7 @@ Begin
     Result := Params.Pitch;
     Exit;
   End;
-  // Unvoiced / stop: pitch has no perceptual effect — return anchor unchanged
+  // Unvoiced / stop: pitch has no perceptual effect - return anchor unchanged
   If (Not Allo.Voiced) Or Allo.Stop Then Begin
     Result := Params.Pitch;
     Exit;
@@ -691,8 +691,8 @@ Begin
     5: Result := Params.Pitch * 1.08;    // emphatic onset (will arc to ~0.90 trough)
     1: Result := Params.Pitch * 1.04;    // primary onset (will arc down to ~0.964 trough)
     2: Result := Params.Pitch * 1.02;    // secondary onset (will arc to ~0.980 trough)
-    3: Result := Params.Pitch * 1.00;    // tertiary — neutral
-    4: Result := Params.Pitch * 1.00;    // neutral — Amiga default, no pitch write
+    3: Result := Params.Pitch * 1.00;    // tertiary - neutral
+    4: Result := Params.Pitch * 1.00;    // neutral - Amiga default, no pitch write
   Else
     Result := Params.Pitch * 1.28;       // schwa / fully unstressed (Amiga 178 Hz ceiling)
   End;
@@ -1092,14 +1092,14 @@ Begin
     End;
   End;
 
-  // Lead-out silence — only add if the stream doesn't already end with a pause.
+  // Lead-out silence - only add if the stream doesn't already end with a pause.
   // If the input ended with '?' the stream ends with PA4; adding PA2 after it
   // would cause the prescan to overwrite the PA4 boundary mark on the preceding
   // voiced allophone, silently destroying the question rise contour.
   If AlloCount > 0 Then Begin
     If (AlloPhones[Indices[AlloCount - 1]].BuzzAmp <> 0.0) Or
        (AlloPhones[Indices[AlloCount - 1]].NoiseAmp <> 0.0) Then Begin
-      // Last allophone is not a pause — add trailing silence
+      // Last allophone is not a pause - add trailing silence
       SetLength(Indices,  AlloCount + 1);
       SetLength(Stresses, AlloCount + 1);
       Idx := SP_NarratorFindAllophone('PA2');
@@ -1147,7 +1147,7 @@ Begin
         End;
       End;
 
-      // Pass 2: fallback — nearest non-stop voiced allophone
+      // Pass 2: fallback - nearest non-stop voiced allophone
       If Not Found Then
         For psi := ai - 1 DownTo 0 Do Begin
           If AlloPhones[Indices[psi]].Voiced And Not AlloPhones[Indices[psi]].Stop Then Begin
@@ -1235,7 +1235,7 @@ Begin
         pSmallInt(@Result[WritePos])^ := 0;
         Inc(WritePos, 2);
       End;
-      // Do NOT set PrevAllo or State.PrevF — preserve them for the next allophone
+      // Do NOT set PrevAllo or State.PrevF - preserve them for the next allophone
       Continue;
     End;
 
@@ -1262,27 +1262,27 @@ Begin
     //   StressPitchPeak = 0 -> flat (neutral, level 4).
     If Allo.Voiced And Not Allo.Stop Then Begin
       Case StressLevel Of
-        5: Begin  // emphatic — strong nuclear fall
+        5: Begin  // emphatic - strong nuclear fall
              StressAmpScale  := 1.20;
              StressPitchPeak := -(Params.Pitch * 0.18);  // onset 1.08× -> trough 0.90×
            End;
-        1: Begin  // primary stress — nuclear fall (Amiga: ~134/139 = 0.964 at trough)
+        1: Begin  // primary stress - nuclear fall (Amiga: ~134/139 = 0.964 at trough)
              StressAmpScale  := 1.12;
              StressPitchPeak := -(Params.Pitch * 0.075); // onset 1.04× -> trough 0.965×
            End;
-        2: Begin  // secondary stress — modest fall
+        2: Begin  // secondary stress - modest fall
              StressAmpScale  := 1.08;
              StressPitchPeak := -(Params.Pitch * 0.040); // onset 1.02× -> trough 0.980×
            End;
-        3: Begin  // tertiary — slight rise
+        3: Begin  // tertiary - slight rise
              StressAmpScale  := 1.03;
              StressPitchPeak := +(Params.Pitch * 0.030);
            End;
-        4: Begin  // neutral — flat at anchor (Amiga: no pitch write, stays at default)
+        4: Begin  // neutral - flat at anchor (Amiga: no pitch write, stays at default)
              StressAmpScale  := 1.00;
              StressPitchPeak := 0.0;
            End;
-      Else Begin  // 0 = schwa — high and flat (Amiga ~178 Hz ceiling)
+      Else Begin  // 0 = schwa - high and flat (Amiga ~178 Hz ceiling)
              StressAmpScale  := 0.72;
              StressPitchPeak := 0.0;
            End;
@@ -1300,13 +1300,13 @@ Begin
       CurRd := 1.60           // female: breathy
     Else
       Case StressLevel Of
-        5: CurRd := 0.75;     // emphatic — noticeably pressed
-        1: CurRd := 0.85;     // primary stress — slightly pressed
-        2: CurRd := 0.95;     // secondary — near modal
-        3: CurRd := 1.05;     // tertiary — slightly open
-        4: CurRd := 1.10;     // neutral — modal/open
+        5: CurRd := 0.75;     // emphatic - noticeably pressed
+        1: CurRd := 0.85;     // primary stress - slightly pressed
+        2: CurRd := 0.95;     // secondary - near modal
+        3: CurRd := 1.05;     // tertiary - slightly open
+        4: CurRd := 1.10;     // neutral - modal/open
       Else
-        CurRd := 1.40;        // schwa — relaxed, breathy
+        CurRd := 1.40;        // schwa - relaxed, breathy
       End;
 
     // Update LF model coefficients once per allophone (not per sample)
@@ -1501,7 +1501,7 @@ Begin
           BurstTime := si - StopSamples;
 
           // Voicing onset ramp: voiced stops ramp up quickly (5ms) from the
-          // murmur level — a short VOT matching natural /b d g/.
+          // murmur level - a short VOT matching natural /b d g/.
           // Voiceless stops use 15ms starting from near-silence.
           If Allo.Voiced Then Begin
             If BurstTime < 220 Then  // 5ms ramp
@@ -1569,7 +1569,7 @@ Begin
               // voiceless stops only (PP TT KK).  Pink noise is already
               // low-pass filtered (PinkNoiseX1) so it adds no click or transient.
               // Cosine fade-out from the burst's end to silence.
-              // This is the acoustic VOT region — the breathy period that
+              // This is the acoustic VOT region - the breathy period that
               // distinguishes "pin" from "bin" in English.
               // AspirationLen = 882 ≈ 20ms at 44100 Hz
               If (BurstTime - PlosiveLen) < 882 Then Begin
@@ -1614,7 +1614,7 @@ Begin
         End Else NoiseScale := 1.0;
 
         // Fade out noise at the end of unvoiced fricatives when the next
-        // allophone is voiced — prevents the abrupt noise cutoff click
+        // allophone is voiced - prevents the abrupt noise cutoff click
         // at SS->vowel, FF->vowel, TH->DH boundaries.
         If (Not Allo.Voiced) And (Not Allo.Stop) And
            (Allo.NoiseAmp > 0.5) And

@@ -8,8 +8,9 @@
       <Unit>
         <Filename Value="SpecBAS.dpr"/>
         <IsPartOfProject Value="True"/>
-        <CursorPos X="11" Y="38"/>
-        <UsageCount Value="36"/>
+        <TopLine Value="28"/>
+        <CursorPos X="21" Y="35"/>
+        <UsageCount Value="162"/>
         <Loaded Value="True"/>
       </Unit>
       <Unit>
@@ -19,306 +20,456 @@
         <HasResources Value="True"/>
         <ResourceBaseClass Value="Form"/>
         <EditorIndex Value="1"/>
-        <TopLine Value="665"/>
-        <CursorPos X="7" Y="679"/>
-        <UsageCount Value="36"/>
+        <TopLine Value="1443"/>
+        <CursorPos X="3" Y="717"/>
+        <UsageCount Value="162"/>
         <Loaded Value="True"/>
         <LoadedDesigner Value="True"/>
-        <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit>
       <Unit>
         <Filename Value="SP_Variables.pas"/>
-        <EditorIndex Value="9"/>
-        <TopLine Value="2320"/>
-        <CursorPos Y="2348"/>
-        <UsageCount Value="18"/>
+        <EditorIndex Value="20"/>
+        <TopLine Value="503"/>
+        <CursorPos Y="534"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
       </Unit>
       <Unit>
         <Filename Value="SP_Interpret_PostFix.pas"/>
-        <EditorIndex Value="10"/>
-        <TopLine Value="28"/>
-        <CursorPos X="31" Y="34"/>
-        <UsageCount Value="18"/>
+        <EditorIndex Value="21"/>
+        <TopLine Value="4557"/>
+        <CursorPos X="39" Y="4582"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
         <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit>
       <Unit>
         <Filename Value="bass.pas"/>
         <UnitName Value="BASS"/>
-        <EditorIndex Value="11"/>
+        <EditorIndex Value="25"/>
         <TopLine Value="807"/>
         <CursorPos X="9" Y="828"/>
-        <UsageCount Value="18"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
       </Unit>
       <Unit>
         <Filename Value="SP_UITools.pas"/>
-        <EditorIndex Value="12"/>
-        <CursorPos X="59" Y="5"/>
-        <UsageCount Value="18"/>
+        <EditorIndex Value="27"/>
+        <TopLine Value="569"/>
+        <CursorPos X="38" Y="579"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
       </Unit>
       <Unit>
         <Filename Value="SP_EditUnit.pas"/>
-        <EditorIndex Value="13"/>
-        <CursorPos X="31" Y="5"/>
-        <UsageCount Value="18"/>
+        <EditorIndex Value="30"/>
+        <CursorPos X="10" Y="5"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
       </Unit>
       <Unit>
         <Filename Value="SP_Util.pas"/>
-        <EditorIndex Value="14"/>
-        <TopLine Value="1189"/>
-        <CursorPos Y="1211"/>
-        <UsageCount Value="18"/>
+        <IsVisibleTab Value="True"/>
+        <EditorIndex Value="31"/>
+        <TopLine Value="22"/>
+        <CursorPos X="62" Y="44"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit>
       <Unit>
         <Filename Value="SP_SysVars.pas"/>
-        <EditorIndex Value="15"/>
+        <EditorIndex Value="32"/>
         <TopLine Value="31"/>
         <CursorPos X="30" Y="47"/>
-        <UsageCount Value="18"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
       </Unit>
       <Unit>
         <Filename Value="SP_MenuActions.pas"/>
-        <EditorIndex Value="16"/>
-        <CursorPos X="36" Y="5"/>
-        <UsageCount Value="18"/>
+        <EditorIndex Value="33"/>
+        <CursorPos Y="5"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
       </Unit>
       <Unit>
         <Filename Value="SP_ProgressBarUnit.pas"/>
-        <EditorIndex Value="17"/>
-        <CursorPos X="36" Y="5"/>
-        <UsageCount Value="18"/>
+        <EditorIndex Value="34"/>
+        <CursorPos X="10" Y="5"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
       </Unit>
       <Unit>
         <Filename Value="SP_DebugPanel.pas"/>
-        <EditorIndex Value="18"/>
+        <EditorIndex Value="35"/>
         <TopLine Value="887"/>
-        <CursorPos X="78" Y="904"/>
-        <UsageCount Value="18"/>
+        <CursorPos X="49" Y="904"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
       </Unit>
       <Unit>
         <Filename Value="SP_ToolTipWindow.pas"/>
-        <EditorIndex Value="19"/>
+        <EditorIndex Value="36"/>
         <TopLine Value="144"/>
         <CursorPos X="10" Y="176"/>
-        <UsageCount Value="18"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
       </Unit>
       <Unit>
         <Filename Value="SP_InfixToPostFix.pas"/>
-        <IsVisibleTab Value="True"/>
-        <EditorIndex Value="6"/>
-        <TopLine Value="5074"/>
-        <CursorPos X="20" Y="5102"/>
-        <UsageCount Value="18"/>
+        <EditorIndex Value="10"/>
+        <TopLine Value="5309"/>
+        <CursorPos X="42" Y="5317"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit>
       <Unit>
         <Filename Value="SP_Tokenise.pas"/>
-        <EditorIndex Value="7"/>
-        <TopLine Value="1654"/>
-        <CursorPos X="60" Y="1671"/>
-        <UsageCount Value="18"/>
+        <EditorIndex Value="15"/>
+        <TopLine Value="13"/>
+        <CursorPos X="18" Y="31"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
       </Unit>
       <Unit>
         <Filename Value="C:\lazarus\lcl\include\wincontrol.inc"/>
-        <EditorIndex Value="5"/>
+        <EditorIndex Value="9"/>
         <TopLine Value="6498"/>
         <CursorPos Y="6519"/>
-        <UsageCount Value="18"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
       </Unit>
       <Unit>
         <Filename Value="SP_Main.pas"/>
-        <EditorIndex Value="2"/>
-        <TopLine Value="143"/>
-        <CursorPos X="21" Y="168"/>
-        <UsageCount Value="18"/>
+        <EditorIndex Value="5"/>
+        <TopLine Value="156"/>
+        <CursorPos X="16" Y="217"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit>
       <Unit>
         <Filename Value="SP_Editor.pas"/>
-        <EditorIndex Value="3"/>
-        <TopLine Value="140"/>
-        <CursorPos X="89" Y="156"/>
-        <UsageCount Value="18"/>
+        <EditorIndex Value="7"/>
+        <TopLine Value="99"/>
+        <CursorPos X="43" Y="117"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
       </Unit>
       <Unit>
         <Filename Value="SP_FPEditor.pas"/>
-        <EditorIndex Value="8"/>
-        <TopLine Value="1182"/>
-        <CursorPos Y="1204"/>
-        <UsageCount Value="18"/>
+        <EditorIndex Value="18"/>
+        <TopLine Value="2255"/>
+        <CursorPos X="62" Y="2276"/>
+        <UsageCount Value="81"/>
         <Loaded Value="True"/>
-      </Unit>
-      <Unit>
-        <Filename Value="C:\lazarus\lcl\lmessages.pp"/>
-        <UnitName Value="LMessages"/>
-        <EditorIndex Value="-1"/>
-        <TopLine Value="309"/>
-        <CursorPos X="6" Y="337"/>
-        <UsageCount Value="12"/>
       </Unit>
       <Unit>
         <Filename Value="C:\lazarus\lcl\include\customform.inc"/>
         <EditorIndex Value="-1"/>
         <TopLine Value="878"/>
         <CursorPos Y="919"/>
-        <UsageCount Value="9"/>
-      </Unit>
-      <Unit>
-        <Filename Value="C:\lazarus\fpc\3.2.2\source\rtl\objpas\classes\classesh.inc"/>
-        <EditorIndex Value="-1"/>
-        <TopLine Value="1729"/>
-        <CursorPos X="15" Y="1756"/>
-        <UsageCount Value="10"/>
+        <UsageCount Value="6"/>
       </Unit>
       <Unit>
         <Filename Value="SP_FileIO.pas"/>
-        <EditorIndex Value="4"/>
+        <EditorIndex Value="8"/>
         <TopLine Value="1552"/>
         <CursorPos Y="1574"/>
-        <UsageCount Value="11"/>
+        <UsageCount Value="74"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="SP_Display.pas"/>
+        <EditorIndex Value="12"/>
+        <TopLine Value="810"/>
+        <CursorPos X="71" Y="810"/>
+        <UsageCount Value="73"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="SpecBAS.inc"/>
+        <EditorIndex Value="13"/>
+        <CursorPos X="58" Y="17"/>
+        <UsageCount Value="73"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="SP_3DEngineUnit.pas"/>
+        <EditorIndex Value="2"/>
+        <TopLine Value="5643"/>
+        <CursorPos X="101" Y="5660"/>
+        <UsageCount Value="73"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="SP_MIDI.pas"/>
+        <EditorIndex Value="3"/>
+        <TopLine Value="172"/>
+        <CursorPos Y="209"/>
+        <UsageCount Value="72"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="SP_BankManager.pas"/>
+        <EditorIndex Value="4"/>
+        <TopLine Value="202"/>
+        <CursorPos X="16" Y="225"/>
+        <UsageCount Value="72"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="SP_Graphics32Alpha.pas"/>
+        <EditorIndex Value="24"/>
+        <TopLine Value="1976"/>
+        <CursorPos X="28" Y="1980"/>
+        <UsageCount Value="72"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="SP_Graphics.pas"/>
+        <EditorIndex Value="23"/>
+        <TopLine Value="7632"/>
+        <CursorPos X="31" Y="7653"/>
+        <UsageCount Value="72"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="SP_Graphics32.pas"/>
+        <EditorIndex Value="22"/>
+        <TopLine Value="87"/>
+        <CursorPos Y="107"/>
+        <UsageCount Value="72"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="SP_AnsiStringlist.pas"/>
+        <EditorIndex Value="29"/>
+        <TopLine Value="434"/>
+        <CursorPos Y="453"/>
+        <UsageCount Value="70"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="SP_Sockets.pas"/>
+        <EditorIndex Value="16"/>
+        <TopLine Value="13"/>
+        <CursorPos X="51" Y="44"/>
+        <UsageCount Value="69"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="SP_Compiler.pas"/>
+        <EditorIndex Value="17"/>
+        <TopLine Value="63"/>
+        <CursorPos X="28" Y="76"/>
+        <UsageCount Value="69"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="SP_BASICEditorUnit.pas"/>
+        <EditorIndex Value="6"/>
+        <TopLine Value="3044"/>
+        <CursorPos X="36" Y="3059"/>
+        <UsageCount Value="55"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="RunTimeCompiler.pas"/>
+        <EditorIndex Value="26"/>
+        <TopLine Value="193"/>
+        <CursorPos X="10" Y="213"/>
+        <UsageCount Value="55"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="dglOpenGL.pas"/>
+        <EditorIndex Value="28"/>
+        <TopLine Value="97"/>
+        <UsageCount Value="49"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="C:\lazarus\lcl\interfaces\win32\win32object.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="411"/>
+        <CursorPos Y="428"/>
+        <UsageCount Value="6"/>
+      </Unit>
+      <Unit>
+        <Filename Value="SP_Input.pas"/>
+        <EditorIndex Value="14"/>
+        <TopLine Value="46"/>
+        <CursorPos Y="62"/>
+        <UsageCount Value="41"/>
+        <Loaded Value="True"/>
+      </Unit>
+      <Unit>
+        <Filename Value="C:\lazarus\lcl\include\application.inc"/>
+        <EditorIndex Value="-1"/>
+        <TopLine Value="1290"/>
+        <CursorPos X="31" Y="1307"/>
+        <UsageCount Value="6"/>
+      </Unit>
+      <Unit>
+        <Filename Value="SP_BankFiling.pas"/>
+        <EditorIndex Value="19"/>
+        <TopLine Value="944"/>
+        <CursorPos X="43" Y="953"/>
+        <UsageCount Value="24"/>
+        <Loaded Value="True"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit>
+      <Unit>
+        <Filename Value="SP_PreRun.pas"/>
+        <EditorIndex Value="11"/>
+        <TopLine Value="503"/>
+        <CursorPos X="75" Y="518"/>
+        <UsageCount Value="24"/>
         <Loaded Value="True"/>
         <DefaultSyntaxHighlighter Value="Delphi"/>
       </Unit>
     </Units>
     <JumpHistory HistoryIndex="29">
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5077" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="301" Column="11" TopLine="270"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5076" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="317" Column="95" TopLine="286"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5077" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="320" Column="11" TopLine="289"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5076" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="330" Column="66" TopLine="299"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5077" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="333" Column="11" TopLine="302"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5076" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="347" Column="64" TopLine="316"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5077" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="350" Column="11" TopLine="319"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5076" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="361" Column="66" TopLine="330"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5077" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="364" Column="11" TopLine="333"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5076" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="374" Column="65" TopLine="343"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5077" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="377" Column="11" TopLine="346"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5076" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="387" Column="67" TopLine="356"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5077" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="398" Column="85" TopLine="367"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5076" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="406" Column="66" TopLine="375"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5077" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="414" Column="67" TopLine="383"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5076" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="422" Column="67" TopLine="391"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5077" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="430" Column="67" TopLine="399"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5076" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="438" Column="68" TopLine="407"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5077" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="441" Column="14" TopLine="410"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5076" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="454" Column="16" TopLine="423"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5077" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="510" Column="20" TopLine="480"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5076" TopLine="5053"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="941" Column="19" TopLine="910"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5085" TopLine="5057"/>
+        <Filename Value="SP_BankFiling.pas"/>
+        <Caret Line="953" Column="43" TopLine="944"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5091" TopLine="5074"/>
+        <Filename Value="SP_PreRun.pas"/>
+        <Caret Line="34" Column="37" TopLine="16"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5092" TopLine="5074"/>
+        <Filename Value="SP_PreRun.pas"/>
+        <Caret Line="518" Column="75" TopLine="503"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5093" TopLine="5074"/>
+        <Filename Value="MainForm.pas"/>
+        <Caret Line="1180" Column="14" TopLine="1167"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5094" TopLine="5074"/>
+        <Filename Value="MainForm.pas"/>
+        <Caret Line="937" Column="61" TopLine="927"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5095" TopLine="5074"/>
+        <Filename Value="MainForm.pas"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5096" TopLine="5074"/>
+        <Filename Value="MainForm.pas"/>
+        <Caret Line="53" Column="29" TopLine="21"/>
       </Position>
       <Position>
-        <Filename Value="SP_InfixToPostFix.pas"/>
-        <Caret Line="5101" TopLine="5074"/>
+        <Filename Value="SP_Util.pas"/>
+        <Caret Line="44" Column="62" TopLine="22"/>
       </Position>
     </JumpHistory>
     <RunParams>
       <FormatVersion Value="2"/>
-      <Modes ActiveMode=""/>
+      <Modes ActiveMode="default">
+        <Mode Name="default">
+          <local>
+            <WorkingDirectory Value="D:\Projects\SpecBAS"/>
+          </local>
+        </Mode>
+      </Modes>
     </RunParams>
+    <HistoryLists>
+      <List Name="WorkingDirectory" Type="File" Count="1">
+        <Item1 Value="D:\Projects\SpecBAS"/>
+      </List>
+      <List Name="LaunchingApplication" Type="File" Count="1">
+        <Item1 Value="C:\WINDOWS\system32\cmd.exe /C ${TargetCmdLine}"/>
+      </List>
+    </HistoryLists>
   </ProjectSession>
   <Debugging>
     <BreakPoints>
@@ -326,15 +477,8 @@
         <Kind Value="bpkSource"/>
         <WatchScope Value="wpsLocal"/>
         <WatchKind Value="wpkWrite"/>
-        <Source Value="SP_InfixToPostFix.pas"/>
-        <Line Value="4918"/>
-      </Item>
-      <Item>
-        <Kind Value="bpkSource"/>
-        <WatchScope Value="wpsLocal"/>
-        <WatchKind Value="wpkWrite"/>
-        <Source Value="SP_InfixToPostFix.pas"/>
-        <Line Value="5102"/>
+        <Source Value="SP_Graphics.pas"/>
+        <Line Value="7653"/>
       </Item>
     </BreakPoints>
   </Debugging>

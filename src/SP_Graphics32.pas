@@ -80,17 +80,28 @@ Type
   Procedure SP_DrawSolidCircle32(CX, CY, R: Integer);
   Procedure SP_DrawTexCircle8To32(CX, CY, R: Integer; const TextureStr: aString; tW, tH: LongWord);
   Procedure SP_DrawTexCircle32To32(CX, CY, R: Integer; const TextureStr: aString; tW, tH: LongWord);
+  Procedure SP_DrawTexRectangle32(X1, Y1, X2, Y2: Integer; const TextureStr: aString; tW, tH: LongWord);
+  Procedure SP_PolygonFill32(Const Points: Array of TSP_Point; const TextureStr: aString; tW, tH: LongWord);
 
   Procedure SP_DrawRectangle32(X1, Y1, X2, Y2: Integer);
   Procedure SP_DrawSolidRectangle32(X1, Y1, X2, Y2: Integer);
   Procedure SP_FloodFill32(Dst: pLongWord; dX, dY, dW, dH, Clr: LongWord);
-  Procedure SP_PolygonSolidFill32(Var Points: Array of TSP_Point; MinX, MinY, MaxX, MaxY: Integer; Ink: LongWord; OutLine: Boolean);
+  Procedure SP_PolygonSolidFill32(Const Points: Array of TSP_Point; MinX, MinY, MaxX, MaxY: Integer; Ink: LongWord; OutLine: Boolean);
   Procedure SP_CLS32(Paper: LongWord);
 
   Function  SP_PRINT32(BankID, X, Y, CPos: Integer; const Text: aString; Ink, Paper: LongWord; var Error: TSP_ErrorCode): Integer;
   Function  SP_TextOut32(BankID, X, Y: Integer; const Text: aString; Ink, Paper: LongWord; Proportional: Boolean; ShowSpecial: Boolean = False): Integer;
   Function  SP_RawTextOut(BankID: Integer; Dest: pLongWord; dW, dH, X, Y: Integer; const Text: aString; Ink, Paper: LongWord; ScaleX, ScaleY: aFloat; Trans, Alpha: Boolean): Integer;
   Procedure SP_DrawStripe32(Dst: pLongWord; Width, StripeWidth, StripeHeight: Integer);
+
+  Procedure SP_RotAndScaleGfxXY32(Var SrcPtr: pByte; Var DstGfx: aString; Rot, ScaleX, ScaleY: aFloat; Var sW, sH: LongWord);
+  Procedure SP_RotAndScaleGfx32(Var SrcPtr: pByte; Var DstGfx: aString; Rot, Scale: aFloat; Var sW, sH: LongWord);
+  Procedure SP_RotateSizeXY32(Src: pLongWord; sW, sH: Integer; Dst: pLongWord; dX, dY, dW, dH: Integer; Rot, ScaleX, ScaleY: aFloat; cX1, cY1, cX2, cY2: Integer);
+  Procedure SP_RotateSize32(Src: pLongWord; sW, sH: Integer; Dst: pLongWord; dX, dY, dW, dH: Integer; Rot, Scale: aFloat; cX1, cY1, cX2, cY2: Integer);
+  Procedure SP_MirrorGfx32(Src: pLongWord; W, H: LongWord);
+  Procedure SP_GWFloodFill32(Dst: pLongWord; dX, dY, dW, dH: LongWord; Clr, BClr: LongWord);
+  Procedure SP_TextureFill32(Dst: pLongWord; dX, dY, dW, dH: LongWord; Const Texture: aString; tW, tH: LongWord; Var Error: TSP_ErrorCode);
+  Procedure SP_CopyRect32(SrcPtr: pByte; SrcW, SrcH, SrcRx, SrcRy, SrcRw, SrcRh: Integer; DstPtr: pByte; DstW, DstH, DstX, DstY, DcW, DcH, cx1, cy1, cx2, cy2: Integer; Var Error: TSP_ErrorCode);
 
 Var
 
@@ -730,33 +741,34 @@ End;
 
 Procedure SP_GetRegion32(Src: pLongWord; SrcW, SrcH: LongWord; Var Dest: aString; rX, rY, rW, rH: Integer; Var Error: TSP_ErrorCode);
 Var
-  W, sW: LongWord;
+  W: LongWord;
   Dst: pLongWord;
 Begin
 
-  sW := SrcW Div SizeOf(RGBA);
-  rX := Max(Rx, 0);
-  rY := Max(Ry, 0);
-  If rX + rW > Integer(sW) Then
-    rW := Integer(sW) - rX;
-  If rY + rH > Integer(SrcH) Then
-    rH := Integer(SrcH) - rY;
-  If (rW <= 0) or (rH <= 0) or (rW > integer(sW)) or (rH > integer(SrcH)) Then Begin
+  // SrcW and SrcH are in pixels.
+  rX := Max(rX, 0);
+  rY := Max(rY, 0);
+  If rX + rW > Integer(SrcW) Then rW := Integer(SrcW) - rX;
+  If rY + rH > Integer(SrcH) Then rH := Integer(SrcH) - rY;
+  If (rW <= 0) Or (rH <= 0) Then Begin
     Error.Code := SP_ERR_INVALID_REGION;
     Exit;
   End;
 
-  SetLength(Dest, rW * rH * SizeOf(RGBA));
-  Dest := LongWordToString(rW) + LongWordToString(rH) + #255 + #32 + Dest;
-  Dst := @Dest[3 + (SizeOf(LongWord) * 2)];
+  // Build unified 12-byte header: W[4] + H[4] + Trans[2=$FFFF] + Depth[2=$0020]
+  SetLength(Dest, 12 + rW * rH * SizeOf(LongWord));
+  pLongWord(@Dest[1])^ := rW;
+  pLongWord(@Dest[5])^ := rH;
+  pWord(@Dest[9])^     := $FFFF;   // no colour-key; alpha channel handles transparency
+  pWord(@Dest[11])^    := 32;      // depth
+  Dst := pLongWord(@Dest[13]);
 
-  Src := pLongWord(NativeUInt(Src) + (Ry * Integer(SrcW)) + (Rx * SizeOf(RGBA)));
+  Src := pLongWord(NativeUInt(Src) + (LongWord(rY) * SrcW + LongWord(rX)) * SizeOf(LongWord));
 
   While rH > 0 Do Begin
-
     W := rW;
     {$IFDEF CPU64}
-    While W > SizeOf(NativeUInt) Do Begin
+    While W > SizeOf(NativeUInt) Div SizeOf(LongWord) Do Begin
       pNativeUInt(Dst)^ := pNativeUInt(Src)^;
       Dec(W, SizeOf(NativeUInt) Div SizeOf(LongWord));
       Inc(pNativeUInt(Dst));
@@ -764,15 +776,13 @@ Begin
     End;
     {$ENDIF}
     While W > 0 Do Begin
-      Dst^ := Src^ or $FF000000;
+      Dst^ := Src^ Or $FF000000;   // ensure alpha = FF on grab
       Inc(Dst);
       Inc(Src);
       Dec(W);
     End;
+    Inc(Src, SrcW - LongWord(rW));
     Dec(rH);
-    Dec(Src, rW);
-    Inc(Src, sW);
-
   End;
 
 End;
@@ -787,18 +797,15 @@ Begin
 
   If Dst = Nil Then Exit;
 
-  If SrcLen >= 10 Then Begin
-    W := pLongWord(Src)^;
-    Inc(Src, SizeOf(LongWord));
-    H := pLongWord(Src)^;
-    Inc(Src, SizeOf(LongWord));
-    If SrcLen - 10 = Integer(W*H) Then Begin
-      TransparentColour := pWord(Src)^;
-      Inc(Src, SizeOf(Word));
-    End Else Begin
+  If SrcLen >= 12 Then Begin
+    W := pLongWord(Src)^; Inc(Src, SizeOf(LongWord));
+    H := pLongWord(Src)^; Inc(Src, SizeOf(LongWord));
+    TransparentColour := pWord(Src)^; Inc(Src, SizeOf(Word));
+    If (pWord(Src)^ <> 8) Or (SrcLen - 12 <> Integer(W * H)) Then Begin
       Error.Code := SP_ERR_INVALID_GRAB_STRING;
       Exit;
     End;
+    Inc(Src, SizeOf(Word));   // skip Depth
   End Else
     If SrcLen < 0 Then Begin
       Graphic := pSP_Graphic_Info(Src);
@@ -867,17 +874,15 @@ Begin
 
   If Dst = Nil Then Exit;
 
-  If SrcLen >= 10 Then Begin
-    W := pLongWord(Src)^;
-    Inc(Src);
-    H := pLongWord(Src)^;
-    Inc(Src);
-    If SrcLen - 10 = Integer(W*H*SizeOf(RGBA)) Then Begin
-      Inc(pByte(Src), SizeOf(Word));
-    End Else Begin
+  If SrcLen >= 12 Then Begin
+    W := pLongWord(Src)^; Inc(pByte(Src), SizeOf(LongWord));
+    H := pLongWord(Src)^; Inc(pByte(Src), SizeOf(LongWord));
+    Inc(pByte(Src), SizeOf(Word));   // skip Trans
+    If (pWord(Src)^ <> 32) Or (SrcLen - 12 <> Integer(W * H * SizeOf(LongWord))) Then Begin
       Error.Code := SP_ERR_INVALID_GRAB_STRING;
       Exit;
     End;
+    Inc(pByte(Src), SizeOf(Word));   // skip Depth
   End Else
     If SrcLen < 0 Then Begin
       Graphic := pSP_Graphic_Info(Src);
@@ -1685,7 +1690,7 @@ Begin
     tW := Graphic.Width;
     tH := Graphic.Height;
   End Else Begin
-    TexBase := @TextureStr[11];
+    TexBase := @TextureStr[13];
   End;
 
   fr1 := rx;
@@ -1782,7 +1787,7 @@ Begin
     tH := Graphic.Height;
     Trans := Graphic.Transparent;
   End Else Begin
-    TexBase := @TextureStr[11];
+    TexBase := @TextureStr[13];
     Trans := pWord(@TextureStr[9])^;
   End;
   If Trans <> $FFFF Then
@@ -1970,7 +1975,7 @@ begin
     tH := Graphic.Height;
     Trans := Graphic.Transparent;
   End Else Begin
-    TexBase := @TextureStr[11];
+    TexBase := @TextureStr[13];
     Trans := pWord(@TextureStr[9])^;
   End;
   If Trans <> $FFFF Then
@@ -2042,7 +2047,7 @@ begin
     tW := Graphic.Width;
     tH := Graphic.Height;
   End Else
-    TexBase := @TextureStr[11];
+    TexBase := @TextureStr[13];
 
   x := 0;
   y := R;
@@ -2262,7 +2267,7 @@ Begin
 
 End;
 
-Procedure SP_PolygonSolidFill32(Var Points: Array of TSP_Point; MinX, MinY, MaxX, MaxY: Integer; Ink: LongWord; Outline: Boolean);
+Procedure SP_PolygonSolidFill32(Const Points: Array of TSP_Point; MinX, MinY, MaxX, MaxY: Integer; Ink: LongWord; Outline: Boolean);
 Var
   I, J, Nodes, NumPoints, PixelY: Integer;
   NodeX: Array of Integer;
@@ -2428,6 +2433,7 @@ Var
   Info: TSP_iInfo;
   pInfo: pSP_iInfo;
   curChar: aChar;
+  PixVal: LongWord;
 
   Function SetFontAttrs(ID: Integer): Integer;
   Begin
@@ -2601,7 +2607,13 @@ Begin
                             SkipNextPaper := False;
                       End Else
                         If FontBank^.FontType = SP_FONT_TYPE_32BIT Then Begin
-                          Coord^ := pLongWord(NativeUInt(pIdx) + ((xp Shr 16) * SizeOf(RGBA)))^;
+                          PixVal := pLongWord(NativeUInt(pIdx) + ((xp Shr 16) * SizeOf(RGBA)))^;
+                          Case PixVal Shr 24 Of
+                            0:   ;
+                            $FF: Coord^ := PixVal;
+                          Else
+                            Coord^ := SP_AlphaBlend(Coord^, PixVal);
+                          End;
                         End;
                   Inc(Coord);
                   Inc(xp, sx);
@@ -2645,8 +2657,19 @@ Begin
                             SkipNextPaper := False;
                       End Else
                         If FontBank^.FontType = SP_FONT_TYPE_32BIT Then Begin
-                          Coord^ := pLongWord(Char)^;
-                          Inc(Char, SizeOf(RGBA));
+                          // Alpha-aware write; Char advances 4 bytes - skip the outer Inc(Char).
+                          PixVal := pLongWord(Char)^;
+                          Case PixVal Shr 24 Of
+                            0:   ;                                     // fully transparent - skip
+                            $FF: Coord^ := PixVal;                     // fully opaque - overwrite
+                          Else
+                            Coord^ := SP_AlphaBlend(Coord^, PixVal); // partial - blend
+                          End;
+                          Inc(Coord);
+                          Inc(pByte(Char), SizeOf(RGBA));
+                          Inc(X); Inc(xc);
+                          Dec(CharW);
+                          Continue;
                         End;
                   Inc(Coord);
                   Inc(Char);
@@ -2907,6 +2930,7 @@ Var
   IsScaled, SkipNextPaper: Boolean;
   ScaleX, ScaleY: aFloat;
   curChar: aChar;
+  PixVal: LongWord;
 
   Function SetFontAttrs(ID: Integer): Integer;
   Begin
@@ -3018,7 +3042,13 @@ Begin
                         SkipNextPaper := False;
                   End Else
                     If FontBank^.FontType = SP_FONT_TYPE_32BIT Then Begin
-                      Coord^ := pLongWord(NativeUInt(pIdx) + ((xp Shr 16) * SizeOf(RGBA)))^;
+                      PixVal := pLongWord(NativeUInt(pIdx) + ((xp Shr 16) * SizeOf(RGBA)))^;
+                      Case PixVal Shr 24 Of
+                        0:   ;
+                        $FF: Coord^ := PixVal;
+                      Else
+                        Coord^ := SP_AlphaBlend(Coord^, PixVal);
+                      End;
                     End;
               Inc(Coord);
               Inc(xp, sx);
@@ -3065,8 +3095,19 @@ Begin
                           SkipNextPaper := False;
                     End Else
                       If FontBank^.FontType = SP_FONT_TYPE_32BIT Then Begin
-                        Coord^ := pLongWord(Char)^;
-                        Inc(Char, SizeOf(RGBA));
+                        // Alpha-aware write; Char advances 4 bytes - skip the outer Inc(Char).
+                        PixVal := pLongWord(Char)^;
+                        Case PixVal Shr 24 Of
+                          0:   ;                                     // fully transparent - skip
+                          $FF: Coord^ := PixVal;                     // fully opaque - overwrite
+                        Else
+                          Coord^ := SP_AlphaBlend(Coord^, PixVal); // partial - blend
+                        End;
+                        Inc(Coord);
+                        Inc(pByte(Char), SizeOf(RGBA));
+                        Inc(X); Inc(xc);
+                        Dec(CharW);
+                        Continue;
                       End;
               Inc(Coord);
               Inc(Char);
@@ -3313,79 +3354,84 @@ Begin
 
 End;
 
-Procedure SP_PutRegion32to32(Dst: pByte; dX, dY: Integer; dW, dH: LongWord; Src: pByte; SrcLen: Integer; RotAngle, Scale: aFloat; Var cX1, cY1, cX2, cY2: Integer; Var Error: TSP_ErrorCode);
+Procedure SP_PutRegion32to32(Dst: pByte; dX, dY: Integer; dW, dH: LongWord;
+  Src: pByte; SrcLen: Integer; RotAngle, Scale: aFloat;
+  Var cX1, cY1, cX2, cY2: Integer; Var Error: TSP_ErrorCode);
 Var
   W, W2, H, SrcX, SrcY, SrcW, SrcH: LongWord;
-  TransparentColour: Word;
-  TC: Byte;
   Graphic: pSP_Graphic_Info;
+  Depth: Word;
+  dW32: LongWord;
+  pDst, pSrc: pLongWord;
+  sCl: LongWord;
 Begin
 
-  If SrcLen >= 10 Then Begin
-    W := pLongWord(Src)^;
-    Inc(Src, SizeOf(LongWord));
-    H := pLongWord(Src)^;
-    Inc(Src, SizeOf(LongWord));
-    If SrcLen - 10 = Integer(W*H) Then Begin
-      TransparentColour := pWord(Src)^;
-      Inc(Src, SizeOf(Word));
-    End Else Begin
+  If SrcLen >= 12 Then Begin
+    W     := pLongWord(Src)^; Inc(Src, SizeOf(LongWord));
+    H     := pLongWord(Src)^; Inc(Src, SizeOf(LongWord));
+    // Skip Trans (2 bytes)
+    Inc(Src, SizeOf(Word));
+    Depth := pWord(Src)^;     Inc(Src, SizeOf(Word));
+    If (Depth <> 32) Or (SrcLen - 12 <> Integer(W * H * SizeOf(LongWord))) Then Begin
       Error.Code := SP_ERR_INVALID_GRAB_STRING;
       Exit;
     End;
   End Else
     If SrcLen < 0 Then Begin
       Graphic := pSP_Graphic_Info(Src);
+      If Graphic^.Depth <> 32 Then Begin
+        Error.Code := SP_ERR_DEPTH_MISMATCH;
+        Exit;
+      End;
       Src := Graphic^.Data;
-      W := Graphic^.Width;
-      H := Graphic^.Height;
-      TransparentColour := Graphic^.Transparent;
+      W   := Graphic^.Width;
+      H   := Graphic^.Height;
     End Else Begin
       Error.Code := SP_ERR_INVALID_GRAB_STRING;
       Exit;
     End;
 
-  If (RotAngle <> 0) or (Scale <> 1) Then
-    SP_RotateSize(Src, W, H, Dst, dX, dY, dW, dH, TransparentColour, RotAngle, Scale, cX1, cY1, cX2, cY2)
-  Else Begin
-    W2 := W;
-    If (dX > cX2) or (dX <= cX1 - integer(W)) Then Exit;
-    If (dY > cY2) or (dY <= cY1 - integer(H)) Then Exit;
-    If dX < cX1 Then Begin SrcX := cX1 - dX; Dec(W2, SrcX); dX := cX1; End Else SrcX := 0;
-    If dY < cY1 Then Begin SrcY := cY1 - dY; Dec(H, SrcY); dY := cY1; End Else SrcY := 0;
-    If dX + Integer(W2) >= cX2 Then SrcW := cX2 - dX Else SrcW := Min(W2, cX2);
-    If dY + Integer(H) >= cY2 Then SrcH := cY2 - dY Else SrcH := Min(H, cY2);
-    cX1 := dX; cY1 := dY; cX2 := W; cY2 := H;
-    Inc(Src, (W * SrcY) + SrcX);
-    Inc(Dst, (Integer(dW) * dY) + dX);
-    If TransparentColour <> $FFFF Then Begin
-      TC := TransparentColour And $FF;
-      While SrcH > 0 Do Begin
-        W2 := SrcW;
-        While W2 > 0 Do Begin
-          If Src^ <> TC Then Dst^ := Src^;
-          Inc(Dst);
-          Inc(Src);
-          Dec(W2);
-        End;
-        Inc(Dst, dW - SrcW);
-        Inc(Src, W - SrcW);
-        Dec(SrcH);
+  // dW is byte stride of destination surface. Convert to pixel width for arithmetic.
+  dW32 := dW Div SizeOf(LongWord);
+
+  If (RotAngle <> 0) Or (Scale <> 1) Then Begin
+    SP_RotateSize32(pLongWord(Src), W, H, pLongWord(Dst),
+      dX, dY, dW32, dH, RotAngle, Scale, cX1, cY1, cX2, cY2);
+    SP_BankList[0]^.Changed := True;
+    Exit;
+  End;
+
+  W2 := W;
+  If (dX > cX2) Or (dX <= cX1 - Integer(W))  Then Exit;
+  If (dY > cY2) Or (dY <= cY1 - Integer(H))  Then Exit;
+  If dX < cX1 Then Begin SrcX := cX1 - dX; Dec(W2, SrcX); dX := cX1; End Else SrcX := 0;
+  If dY < cY1 Then Begin SrcY := cY1 - dY;  Dec(H, SrcY);  dY := cY1; End Else SrcY := 0;
+  If dX + Integer(W2) >= cX2 Then SrcW := cX2 - dX Else SrcW := Min(W2, cX2);
+  If dY + Integer(H)  >= cY2 Then SrcH := cY2 - dY Else SrcH := Min(H,  cY2);
+  cX1 := dX; cY1 := dY; cX2 := W; cY2 := H;
+
+  pSrc := pLongWord(NativeUInt(Src) + (W * SrcY + SrcX) * SizeOf(LongWord));
+  pDst := pLongWord(NativeUInt(Dst) + (dW32 * LongWord(dY) + LongWord(dX)) * SizeOf(LongWord));
+
+  // 32bpp blit: transparency via alpha channel.
+  // A=0 -> skip (fully transparent). A=FF -> overwrite. Intermediate -> alpha blend.
+  While SrcH > 0 Do Begin
+    W2 := SrcW;
+    While W2 > 0 Do Begin
+      sCl := pSrc^;
+      Case sCl Shr 24 Of
+        0:   ; // fully transparent - leave destination
+        $FF: pDst^ := sCl; // fully opaque - overwrite
+      Else
+        pDst^ := SP_AlphaBlend(pDst^, sCl); // partial - blend
       End;
-    End Else Begin
-      While SrcH > 0 Do Begin
-        W2 := SrcW;
-        While W2 > 0 Do Begin
-          Dst^ := Src^;
-          Inc(Dst);
-          Inc(Src);
-          Dec(W2);
-        End;
-        Inc(Dst, dW - SrcW);
-        Inc(Src, W - SrcW);
-        Dec(SrcH);
-      End;
+      Inc(pSrc);
+      Inc(pDst);
+      Dec(W2);
     End;
+    Inc(pSrc, W - SrcW);
+    Inc(pByte(pDst), dW - SrcW * SizeOf(LongWord));
+    Dec(SrcH);
   End;
 
   SP_BankList[0]^.Changed := True;
@@ -3622,6 +3668,790 @@ Begin
   SP_ConvertToOrigin_d(PRPOSX, PRPOSY);
   SP_ConvertToOrigin_d(DRPOSX, DRPOSY);
   SP_InvalidateWholeDisplay;
+
+End;
+
+Procedure SP_MirrorGfx32(Src: pLongWord; W, H: LongWord);
+Var
+  Tmp: LongWord;
+  SSave, Dst: pLongWord;
+  W2, W3: LongWord;
+Begin
+
+  // Flips a 32bpp bitmap left to right, one LongWord pixel at a time.
+
+  SSave := Src;
+  Dst := pLongWord(NativeUInt(Src) + (W - 1) * SizeOf(LongWord));
+  If W And 1 = 1 Then
+    W2 := (W - 1) Div 2
+  Else
+    W2 := W Div 2;
+
+  While H > 0 Do Begin
+    W3 := W2;
+    While W3 > 0 Do Begin
+      Tmp  := Src^;
+      Src^ := Dst^;
+      Dst^ := Tmp;
+      Inc(Src);
+      Dec(Dst);
+      Dec(W3);
+    End;
+    Src := pLongWord(NativeUInt(SSave) + W * SizeOf(LongWord));
+    Dec(H);
+    Dst  := pLongWord(NativeUInt(Src) + (W - 1) * SizeOf(LongWord));
+    SSave := Src;
+  End;
+
+End;
+
+Procedure SP_RotateSize32(Src: pLongWord; sW, sH: Integer; Dst: pLongWord; dX, dY, dW, dH: Integer; Rot, Scale: aFloat; cX1, cY1, cX2, cY2: Integer);
+Var
+  ndW, ndH, cX, cY, iSin, iCos,
+  xd, yd, aX, aY, X, Y, sdX, sdY, TLX, TLY, BRX, BRY: Integer;
+  tW, tH: aFloat;
+  dPtr: pLongWord;
+  sCl: LongWord;
+Begin
+
+  Rot := -Rot;
+
+  tW := Abs(sW * Scale * Cos(Rot)) + Abs(sH * Scale * Sin(Rot));
+  tH := Abs(sW * Scale * Sin(Rot)) + Abs(sH * Scale * Cos(Rot));
+  If Rot <> 0 Then Begin
+    If Odd(Trunc(tW)) Then tW := tW + 1;
+    If Odd(Trunc(tH)) Then tH := tH + 1;
+  End;
+  If dW > 0 Then Begin
+    dX := Trunc(dX - (tW - (sW * Scale)) / 2);
+    dY := Trunc(dY - (tH - (sH * Scale)) / 2);
+  End Else
+    dW := -dW;
+  ndW := Trunc(tW);
+  ndH := Trunc(tH);
+
+  cX1 := Max(cX1, 0);
+  cY1 := Max(cY1, 0);
+  cX2 := Min(dW, cX2);
+  cY2 := Min(dH, cY2);
+
+  TLX := Max(cX1, dX);
+  TLY := Max(cY1, dY);
+  BRX := Min(cX2, dX + ndW);
+  BRY := Min(cY2, dY + ndH);
+
+  Dec(TLX, dX); Dec(TLY, dY);
+  Dec(BRX, dX); Dec(BRY, dY);
+
+  If (TLX <= BRX) And (TLY <= BRY) Then Begin
+
+    iSin := Trunc(Sin(Rot) * (65536 / Scale));
+    iCos := Trunc(Cos(Rot) * (65536 / Scale));
+    cX   := Trunc(ndW / 2);
+    cY   := Trunc(ndH / 2);
+    xd   := ((sW Shl 16) - (ndW Shl 16)) Div 2;
+    yd   := ((sH Shl 16) - (ndH Shl 16)) Div 2;
+    aX   := (cX Shl 16) - (iCos * cX);
+    aY   := (cY Shl 16) - (iSin * cX);
+
+    dPtr := Dst;
+    Inc(dPtr, (dX + TLX) + ((dY + TLY) * dW));
+
+    // 32bpp: no colour-key. Skip source pixels with A=0 (fully transparent).
+    For Y := TLY To BRY - 1 Do Begin
+      dY  := cY - Y;
+      sdX := (aX + (iSin * dY)) + xd + (TLX * iCos);
+      sdY := (aY - (iCos * dY)) + yd + (TLX * iSin);
+      For X := TLX To BRX - 1 Do Begin
+        dX := sdX Shr 16; Inc(sdX, iCos);
+        dY := sdY Shr 16; Inc(sdY, iSin);
+        If (dX >= 0) And (dX < sW) And (dY >= 0) And (dY < sH) Then Begin
+          sCl := pLongWord(NativeUInt(Src) + LongWord(((dY * sW) + dX) * SizeOf(LongWord)))^;
+          If sCl Shr 24 > 0 Then
+            dPtr^ := sCl;
+        End;
+        Inc(dPtr);
+      End;
+      Inc(dPtr, dW - (BRX - TLX));
+    End;
+
+  End;
+
+End;
+
+Procedure SP_RotateSizeXY32(Src: pLongWord; sW, sH: Integer; Dst: pLongWord; dX, dY, dW, dH: Integer; Rot, ScaleX, ScaleY: aFloat; cX1, cY1, cX2, cY2: Integer);
+Var
+  ndW, ndH, cX, cY, iSin, iCos,
+  xd, yd, aX, aY, X, Y, sdX, sdY, TLX, TLY, BRX, BRY: Integer;
+  tW, tH: aFloat;
+  dPtr: pLongWord;
+  sCl: LongWord;
+Begin
+
+  Rot := -Rot;
+
+  tW := Abs(sW * ScaleX * Cos(Rot)) + Abs(sH * ScaleY * Sin(Rot));
+  tH := Abs(sW * ScaleX * Sin(Rot)) + Abs(sH * ScaleY * Cos(Rot));
+  If Odd(Round(tW)) Then tW := tW + 1;
+  If Odd(Round(tH)) Then tH := tH + 1;
+  If dW > 0 Then Begin
+    dX := Round(dX - (tW - (sW * ScaleX)) / 2);
+    dY := Round(dY - (tH - (sH * ScaleY)) / 2);
+  End Else
+    dW := -dW;
+  ndW := Round(tW);
+  ndH := Round(tH);
+
+  cX1 := Max(cX1, 0);
+  cY1 := Max(cY1, 0);
+  cX2 := Min(dW, cX2);
+  cY2 := Min(dH, cY2);
+
+  TLX := Max(cX1, dX);
+  TLY := Max(cY1, dY);
+  BRX := Min(cX2, dX + ndW);
+  BRY := Min(cY2, dY + ndH);
+
+  Dec(TLX, dX); Dec(TLY, dY);
+  Dec(BRX, dX); Dec(BRY, dY);
+
+  If (TLX <= BRX) And (TLY <= BRY) Then Begin
+
+    iSin := Round(Sin(Rot) * (65536 / ScaleX));
+    iCos := Round(Cos(Rot) * (65536 / ScaleY));
+    cX   := Round(ndW / 2);
+    cY   := Round(ndH / 2);
+    xd   := ((sW Shl 16) - (ndW Shl 16)) Div 2;
+    yd   := ((sH Shl 16) - (ndH Shl 16)) Div 2;
+    aX   := (cX Shl 16) - (iCos * cX);
+    aY   := (cY Shl 16) - (iSin * cX);
+
+    dPtr := Dst;
+    Inc(dPtr, (dX + TLX) + ((dY + TLY) * dW));
+
+    For Y := TLY To BRY - 1 Do Begin
+      dY  := cY - Y;
+      sdX := (aX + (iSin * dY)) + xd + (TLX * iCos);
+      sdY := (aY - (iCos * dY)) + yd + (TLX * iSin);
+      For X := TLX To BRX - 1 Do Begin
+        dX := sdX Shr 16; Inc(sdX, iCos);
+        dY := sdY Shr 16; Inc(sdY, iSin);
+        If (dX >= 0) And (dX < sW) And (dY >= 0) And (dY < sH) Then Begin
+          sCl := pLongWord(NativeUInt(Src) + LongWord(((dY * sW) + dX) * SizeOf(LongWord)))^;
+          If sCl Shr 24 > 0 Then
+            dPtr^ := sCl;
+        End;
+        Inc(dPtr);
+      End;
+      Inc(dPtr, dW - (BRX - TLX));
+    End;
+
+  End;
+
+End;
+
+Procedure SP_RotAndScaleGfx32(Var SrcPtr: pByte; Var DstGfx: aString; Rot, Scale: aFloat; Var sW, sH: LongWord);
+Var
+  tW, tH: LongWord;
+  cX1, cX2, cY1, cY2, Over, Idx: Integer;
+  FillClr: LongWord;
+  p32: pLongWord;
+Begin
+
+  tW := Round(Abs(sW * Scale * Cos(Rot)) + Abs(sH * Scale * Sin(Rot)));
+  tH := Round(Abs(sW * Scale * Sin(Rot)) + Abs(sH * Scale * Cos(Rot)));
+  If Odd(tW) Then Inc(tW);
+  If Odd(tH) Then Inc(tH);
+
+  SetLength(DstGfx, tW * tH * SizeOf(LongWord));
+  FillClr := $FF000000 Or (SP_GetPalette(CPAPER) Shr 8);
+  p32 := pLongWord(@DstGfx[1]);
+  For Idx := 0 To Integer(tW * tH) - 1 Do Begin
+    p32^ := FillClr;
+    Inc(p32);
+  End;
+
+  cX1 := 0; cY1 := 0;
+  cX2 := tW; cY2 := tH;
+
+  Over   := T_OVER;
+  T_OVER := 0;
+  SP_RotateSize32(pLongWord(SrcPtr), sW, sH, pLongWord(@DstGfx[1]),
+    0, 0, -tW, tH, Rot, Scale, cX1, cY1, cX2, cY2);
+  T_OVER := Over;
+
+  sW := tW;
+  sH := tH;
+
+End;
+
+Procedure SP_RotAndScaleGfxXY32(Var SrcPtr: pByte; Var DstGfx: aString; Rot, ScaleX, ScaleY: aFloat; Var sW, sH: LongWord);
+Var
+  tW, tH: LongWord;
+  cX1, cX2, cY1, cY2, Over, Idx: Integer;
+  FillClr: LongWord;
+  p32: pLongWord;
+Begin
+
+  tW := Round(Abs(sW * ScaleX * Cos(Rot)) + Abs(sH * ScaleY * Sin(Rot)));
+  tH := Round(Abs(sW * ScaleX * Sin(Rot)) + Abs(sH * ScaleY * Cos(Rot)));
+  If Odd(tW) Then Inc(tW);
+  If Odd(tH) Then Inc(tH);
+
+  SetLength(DstGfx, tW * tH * SizeOf(LongWord));
+  FillClr := $FF000000 Or (SP_GetPalette(CPAPER) Shr 8);
+  p32 := pLongWord(@DstGfx[1]);
+  For Idx := 0 To Integer(tW * tH) - 1 Do Begin
+    p32^ := FillClr;
+    Inc(p32);
+  End;
+
+  cX1 := 0; cY1 := 0;
+  cX2 := tW; cY2 := tH;
+
+  Over   := T_OVER;
+  T_OVER := 0;
+  SP_RotateSizeXY32(pLongWord(SrcPtr), sW, sH, pLongWord(@DstGfx[1]),
+    0, 0, -tW, tH, Rot, ScaleX, ScaleY, cX1, cY1, cX2, cY2);
+  T_OVER := Over;
+
+  sW := tW;
+  sH := tH;
+
+End;
+
+Procedure SP_GWFloodFill32(Dst: pLongWord; dX, dY, dW, dH: LongWord;
+  Clr, BClr: LongWord);
+Var
+  o, qStart, qCount: LongWord;
+  dW32: LongWord;
+  n, w, e, EdgeW, EdgeE, Up, Down, Top, Bottom: pLongWord;
+Begin
+
+  dW32 := dW Div SizeOf(LongWord);
+
+  If (dX >= dW32) Or (dY >= dH) Then Exit;
+  If (Clr And $FFFFFF) = (BClr And $FFFFFF) Then Exit;
+
+  If Length(FillQueue) <> dW32 * dH Then
+    SetLength(FillQueue, dW32 * dH);
+
+  qStart := 0;
+  qCount := 1;
+
+  Top    := pLongWord(NativeUInt(Dst) + dW * LongWord(Max(1, T_CLIPY1)));
+  Bottom := pLongWord(NativeUInt(Dst) + dW * LongWord(T_CLIPY2 - 1));
+  n      := pLongWord(NativeUInt(Dst) + dW * dY + dX * SizeOf(LongWord));
+  FillQueue[0] := n;
+
+  While qCount > 0 Do Begin
+
+    n := FillQueue[qStart];
+    o := (NativeUInt(n) - NativeUInt(Dst)) Div SizeOf(LongWord);
+    Inc(qStart);
+    Dec(qCount);
+
+    If (n^ And $FFFFFF <> BClr And $FFFFFF) And
+       (n^ And $FFFFFF <> Clr  And $FFFFFF) Then Begin
+
+      w := n;
+      e := pLongWord(NativeUInt(n) + SizeOf(LongWord));
+      EdgeW := pLongWord(NativeUInt(Dst) + (o - (o Mod dW32)) * SizeOf(LongWord) - SizeOf(LongWord));
+      EdgeE := pLongWord(NativeUInt(EdgeW) + (T_CLIPX2 + 1) * SizeOf(LongWord));
+      Inc(EdgeW, T_CLIPX1);
+
+      While (w^ And $FFFFFF <> BClr And $FFFFFF) And
+            (w^ And $FFFFFF <> Clr  And $FFFFFF) And
+            (NativeUInt(w) > NativeUInt(EdgeW)) Do Begin
+        w^ := Clr;
+        Up   := pLongWord(NativeUInt(w) - dW);
+        Down := pLongWord(NativeUInt(w) + dW);
+        If NativeUInt(w) >= NativeUInt(Top) Then
+          If (Up^ And $FFFFFF <> BClr And $FFFFFF) And
+             (Up^ And $FFFFFF <> Clr  And $FFFFFF) Then Begin
+            FillQueue[qStart + qCount] := Up;
+            Inc(qCount);
+          End;
+        If NativeUInt(w) < NativeUInt(Bottom) Then
+          If (Down^ And $FFFFFF <> BClr And $FFFFFF) And
+             (Down^ And $FFFFFF <> Clr  And $FFFFFF) Then Begin
+            FillQueue[qStart + qCount] := Down;
+            Inc(qCount);
+          End;
+        Dec(w);
+      End;
+
+      While (e^ And $FFFFFF <> BClr And $FFFFFF) And
+            (e^ And $FFFFFF <> Clr  And $FFFFFF) And
+            (NativeUInt(e) < NativeUInt(EdgeE)) Do Begin
+        e^ := Clr;
+        Up   := pLongWord(NativeUInt(e) - dW);
+        Down := pLongWord(NativeUInt(e) + dW);
+        If NativeUInt(e) >= NativeUInt(Top) Then
+          If (Up^ And $FFFFFF <> BClr And $FFFFFF) And
+             (Up^ And $FFFFFF <> Clr  And $FFFFFF) Then Begin
+            FillQueue[qStart + qCount] := Up;
+            Inc(qCount);
+          End;
+        If NativeUInt(e) < NativeUInt(Bottom) Then
+          If (Down^ And $FFFFFF <> BClr And $FFFFFF) And
+             (Down^ And $FFFFFF <> Clr  And $FFFFFF) Then Begin
+            FillQueue[qStart + qCount] := Down;
+            Inc(qCount);
+          End;
+        Inc(e);
+      End;
+
+    End;
+
+  End;
+
+  SP_BankList[0]^.Changed := True;
+
+End;
+
+Procedure SP_TextureFill32(Dst: pLongWord; dX, dY, dW, dH: LongWord;
+  Const Texture: aString; tW, tH: LongWord; Var Error: TSP_ErrorCode);
+Var
+  Target, TexClr: LongWord;
+  X, Y, o, qStart, qCount, PixelBase: LongWord;
+  dW32: LongWord;
+  n, w, e, EdgeW, EdgeE, Up, Down, Top, Bottom: pLongWord;
+  TexBase: pLongWord;
+  Graphic: pSP_Graphic_Info;
+Begin
+
+  dW32 := dW Div SizeOf(LongWord);
+
+  If Texture = '' Then Begin
+    TexBase  := pLongWord(tW);
+    Graphic  := pSP_Graphic_Info(tH);
+    If Graphic^.Depth <> 32 Then Begin
+      Error.Code := SP_ERR_DEPTH_MISMATCH;
+      Exit;
+    End;
+    tW := Graphic^.Width;
+    tH := Graphic^.Height;
+  End Else Begin
+    If pWord(@Texture[11])^ <> 32 Then Begin
+      Error.Code := SP_ERR_DEPTH_MISMATCH;
+      Exit;
+    End;
+    tW      := pLongWord(@Texture[1])^;
+    tH      := pLongWord(@Texture[5])^;
+    TexBase := pLongWord(@Texture[13]);
+  End;
+
+  If (dX >= dW32) Or (dY >= dH) Then Exit;
+
+  If Length(FillQueue) <> dW32 * dH * 2 Then
+    SetLength(FillQueue, dW32 * dH * 2);
+  ZeroMem(@FillQueue[0], dW32 * dH * 2 * SizeOf(Pointer));
+
+  PixelBase := dW32 * dH;
+  qStart    := 0;
+  qCount    := 1;
+
+  Top    := pLongWord(NativeUInt(Dst) + dW * LongWord(Max(1, T_CLIPY1)));
+  Bottom := pLongWord(NativeUInt(Dst) + dW * LongWord(T_CLIPY2 - 1));
+  n      := pLongWord(NativeUInt(Dst) + dW * dY + dX * SizeOf(LongWord));
+  FillQueue[0] := n;
+  Target := n^ And $FFFFFF;
+
+  While qCount > 0 Do Begin
+
+    n := FillQueue[qStart];
+    o := (NativeUInt(n) - NativeUInt(Dst)) Div SizeOf(LongWord);
+    Inc(qStart);
+    Dec(qCount);
+
+    If n^ And $FFFFFF = Target Then Begin
+
+      w := n;
+      e := pLongWord(NativeUInt(n) + SizeOf(LongWord));
+      EdgeW := pLongWord(NativeUInt(Dst) + (o - (o Mod dW32)) * SizeOf(LongWord) - SizeOf(LongWord));
+      EdgeE := pLongWord(NativeUInt(EdgeW) + (T_CLIPX2 + 1) * SizeOf(LongWord));
+      Inc(EdgeW, T_CLIPX1);
+      Y := o Div dW32;
+      X := o Mod dW32;
+
+      While (w^ And $FFFFFF = Target) And (NativeUInt(w) > NativeUInt(EdgeW)) And
+            (FillQueue[X + Y * dW32 + PixelBase] = Nil) Do Begin
+        TexClr := pLongWord(NativeUInt(TexBase) + ((Y Mod tH) * tW + (X Mod tW)) * SizeOf(LongWord))^;
+        w^ := TexClr;
+        FillQueue[X + Y * dW32 + PixelBase] := pByte(1);
+        Up   := pLongWord(NativeUInt(w) - dW);
+        Down := pLongWord(NativeUInt(w) + dW);
+        If NativeUInt(w) >= NativeUInt(Top) Then
+          If (Up^ And $FFFFFF = Target) And (FillQueue[X + (Y-1)*dW32 + PixelBase] = Nil) Then Begin
+            FillQueue[qStart + qCount] := Up;
+            Inc(qCount);
+          End;
+        If NativeUInt(w) < NativeUInt(Bottom) Then
+          If (Down^ And $FFFFFF = Target) And (FillQueue[X + (Y+1)*dW32 + PixelBase] = Nil) Then Begin
+            FillQueue[qStart + qCount] := Down;
+            Inc(qCount);
+          End;
+        Dec(w);
+        If X > 0 Then Dec(X);
+      End;
+
+      While (e^ And $FFFFFF = Target) And (NativeUInt(e) < NativeUInt(EdgeE)) And
+            (FillQueue[X + Y * dW32 + PixelBase] = Nil) Do Begin
+        Y := (NativeUInt(e) - NativeUInt(Dst)) Div SizeOf(LongWord) Div dW32;
+        X := (NativeUInt(e) - NativeUInt(Dst)) Div SizeOf(LongWord) Mod dW32;
+        TexClr := pLongWord(NativeUInt(TexBase) + ((Y Mod tH) * tW + (X Mod tW)) * SizeOf(LongWord))^;
+        e^ := TexClr;
+        FillQueue[X + Y * dW32 + PixelBase] := pByte(1);
+        Up   := pLongWord(NativeUInt(e) - dW);
+        Down := pLongWord(NativeUInt(e) + dW);
+        If NativeUInt(e) >= NativeUInt(Top) Then
+          If (Up^ And $FFFFFF = Target) And (FillQueue[X + (Y-1)*dW32 + PixelBase] = Nil) Then Begin
+            FillQueue[qStart + qCount] := Up;
+            Inc(qCount);
+          End;
+        If NativeUInt(e) < NativeUInt(Bottom) Then
+          If (Down^ And $FFFFFF = Target) And (FillQueue[X + (Y+1)*dW32 + PixelBase] = Nil) Then Begin
+            FillQueue[qStart + qCount] := Down;
+            Inc(qCount);
+          End;
+        Inc(e);
+        Inc(X);
+      End;
+
+    End;
+
+  End;
+
+  SP_BankList[0]^.Changed := True;
+
+End;
+
+Procedure SP_CopyRect32(SrcPtr: pByte; SrcW, SrcH, SrcRx, SrcRy, SrcRw, SrcRh: Integer; DstPtr: pByte; DstW, DstH, DstX, DstY, DcW, DcH, cx1, cy1, cx2, cy2: Integer; Var Error: TSP_ErrorCode);
+Var
+  BuffPtr, dPtr, sPtr, SLPtr: pLongWord;
+  BuffW, W, H, Sx, Sy, X, Y, Xp, Yp, Bx, By, Bw, Bh: Integer;
+  rH, rV: aFloat;
+  SrcW32: Integer;
+Begin
+
+  // Convert byte strides to pixel widths for internal arithmetic.
+  SrcW32 := SrcW Div SizeOf(LongWord);
+
+  rH := DcW / SrcRw;
+  rV := DcH / SrcRh;
+
+  If SrcRx < 0 Then Begin
+    Inc(SrcRw, SrcRx);
+    Inc(DstX, -Trunc(SrcRx * rH));
+    DcW  := Trunc(SrcRw * rH);
+    SrcRx := 0;
+  End;
+  If SrcRx + SrcRw > SrcW32 Then Begin
+    SrcRw := SrcRw - ((SrcRx + SrcRw) - SrcW32);
+    DcW   := Trunc(SrcRw * rH);
+  End;
+  If SrcRy < 0 Then Begin
+    Inc(SrcRh, SrcRy);
+    Inc(DstY, -Trunc(SrcRy * rV));
+    DcH  := Trunc(SrcRh * rV);
+    SrcRy := 0;
+  End;
+  If SrcRy + SrcRh > SrcH Then Begin
+    SrcRh := SrcRh - ((SrcRy + SrcRh) - SrcH);
+    DcH   := Trunc(SrcRh * rV);
+  End;
+  If (SrcRw = 0) Or (SrcRh = 0) Then Begin
+    Error.Code := SP_ERR_INVALID_REGION;
+    Exit;
+  End;
+
+  If DstX < Cx1 Then Begin
+    Bx := SrcRx;
+    Inc(SrcRx, Trunc((Cx1 - DstX) / rH));
+    Inc(SrcRw, Trunc(DstX / rH));
+    DcW := Trunc(SrcRw * rH);
+    Inc(DstX, SrcRx - Bx);
+  End;
+  If DstX + DcW >= Cx2 Then Begin
+    Inc(SrcRw, -Trunc(((DstX + DcW) - Cx2) / rH));
+    DcW := Trunc(SrcRw * rH);
+  End;
+  If DstY < Cy1 Then Begin
+    By := SrcRy;
+    Inc(SrcRy, Trunc(Cy1 - DstY / rV));
+    Inc(SrcRh, Trunc(DstY / rV));
+    DcH := Trunc(SrcRh * rV);
+    Inc(DstY, Trunc((SrcRy - By) * rV));
+  End;
+  If DstY + DcH >= Cy2 Then Begin
+    Inc(SrcRh, -Trunc(((DstY + DcH) - Cy2) / rV));
+    DcH := Trunc(SrcRh * rV);
+  End;
+
+  H     := SrcRh;
+  BuffW := DcW;  // in pixels
+
+  If gBuffLen <> DcW * DcH Then Begin
+    gBuffLen := DcW * DcH;
+    If gBuffLen > 0 Then
+      SetLength(gBuffer, DcW * DcH)
+    Else Begin
+      Error.Code := SP_ERR_INVALID_REGION;
+      Exit;
+    End;
+  End;
+
+  BuffPtr := @gBuffer[0];
+
+  // Source pointer: advance in bytes using byte stride and pixel x/y coords.
+  Inc(SrcPtr, SrcW * SrcRy + SrcRx * SizeOf(LongWord));
+
+  If (DcW = SrcRw) And (DcH = SrcRh) Then Begin
+
+    // Same-size copy.
+    While H > 0 Do Begin
+      W := SrcRw;
+      {$IFDEF CPU64}
+      While W > SizeOf(NativeUInt) Div SizeOf(LongWord) Do Begin
+        pNativeUInt(BuffPtr)^ := pNativeUInt(SrcPtr)^;
+        Inc(pNativeUInt(BuffPtr));
+        Inc(SrcPtr, SizeOf(NativeUInt));
+        Dec(W, SizeOf(NativeUInt) Div SizeOf(LongWord));
+      End;
+      {$ENDIF}
+      While W > 0 Do Begin
+        BuffPtr^ := pLongWord(SrcPtr)^;
+        Inc(BuffPtr);
+        Inc(SrcPtr, SizeOf(LongWord));
+        Dec(W);
+      End;
+      Dec(H);
+      Inc(SrcPtr, SrcW - SrcRw * SizeOf(LongWord));
+    End;
+
+  End Else Begin
+
+    // Scaled copy.
+    Sx := (SrcRw Shl 16) Div DcW;
+    Sy := (SrcRh Shl 16) Div DcH;
+    Yp := 0;
+    For Y := 0 To DcH - 1 Do Begin
+      SLPtr := pLongWord(NativeUInt(SrcPtr) + LongWord(Yp Shr 16) * LongWord(SrcW));
+      Xp := 0;
+      For X := 0 To DcW - 1 Do Begin
+        BuffPtr^ := pLongWord(NativeUInt(SLPtr) + LongWord(Xp Shr 16) * SizeOf(LongWord))^;
+        Inc(BuffPtr);
+        Inc(Xp, Sx);
+      End;
+      Inc(Yp, Sy);
+    End;
+
+  End;
+
+  BuffPtr := @gBuffer[0];
+
+  Bx := 0; By := 0; Bw := DcW; Bh := DcH;
+  If DstX < Cx1 Then Begin Inc(Bw, Cx1 - DstX); Bx := Cx1 - DstX; DstX := 0; End;
+  If DstY < Cy1 Then Begin Inc(Bh, Cy1 - DstY); By := Cy1 - DstY; DstY := 0; End;
+  If DstX + Bw >= Cx2 Then Inc(Bw, -(DstX + Bw - Cx2));
+  If DstY + Bh >= Cy2 Then Inc(Bh, -(DstY + Bh - Cy2));
+
+  // Destination pointer: DstW is byte stride, DstX is pixels.
+  dPtr := pLongWord(NativeUInt(DstPtr) + LongWord(DstY) * LongWord(DstW) + LongWord(DstX) * SizeOf(LongWord));
+  sPtr := pLongWord(NativeUInt(BuffPtr) + LongWord(Bx) * SizeOf(LongWord) + LongWord(By) * LongWord(BuffW) * SizeOf(LongWord));
+
+  If COVER = 0 Then Begin
+
+    While Bh > 0 Do Begin
+      W := Bw;
+      {$IFDEF CPU64}
+      While W > SizeOf(NativeUInt) Div SizeOf(LongWord) Do Begin
+        pNativeUInt(dPtr)^ := pNativeUInt(sPtr)^;
+        Inc(pNativeUInt(sPtr));
+        Inc(pNativeUInt(dPtr));
+        Dec(W, SizeOf(NativeUInt) Div SizeOf(LongWord));
+      End;
+      {$ENDIF}
+      While W > 0 Do Begin
+        dPtr^ := sPtr^;
+        Inc(sPtr);
+        Inc(dPtr);
+        Dec(W);
+      End;
+      // Advance by remaining pixels in row × 4 bytes.
+      Inc(pByte(sPtr), (BuffW - Bw) * SizeOf(LongWord));
+      Inc(pByte(dPtr), DstW - Bw * SizeOf(LongWord));
+      Dec(Bh);
+    End;
+
+  End Else Begin
+
+    While DcH > 0 Do Begin
+      W := DcW;
+      While W > 0 Do Begin
+        dPtr^ := SP_AlphaBlend(dPtr^, sPtr^);
+        Inc(sPtr);
+        Inc(dPtr);
+        Dec(W);
+      End;
+      Inc(pByte(sPtr), (BuffW - DcW) * SizeOf(LongWord));
+      Inc(pByte(dPtr), DstW - DcW * SizeOf(LongWord));
+      Dec(DcH);
+    End;
+
+  End;
+
+  SP_BankList[0]^.Changed := True;
+
+End;
+
+Procedure SP_DrawTexRectangle32(X1, Y1, X2, Y2: Integer; const TextureStr: aString; tW, tH: LongWord);
+Var
+  T, W: Integer;
+  Dst: pLongWord;
+  TexBase: pLongWord;
+  Graphic: pSP_Graphic_Info;
+  PixVal: LongWord;
+Begin
+
+  DRPOSX := X2;
+  DRPOSY := Y2;
+
+  If X1 > X2 Then Begin T := X1; X1 := X2; X2 := T; End;
+  If Y1 > Y2 Then Begin T := Y1; Y1 := Y2; Y2 := T; End;
+
+  If X1 < 0 Then X1 := 0; If X1 >= SCREENWIDTH  Then Exit;
+  If Y1 < 0 Then Y1 := 0; If Y1 >= SCREENHEIGHT Then Exit;
+  If X2 < 0 Then Exit;    If X2 >= SCREENWIDTH  Then X2 := SCREENWIDTH  - 1;
+  If Y2 < 0 Then Exit;    If Y2 >= SCREENHEIGHT Then Y2 := SCREENHEIGHT - 1;
+
+  If SCREENVISIBLE Then SP_SetDirtyRect(SCREENX + X1, SCREENY + Y1, SCREENX + X2, SCREENY + Y2);
+
+  If TextureStr = '' Then Begin
+    TexBase := pLongWord(tW);
+    Graphic := pSP_Graphic_Info(tH);
+    tW := Graphic^.Width;
+    tH := Graphic^.Height;
+  End Else
+    TexBase := pLongWord(@TextureStr[13]);
+
+  Dst := pLongWord(NativeUInt(SCREENPOINTER) + LongWord(SCREENSTRIDE * Y1 + X1 * SizeOf(LongWord)));
+
+  While Y1 <= Y2 Do Begin
+    If (Y1 >= T_CLIPY1) And (Y1 < T_CLIPY2) Then Begin
+      W := X1;
+      While W <= X2 Do Begin
+        If (W >= T_CLIPX1) And (W < T_CLIPX2) Then Begin
+          PixVal := pLongWord(NativeUInt(TexBase) +
+            LongWord(((LongWord(W) Mod tW) + (LongWord(Y1) Mod tH) * tW) * SizeOf(LongWord)))^;
+          Case PixVal Shr 24 Of
+            0:   ;
+            $FF: Dst^ := PixVal;
+          Else   Dst^ := SP_AlphaBlend(Dst^, PixVal);
+          End;
+        End;
+        Inc(Dst);
+        Inc(W);
+      End;
+      Inc(Dst, SCREENWIDTH - (X2 - X1) - 1);
+    End Else
+      Inc(pByte(Dst), SCREENSTRIDE);
+    Inc(Y1);
+  End;
+
+  SP_BankList[0]^.Changed := True;
+
+End;
+
+Procedure SP_PolygonFill32(Const Points: Array of TSP_Point; const TextureStr: aString; tW, tH: LongWord);
+Var
+  MinY, MaxY, MinX, MaxX, Idx, I, J, Nodes, NumPoints, PixelY: Integer;
+  NodeX: Array of Integer;
+  Dst: pLongWord;
+  TexBase: pLongWord;
+  Graphic: pSP_Graphic_Info;
+  PixVal: LongWord;
+Begin
+
+  If TextureStr = '' Then Begin
+    TexBase := pLongWord(tW);
+    Graphic := pSP_Graphic_Info(tH);
+    tW := Graphic^.Width;
+    tH := Graphic^.Height;
+  End Else
+    TexBase := pLongWord(@TextureStr[13]);
+
+  NumPoints := Length(Points);
+  SetLength(NodeX, NumPoints);
+  Idx := NumPoints - 1;
+  MinY := 32768; MaxY := -32768;
+  MinX := 32768; MaxX := -32768;
+
+  While Idx >= 0 Do Begin
+    If Points[Idx].Y < MinY Then MinY := Floor(Points[Idx].Y);
+    If Points[Idx].Y > MaxY Then MaxY := Ceil(Points[Idx].Y);
+    If Points[Idx].X < MinX Then MinX := Floor(Points[Idx].X);
+    If Points[Idx].X > MaxX Then MaxX := Ceil(Points[Idx].X);
+    Dec(Idx);
+  End;
+
+  MaxY := Min(MaxY, T_CLIPY2 - 1);
+  MaxX := Min(MaxX, T_CLIPX2 - 1);
+  MinY := Max(MinY, T_CLIPY1);
+  MinX := Max(MinX, T_CLIPX1);
+
+  If SCREENVISIBLE Then SP_SetDirtyRect(SCREENX + MinX, SCREENY + MinY, SCREENX + MaxX, SCREENY + MaxY);
+
+  For PixelY := MinY To MaxY Do Begin
+
+    Nodes := 0;
+    J := NumPoints - 1;
+    For I := 0 To NumPoints - 1 Do Begin
+      If ((Points[I].Y < PixelY) And (Points[J].Y >= PixelY)) Or
+         ((Points[J].Y < PixelY) And (Points[I].Y >= PixelY)) Then Begin
+        NodeX[Nodes] := Round(Points[I].X + (PixelY - Points[I].Y) /
+          (Points[J].Y - Points[I].Y) * (Points[J].X - Points[I].X));
+        Inc(Nodes);
+      End;
+      J := I;
+    End;
+
+    I := 0;
+    While I < Nodes - 1 Do
+      If NodeX[I] > NodeX[I+1] Then Begin
+        NodeX[I]   := NodeX[I]   Xor NodeX[I+1];
+        NodeX[I+1] := NodeX[I]   Xor NodeX[I+1];
+        NodeX[I]   := NodeX[I]   Xor NodeX[I+1];
+        If I > 0 Then Dec(I);
+      End Else
+        Inc(I);
+
+    I := 0;
+    While I < Nodes Do Begin
+      If NodeX[I] >= T_CLIPX2 Then Break;
+      If NodeX[I+1] > T_CLIPX1 Then Begin
+        If NodeX[I]   < T_CLIPX1 Then NodeX[I]   := T_CLIPX1;
+        If NodeX[I+1] >= T_CLIPX2 Then NodeX[I+1] := T_CLIPX2;
+        Dst := pLongWord(NativeUInt(SCREENPOINTER) +
+          LongWord(PixelY * SCREENSTRIDE + NodeX[I] * SizeOf(LongWord)));
+        For J := NodeX[I] To NodeX[I+1] - 1 Do Begin
+          PixVal := pLongWord(NativeUInt(TexBase) +
+            LongWord(((LongWord(PixelY) Mod tH) * tW + (LongWord(J) Mod tW)) * SizeOf(LongWord)))^;
+          Case PixVal Shr 24 Of
+            0:   ;
+            $FF: Dst^ := PixVal;
+          Else   Dst^ := SP_AlphaBlend(Dst^, PixVal);
+          End;
+          Inc(Dst);
+        End;
+      End;
+      Inc(I, 2);
+    End;
+
+  End;
+
+  SP_BankList[0]^.Changed := True;
 
 End;
 

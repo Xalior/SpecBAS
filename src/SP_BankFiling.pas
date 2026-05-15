@@ -1,4 +1,4 @@
-// Copyright (C) 2016 By Paul Dunn
+﻿// Copyright (C) 2016 By Paul Dunn
 //
 // This file is part of the SpecBAS BASIC Interpreter, which is in turn
 // part of the SpecOS project.
@@ -235,7 +235,7 @@ Type
   Function  SP_BankToString(BankID: Integer): aString;
   Procedure SP_BankFromString(InBank: aString);
 
-  // 3D bank filing hooks — registered by SP_3DEngineUnit at startup.
+  // 3D bank filing hooks - registered by SP_3DEngineUnit at startup.
   // SP_BankFiling does not depend on SP_3DEngineUnit; the hooks break the
   // circular dependency and allow model/scene banks to participate in the
   // normal SaveBankAsText / LoadBankFromText / BankFromString flows.
@@ -253,7 +253,7 @@ implementation
 
 Uses SP_FileIO, SP_Tokenise, SP_BankManager, SP_SysVars, SP_Graphics, SP_Sound;
 
-Function INIFindSection(Var INI: TAnsiStringlist; Section: AnsiString): Integer;
+Function INIFindSection(Var INI: TAnsiStringlist; Section: aString): Integer;
 Begin
   Result := 0;
   While (Result < INI.Count) and (Lower(INI[Result]) <> '['+Lower(Section)+']') Do Inc(Result);
@@ -266,7 +266,7 @@ Begin
   End;
 End;
 
-Function INIFindEntry(Var INI: TAnsiStringlist; Section, Entry: AnsiString): Integer;
+Function INIFindEntry(Var INI: TAnsiStringlist; Section, Entry: aString): Integer;
 Begin
   Result := INIFindSection(INI, Section) +1;
   While Result < INI.Count Do Begin
@@ -295,10 +295,10 @@ Begin
     End;
 End;
 
-Function INIReadBool(Var INI: TAnsiStringlist; Section, Entry: AnsiString; Default: Boolean): Boolean;
+Function INIReadBool(Var INI: TAnsiStringlist; Section, Entry: aString; Default: Boolean): Boolean;
 Var
   EntryPos: Integer;
-  Value: AnsiString;
+  Value: aString;
 Begin
   Result := Default;
   EntryPos := INIFindEntry(INI, Section, Entry);
@@ -314,10 +314,10 @@ Begin
   End;
 End;
 
-Function INIReadString(Var INI: TAnsiStringlist; Section, Entry: AnsiString; Default: AnsiString): AnsiString;
+Function INIReadString(Var INI: TAnsiStringlist; Section, Entry: aString; Default: aString): aString;
 Var
   EntryPos: Integer;
-  Value: AnsiString;
+  Value: aString;
 Begin
   EntryPos := INIFindEntry(INI, Section, Entry);
   Value := Copy(INI[EntryPos], Length(Entry)+2, 999999);
@@ -327,10 +327,10 @@ Begin
   End Else Result := Value;
 End;
 
-Function INIReadFloat(Var INI: TAnsiStringlist; Section, Entry: AnsiString; Default: aFloat): aFloat;
+Function INIReadFloat(Var INI: TAnsiStringlist; Section, Entry: aString; Default: aFloat): aFloat;
 Var
   EntryPos, Idx: Integer;
-  Value: AnsiString;
+  Value: aString;
 Begin
   EntryPos := INIFindEntry(INI, Section, Entry);
   Value := Copy(INI[EntryPos], Length(Entry)+2, 999999);
@@ -344,10 +344,10 @@ Begin
   End Else Result := StrToFloat(String(Value));
 End;
 
-Function INIReadInt(Var INI: TAnsiStringlist; Section, Entry: AnsiString; Default: Integer): Integer;
+Function INIReadInt(Var INI: TAnsiStringlist; Section, Entry: aString; Default: Integer): Integer;
 Var
   EntryPos: Integer;
-  Value: AnsiString;
+  Value: aString;
 Begin
   EntryPos := INIFindEntry(INI, Section, Entry);
   Value := Copy(INI[EntryPos], Length(Entry)+2, 999999);
@@ -358,10 +358,10 @@ Begin
     Result := StringToInt(Value, Default);
 End;
 
-Function INIReadLong(Var INI: TAnsiStringlist; Section, Entry: AnsiString; Default: LongWord): LongWord;
+Function INIReadLong(Var INI: TAnsiStringlist; Section, Entry: aString; Default: LongWord): LongWord;
 Var
   EntryPos: Integer;
-  Value: AnsiString;
+  Value: aString;
 Begin
   EntryPos := INIFindEntry(INI, Section, Entry);
   Value := Copy(INI[EntryPos], Length(Entry)+2, 999999);
@@ -371,10 +371,10 @@ Begin
   End Else Result := StringToInt(Value, Default);
 End;
 
-Function INIReadWord(Var INI: TAnsiStringlist; Section, Entry: AnsiString; Default: Word): Word;
+Function INIReadWord(Var INI: TAnsiStringlist; Section, Entry: aString; Default: Word): Word;
 Var
   EntryPos: Integer;
-  Value: AnsiString;
+  Value: aString;
 Begin
   EntryPos := INIFindEntry(INI, Section, Entry);
   Value := Copy(INI[EntryPos], Length(Entry)+2, 999999);
@@ -384,7 +384,7 @@ Begin
   End Else Result := StringToInt(Value, Default);
 End;
 
-Procedure INIWriteBool(Var INI: TAnsiStringlist; Section, Entry: AnsiString; Value: Boolean);
+Procedure INIWriteBool(Var INI: TAnsiStringlist; Section, Entry: aString; Value: Boolean);
 Var
   EntryPos: Integer;
 Begin
@@ -395,7 +395,7 @@ Begin
     INI[EntryPos] := INI[EntryPos] + '0';
 End;
 
-Procedure INIWriteString(Var INI: TAnsiStringlist; Section, Entry: AnsiString; Value: AnsiString);
+Procedure INIWriteString(Var INI: TAnsiStringlist; Section, Entry: aString; Value: aString);
 Var
   EntryPos: Integer;
 Begin
@@ -403,7 +403,7 @@ Begin
   INI[EntryPos] := INI[EntryPos] + Value;
 End;
 
-Procedure INIWriteInt(Var INI: TAnsiStringlist; Section, Entry: AnsiString; Value: Integer);
+Procedure INIWriteInt(Var INI: TAnsiStringlist; Section, Entry: aString; Value: Integer);
 Var
   EntryPos: Integer;
 Begin
@@ -411,7 +411,7 @@ Begin
   INI[EntryPos] := INI[EntryPos] + IntToString(Value);
 End;
 
-Procedure INIWriteLong(Var INI: TAnsiStringlist; Section, Entry: AnsiString; Value: LongWord);
+Procedure INIWriteLong(Var INI: TAnsiStringlist; Section, Entry: aString; Value: LongWord);
 Var
   EntryPos: Integer;
 Begin
@@ -419,7 +419,7 @@ Begin
   INI[EntryPos] := INI[EntryPos] + IntToString(Value);
 End;
 
-Procedure INIWriteWord(Var INI: TAnsiStringlist; Section, Entry: AnsiString; Value: Word);
+Procedure INIWriteWord(Var INI: TAnsiStringlist; Section, Entry: aString; Value: Word);
 Var
   EntryPos: Integer;
 Begin
@@ -427,7 +427,7 @@ Begin
   INI[EntryPos] := INI[EntryPos] + IntToString(Value);
 End;
 
-Procedure INIWriteByte(Var INI: TAnsiStringlist; Section, Entry: AnsiString; Value: Byte);
+Procedure INIWriteByte(Var INI: TAnsiStringlist; Section, Entry: aString; Value: Byte);
 Var
   EntryPos: Integer;
 Begin
@@ -435,10 +435,10 @@ Begin
   INI[EntryPos] := INI[EntryPos] + IntToString(Value);
 End;
 
-Procedure INIWriteFloat(Var INI: TAnsiStringlist; Section, Entry: AnsiString; Value: aFloat);
+Procedure INIWriteFloat(Var INI: TAnsiStringlist; Section, Entry: aString; Value: aFloat);
 Var
   Idx, EntryPos: Integer;
-  ValueStr: AnsiString;
+  ValueStr: aString;
 Begin
   EntryPos := INIFindEntry(INI, Section, Entry);
   ValueStr := aFloatToStr(Value);
@@ -913,6 +913,7 @@ Begin
         Begin
           Gfx := pSP_Graphic_Info(@SP_BankList[BankID].Info[0]);
           Gfx^.Data := @Bank^.Memory[0];
+          SP_GFX_UpdateWindowInfo(Gfx, Bank);
         End;
 
       SP_FONT_BANK:

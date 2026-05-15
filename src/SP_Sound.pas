@@ -2285,6 +2285,7 @@ Begin
     DeletePLAYThread(PoolIndex);
     DeletePLAYMessages(ChanID);
     PLAYLock.Leave;
+    ERRStr := '';
     Terminate;
 
   End;

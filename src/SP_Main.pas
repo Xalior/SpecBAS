@@ -461,7 +461,7 @@ Var
   Idx: pByte;
 Begin
 
-  Idx := pByte(pNativeUInt(Tokens)^);
+  Idx := pByte(Pointer(Tokens^));
 
   If pByte(Idx)^ = SP_LINE_NUM Then
     Inc(Idx, 1 + SizeOf(LongWord));

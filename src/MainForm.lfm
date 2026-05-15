@@ -11,6 +11,7 @@ object Main: TMain
   Font.Height = -11
   Font.Name = 'Tahoma'
   KeyPreview = True
+  LCLVersion = '4.6.0.0'
   OnActivate = FormActivate
   OnCloseQuery = FormCloseQuery
   OnCreate = FormCreate
@@ -27,5 +28,10 @@ object Main: TMain
   OnPaint = FormPaint
   OnResize = FormResize
   OnShow = FormShow
-  LCLVersion = '2.2.4.0'
+  object Timer1: TTimer
+    Interval = 250
+    OnTimer = Timer1Timer
+    Left = 26
+    Top = 21
+  end
 end

@@ -499,12 +499,13 @@ Begin
                     s := Copy(Tokens, LastStrAt, LastStrLen);
                     SP_TestConsts(s, 1, Error, False, constChanged);
                     SP_AddHandlers(s);
-                    pToken(@Tokens[LastStrAt])^.TokenLen := Length(s);
-                    //pLongWord(@Tokens[LastStrAt - (SizeOf(LongWord) * 2)])^ := Length(s);
-                    Tokens := Copy(Tokens, 1, LastStrAt -1)+s+Copy(Tokens, LastStrAt + LastStrLen);
-                    Inc(Idx2, Length(s) - LastStrLen);
-                    If Length(s) <> LastStrLen Then
-                      SP_FixStatementList(Tokens, LastStrAt, Length(s) - LastStrLen);
+                    if constChanged or (Length(s) <> LastStrLen) then begin
+                      pToken(@Tokens[LastStrAt - SizeOf(TToken)])^.TokenLen := Length(s);
+                      Tokens := Copy(Tokens, 1, LastStrAt-1) + s + Copy(Tokens, LastStrAt + LastStrLen);
+                      Inc(Idx2, Length(s) - LastStrLen);
+                      If Length(s) <> LastStrLen Then
+                        SP_FixStatementList(Tokens, LastStrAt, Length(s) - LastStrLen);
+                    end;
                   End;
               End;
               Inc(Idx2, TokenLen);

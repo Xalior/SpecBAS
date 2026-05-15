@@ -26,8 +26,7 @@ Unit SP_FPEditor;
 
 //    Upgrade INPUT line editor to respond like the current DW (if no FORMAT specified!)
 //    UI Toolkit:
-//      Windows with decoration, moveable, resizeable
-//      graphic, tabcontrol bar, icon bar, treeview
+//      graphic, icon bar, treeview
 
 // Medium Priority:
 

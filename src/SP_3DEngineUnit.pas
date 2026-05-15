@@ -18,7 +18,7 @@
 
 Unit SP_3DEngineUnit;
 
-// SpecBAS software 3D engine — v1: flat-shaded perspective rendering.
+// SpecBAS software 3D engine - v1: flat-shaded perspective rendering.
 //
 // Coordinate system:  right-handed, Y-up.
 // Camera:             looks down -Z in camera space.
@@ -29,8 +29,8 @@ Unit SP_3DEngineUnit;
 // --- Model bank (SP_MODEL_BANK = 9) ---
 //   Info   : TSP_ModelHeader  (VertexCount, FaceCount, Flags)
 //   Memory : TSP_3DVertex array immediately followed by TSP_3DFace array.
-//   Flags  : SP3D_FLAG_BUILT (1) — data is packed and normals computed.
-//            SP3D_FLAG_DIRTY (2) — vertex/face data changed, rebuild needed.
+//   Flags  : SP3D_FLAG_BUILT (1) - data is packed and normals computed.
+//            SP3D_FLAG_DIRTY (2) - vertex/face data changed, rebuild needed.
 //   Models are auto-built before rendering when SP3D_FLAG_DIRTY is set.
 //   MODEL BUILD may also be called explicitly to pre-build on a quiet frame.
 //
@@ -285,6 +285,7 @@ Type
     Raster8        : TRasterProc;               // 8bpp rasteriser dispatch
     Raster32       : TRasterProc;               // 32bpp rasteriser dispatch
     TexPal         : pTP_Colour;                // 32bpp: pointer to graphic bank palette
+    TexDepth       : Integer;                   // 8 or 32
   End;
 
   TSP3D_RenderBandParams = Record
@@ -623,7 +624,7 @@ Var
 Begin
   If Not SP3D_ViewMatrixOK Then BuildViewMatrix;
 
-  // Choose which matrix to combine with — parent's or global view
+  // Choose which matrix to combine with - parent's or global view
   If Assigned(ParentMV) Then Begin
     BaseView := ParentMV^;
     BaseNorm := ParentNM^;
@@ -825,7 +826,7 @@ Begin
     SP3D_LUTCacheDirty := False;
   End;
 
-  // Direct-mapped hash: O(1) lookup — no linear scan
+  // Direct-mapped hash: O(1) lookup - no linear scan
   H    := (Cardinal(GC0) Xor (Cardinal(GC1) Shl 8) Xor (Cardinal(GC2) Shl 16));
   H    := (H Xor (H Shr 16)) * $45D9F3B;
   Slot := Integer((H Xor (H Shr 16)) And Cardinal(SP3D_LUT_CACHE_SIZE - 1));
@@ -995,7 +996,7 @@ Begin
   End;
 End;
 
-// Camera changed — walk every scene bank and invalidate all instance matrices.
+// Camera changed - walk every scene bank and invalidate all instance matrices.
 Procedure InvalidateAllSceneMatrices;
 Var i: Integer;
 Begin
@@ -1422,7 +1423,7 @@ Begin
   Hdr  := pSP_ModelHeader(@Bank^.Info[0]);
 
   If (Hdr^.Flags And SP3D_FLAG_BUILT) = 0 Then Begin
-    // Not yet built — update build state only, UV count validated against VertCount
+    // Not yet built - update build state only, UV count validated against VertCount
     BSIdx := FindBuildState(BankID);
     If BSIdx < 0 Then Begin Error.Code := SP_ERR_BANK_NOT_FOUND; Exit; End;
     // Find first face with matching PolyIdx to get VertCount
@@ -1447,7 +1448,7 @@ Begin
     Exit;
   End;
 
-  // Built — use poly directory for O(1) lookup
+  // Built - use poly directory for O(1) lookup
   If (PolyIdx < 0) Or (LongWord(PolyIdx) >= Hdr^.PolyCount) Then Begin
     Error.Code := SP_ERR_SUBSCRIPT_WRONG; Exit;
   End;
@@ -1685,7 +1686,7 @@ Begin
     EC := 0;
     For i := 0 To FC - 1 Do
       With SP_ModelBuildStates[BSIdx].Faces[i] Do Begin
-        // Edge V0-V1 — colour from winding V0
+        // Edge V0-V1 - colour from winding V0
         If (Flags And SP3D_FACE_NOEDGE_01) = 0 Then Begin
           If V0 < V1 Then Begin Lo_v := V0; Hi_v := V1; End
           Else             Begin Lo_v := V1; Hi_v := V0; End;
@@ -1695,7 +1696,7 @@ Begin
           V := SP_ModelBuildStates[BSIdx].Verts[V0];
           TempEdges[EC].Colour := IfThen((V.Flags And SP3D_VERTEX_DEFAULTCOLOUR) <> 0, CINK, V.Colour);
           Inc(EC);
-        End;        // Edge V1-V2 — colour from winding V1
+        End;        // Edge V1-V2 - colour from winding V1
         If V1 < V2 Then Begin Lo_v := V1; Hi_v := V2; End
         Else             Begin Lo_v := V2; Hi_v := V1; End;
         TempEdges[EC].SortKey := (Int64(Lo_v) Shl 32) Or Int64(Hi_v);
@@ -1704,7 +1705,7 @@ Begin
         V := SP_ModelBuildStates[BSIdx].Verts[V1];
         TempEdges[EC].Colour := IfThen((V.Flags And SP3D_VERTEX_DEFAULTCOLOUR) <> 0, CINK, V.Colour);
         Inc(EC);
-        // Edge V2-V0 — colour from winding V2
+        // Edge V2-V0 - colour from winding V2
         If Flags And SP3D_FACE_NOEDGE_20 = 0 Then Begin
           If V2 < V0 Then Begin Lo_v := V2; Hi_v := V0; End
           Else             Begin Lo_v := V0; Hi_v := V2; End;
@@ -1747,7 +1748,7 @@ Begin
     SetLength(TempEdges,   0);
   End;
 
-  // Build poly directory — group consecutive faces by PolyIdx
+  // Build poly directory - group consecutive faces by PolyIdx
   PC := 0;
   PBytes := 0;
   If FC > 0 Then Begin
@@ -1827,7 +1828,7 @@ Begin
 
   FC2 := Length(SP_ModelBuildStates[BSIdx].Frames);
 
-  // Update header FrameCount (BSIdx already freed above — re-find is needed
+  // Update header FrameCount (BSIdx already freed above - re-find is needed
   // but BSIdx was just freed so use Idx which is still valid)
   pSP_ModelHeader(@Bank^.Info[0])^.FrameCount := LongWord(FC2);
 
@@ -2399,7 +2400,7 @@ Begin
   // Yaw: angle around Y axis. ArcTan2(DX, DZ) gives bearing.
   // We negate because +RY rotates camera left (looking right).
   If (Abs(DX) < 1e-10) And (Abs(DZ) < 1e-10) Then
-    Yaw := SP3D_Cam_RY   // directly above/below — keep current yaw
+    Yaw := SP3D_Cam_RY   // directly above/below - keep current yaw
   Else
     Yaw := -ArcTan2(DX, DZ);
 
@@ -2522,7 +2523,7 @@ End;
 // Returns the instance ID of the frontmost instance whose bounding sphere
 // is hit by the ray through screen pixel (SX, SY).
 // Returns -1 if no instance is hit.
-// Uses the last rendered frame's cached MV matrices — call after RENDER.
+// Uses the last rendered frame's cached MV matrices - call after RENDER.
 // ---------------------------------------------------------------------------
 Function SP_3D_Point3D(SX, SY: Integer; Var Error: TSP_ErrorCode): Integer;
 Var
@@ -2859,7 +2860,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// Shared span-fill kernel macros — implemented as inline helpers to avoid
+// Shared span-fill kernel macros - implemented as inline helpers to avoid
 // duplicating the edge-stepping setup across all 14 procs.
 // The top/bottom half setup is identical in every proc; only the inner
 // pixel loop differs.  We use a nested procedure pattern so the compiler
@@ -2867,7 +2868,7 @@ End;
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// 1. RasterFlat8  —  flat shaded, no fog
+// 1. RasterFlat8  -  flat shaded, no fog
 // ---------------------------------------------------------------------------
 
 Procedure RasterFlat8(Const RF: pSP_RenderFace;
@@ -2954,7 +2955,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 2. RasterFlat8Fog  —  flat shaded, fogged
+// 2. RasterFlat8Fog  -  flat shaded, fogged
 // ---------------------------------------------------------------------------
 
 Procedure RasterFlat8Fog(Const RF: pSP_RenderFace;
@@ -3053,7 +3054,7 @@ End;
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// 3. RasterGouraudUniform8  —  single colour, no fog
+// 3. RasterGouraudUniform8  -  single colour, no fog
 // ---------------------------------------------------------------------------
 
 Procedure RasterGouraudUniform8(Const RF: pSP_RenderFace;
@@ -3175,7 +3176,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 4. RasterGouraudUniform8Fog  —  single colour, fogged
+// 4. RasterGouraudUniform8Fog  -  single colour, fogged
 // ---------------------------------------------------------------------------
 
 Procedure RasterGouraudUniform8Fog(Const RF: pSP_RenderFace;
@@ -3302,7 +3303,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 5. RasterGouraudFull8  —  multi-colour LUT, no fog
+// 5. RasterGouraudFull8  -  multi-colour LUT, no fog
 // ---------------------------------------------------------------------------
 
 Procedure RasterGouraudFull8(Const RF: pSP_RenderFace;
@@ -3451,7 +3452,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 6. RasterGouraudFull8Fog  —  multi-colour LUT, fogged
+// 6. RasterGouraudFull8Fog  -  multi-colour LUT, fogged
 // ---------------------------------------------------------------------------
 
 Procedure RasterGouraudFull8Fog(Const RF: pSP_RenderFace;
@@ -3604,14 +3605,14 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// Textured procs — shared perspective-correct span setup.
+// Textured procs - shared perspective-correct span setup.
 // The 8 textured variants differ only in their inner pixel loop.
 // Edge stepping and span setup is identical across all 8 so we define it
 // once via a common local var block pattern.  Each proc is self-contained.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// 7. RasterTexPow2Opaque8  —  pow2, opaque, no fog
+// 7. RasterTexPow2Opaque8  -  pow2, opaque, no fog
 // ---------------------------------------------------------------------------
 
 Procedure RasterTexPow2Opaque8(Const RF: pSP_RenderFace;
@@ -3741,7 +3742,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 8. RasterTexPow2Opaque8Fog  —  pow2, opaque, fogged
+// 8. RasterTexPow2Opaque8Fog  -  pow2, opaque, fogged
 // Inner loop only differs: SP3D_FogTable[ShadeTable[...], FogBand]
 // ---------------------------------------------------------------------------
 
@@ -3875,7 +3876,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 9. RasterTexPow2Transp8  —  pow2, transparent, no fog
+// 9. RasterTexPow2Transp8  -  pow2, transparent, no fog
 // ---------------------------------------------------------------------------
 
 Procedure RasterTexPow2Transp8(Const RF: pSP_RenderFace;
@@ -4011,7 +4012,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 10. RasterTexPow2Transp8Fog  —  pow2, transparent, fogged
+// 10. RasterTexPow2Transp8Fog  -  pow2, transparent, fogged
 // ---------------------------------------------------------------------------
 
 Procedure RasterTexPow2Transp8Fog(Const RF: pSP_RenderFace;
@@ -4147,7 +4148,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 11. RasterTexNPOTOpaque8  —  non-power-of-2, opaque, no fog
+// 11. RasterTexNPOTOpaque8  -  non-power-of-2, opaque, no fog
 // ---------------------------------------------------------------------------
 
 Procedure RasterTexNPOTOpaque8(Const RF: pSP_RenderFace;
@@ -4278,7 +4279,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 12. RasterTexNPOTOpaque8Fog  —  non-power-of-2, opaque, fogged
+// 12. RasterTexNPOTOpaque8Fog  -  non-power-of-2, opaque, fogged
 // ---------------------------------------------------------------------------
 
 Procedure RasterTexNPOTOpaque8Fog(Const RF: pSP_RenderFace;
@@ -4412,7 +4413,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 13. RasterTexNPOTTransp8  —  non-power-of-2, transparent, no fog
+// 13. RasterTexNPOTTransp8  -  non-power-of-2, transparent, no fog
 // ---------------------------------------------------------------------------
 
 Procedure RasterTexNPOTTransp8(Const RF: pSP_RenderFace;
@@ -4550,7 +4551,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 14. RasterTexNPOTTransp8Fog  —  non-power-of-2, transparent, fogged
+// 14. RasterTexNPOTTransp8Fog  -  non-power-of-2, transparent, fogged
 // ---------------------------------------------------------------------------
 
 Procedure RasterTexNPOTTransp8Fog(Const RF: pSP_RenderFace;
@@ -4688,7 +4689,7 @@ Begin
 End;
 
 // ===========================================================================
-// Internal: painter's sort — Quick sort, descending AvgCZ (far first)
+// Internal: painter's sort - Quick sort, descending AvgCZ (far first)
 // ===========================================================================
 
 Procedure SortFaces(Var Faces: Array of TSP_RenderFace; Count: Integer);
@@ -4934,7 +4935,7 @@ Const
 Begin
   Error.Code := SP_ERR_OK;
 
-  // Flush camera dirty flag first — invalidates all instance matrices
+  // Flush camera dirty flag first - invalidates all instance matrices
   If SP3D_CamDirty Then
     InvalidateAllSceneMatrices;
 
@@ -5023,16 +5024,16 @@ Begin
       If Not MatPassInst^.MatrixDirty Then Continue;
 
       If MatPassInst^.ParentID < 0 Then Begin
-        // Root instance — build with global view matrix
+        // Root instance - build with global view matrix
         BuildInstanceMatrices(MatPassInst^);
       End Else Begin
-        // Child — find parent
+        // Child - find parent
         MatParentInst := FindInstInScene(SceneBank, MatPassInst^.ParentID);
         If Assigned(MatParentInst) And (Not MatParentInst^.MatrixDirty) Then Begin
-          // Parent is ready — build child now
+          // Parent is ready - build child now
           BuildInstanceMatrices(MatPassInst^, @MatParentInst^.MV, @MatParentInst^.NM);
         End Else Begin
-          // Parent not ready yet — will be handled in a later pass
+          // Parent not ready yet - will be handled in a later pass
           MatPassDone := False;
         End;
       End;
@@ -5062,7 +5063,7 @@ Begin
     If (Hdr^.Flags And SP3D_FLAG_BUILT) = 0 Then Continue;
 
     If Hdr^.FaceCount = 0 Then Begin
-      // Point cloud — add to render order (rendered after transform below)
+      // Point cloud - add to render order (rendered after transform below)
       SP3D_InstOrder[InstOrderCount]    := si;
       SP3D_InstModelIdx[InstOrderCount] := ModelIdx;
       SP3D_InstDistArr[InstOrderCount]  := 1e30;   // always rendered last
@@ -5089,7 +5090,7 @@ Begin
     Inc(InstOrderCount);
   End;
 
-  // Insertion sort instances far->near (N is usually small — 1..50 objects)
+  // Insertion sort instances far->near (N is usually small - 1..50 objects)
   For si := 1 To InstOrderCount - 1 Do Begin
     siTmp    := SP3D_InstOrder[si];
     InstDist := SP3D_InstDistArr[si];
@@ -5119,7 +5120,7 @@ Begin
                NativeUInt(@ModelBank^.Memory[0]) +
                LongWord(Hdr^.VertexCount) * SizeOf(TSP_3DVertex));
 
-    // Point cloud (no faces) — transform vertices now and render as pixels
+    // Point cloud (no faces) - transform vertices now and render as pixels
     If Hdr^.FaceCount = 0 Then Begin
       vc := Integer(Hdr^.VertexCount);
       If vc > SP3D_TransVertAlloc Then Begin
@@ -5152,7 +5153,7 @@ Begin
       Continue;
     End;
 
-    // Pre-transform vertices — with animation lerp if active
+    // Pre-transform vertices - with animation lerp if active
     vc := Integer(Hdr^.VertexCount);
     If vc > SP3D_TransVertAlloc Then Begin
       SetLength(SP3D_TransVerts, vc);
@@ -5560,14 +5561,14 @@ Begin
 
         // Near-plane clip
         If ECZ0 < SP3D_NEAR_PLANE Then Begin
-          If ECZ1 < SP3D_NEAR_PLANE Then Continue;  // both behind — skip
-          // V0 behind, V1 in front — clip V0 to near plane
+          If ECZ1 < SP3D_NEAR_PLANE Then Continue;  // both behind - skip
+          // V0 behind, V1 in front - clip V0 to near plane
           ClipT := (SP3D_NEAR_PLANE - ECZ0) / (ECZ1 - ECZ0);
           ECX0  := ECX0 + ClipT * (ECX1 - ECX0);
           ECY0  := ECY0 + ClipT * (ECY1 - ECY0);
           ECZ0  := SP3D_NEAR_PLANE;
         End Else If ECZ1 < SP3D_NEAR_PLANE Then Begin
-          // V1 behind, V0 in front — clip V1 to near plane
+          // V1 behind, V0 in front - clip V1 to near plane
           ClipT := (SP3D_NEAR_PLANE - ECZ0) / (ECZ1 - ECZ0);
           ECX1  := ECX0 + ClipT * (ECX1 - ECX0);
           ECY1  := ECY0 + ClipT * (ECY1 - ECY0);
@@ -5586,7 +5587,7 @@ Begin
 
   End;
 
-  // No global sort needed — instances are already in far->near order,
+  // No global sort needed - instances are already in far->near order,
   // and faces within each instance are sorted.
 
   ASYNC := True;
@@ -5613,7 +5614,7 @@ Begin
   Terminate_ := False;
   FParams    := Nil;
   FreeOnTerminate := False;
-  Inherited Create(False); // Last — thread starts executing immediately
+  Inherited Create(False); // Last - thread starts executing immediately
 End;
 
 Destructor TSP3D_RenderThread.Destroy;
@@ -5656,7 +5657,7 @@ Begin
       FParams^.Done := True;
     End;
 
-    If AtomicDecrement(SP3D_BandsRemaining) = 0 Then
+    If {$IFNDEF FPC}AtomicDecrement{$ELSE}InterlockedDecrement{$ENDIF}(SP3D_BandsRemaining) = 0 Then
       SP3D_AllBandsDone.SetEvent;
   End;
 End;
@@ -5706,7 +5707,7 @@ Begin
   BandHeight    := (TotalHeight + NumThreads - 1) Div NumThreads;
   ActualThreads := NumThreads;
 
-  // Count actual threads needed — some bands may be empty if screen is small
+  // Count actual threads needed - some bands may be empty if screen is small
   For i := NumThreads - 1 Downto 1 Do
     If ClipY1 + i * BandHeight >= ClipY2 Then
       Dec(ActualThreads)
@@ -5723,7 +5724,7 @@ Begin
     BandY1 := ClipY1 + i * BandHeight;
     BandY2 := BandY1 + BandHeight;
     If BandY2 > ClipY2 Then BandY2 := ClipY2;
-    If BandY1 >= ClipY2 Then Continue;  // Empty band — skip
+    If BandY1 >= ClipY2 Then Continue;  // Empty band - skip
 
     SP3D_RenderBandParams[i].SurfPtr    := SurfPtr;
     SP3D_RenderBandParams[i].Stride     := Stride;
@@ -5841,7 +5842,7 @@ Begin
 End;
 
 // ===========================================================================
-// Bank filing — scene banks (SP_SCENE_BANK)
+// Bank filing - scene banks (SP_SCENE_BANK)
 // ===========================================================================
 
 // SP_3D_SaveSceneToINI
@@ -5988,13 +5989,13 @@ Begin
 End;
 
 // ===========================================================================
-// Bank filing — model banks (SP_MODEL_BANK)
+// Bank filing - model banks (SP_MODEL_BANK)
 // ===========================================================================
 
 // SP_3D_SaveModelToINI
 // Saves the vertex array and face array as compact hex blobs, plus the
 // user-settable model flags and any animation frame data.
-// Edges and the poly directory are NOT saved — they are derived data
+// Edges and the poly directory are NOT saved - they are derived data
 // that SP_Model_Build recomputes from vertices and faces on first render.
 
 Procedure SP_3D_SaveModelToINI(INI: TAnsiStringList; Bank: pSP_Bank);
@@ -6026,7 +6027,7 @@ Begin
   INIWriteLong(INI, 'Info', 'Flags',       UserFlags);
   INIWriteInt (INI, 'Info', 'FrameCount',  Integer(Hdr^.FrameCount));
   VBytes := VC * SizeOf(TSP_3DVertex);
-  // Vertex and face data — raw hex blobs
+  // Vertex and face data - raw hex blobs
   INIWriteString(INI, 'Data', 'Vertices',
     RawHexDump(@Bank^.Memory[0], VBytes));
   INIWriteString(INI, 'Data', 'Faces',
@@ -6109,7 +6110,7 @@ Begin
     CopyMem(@Bank^.Memory[0], @VBuf[1], VBytes);
   If (FC > 0) And (Length(FBuf) >= FBytes) Then
     CopyMem(@Bank^.Memory[VBytes], @FBuf[1], FBytes);
-  // Build header — DIRTY flag forces a full rebuild on first render
+  // Build header - DIRTY flag forces a full rebuild on first render
   FillChar(Hdr, SizeOf(Hdr), 0);
   Hdr.VertexCount := LongWord(VC);
   Hdr.FaceCount   := LongWord(FC);
@@ -6217,7 +6218,7 @@ Begin
 End;
 
 // ===========================================================================
-// Bank filing — hook dispatch (registered in Initialization)
+// Bank filing - hook dispatch (registered in Initialization)
 // ===========================================================================
 
 Procedure SP_3D_SaveBankHook(INI: TAnsiStringList; Bank: pSP_Bank);

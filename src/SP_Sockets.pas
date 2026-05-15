@@ -19,25 +19,25 @@
 unit SP_Sockets;
 
 // TCP/UDP socket support for SpecBAS.
-// Sockets are exposed as streams — a connected socket's stream ID can be
+// Sockets are exposed as streams - a connected socket's stream ID can be
 // used anywhere a stream ID is accepted, including as the target of OUT.
 //
-// SOCKET CONNECT host$, port TO var    — TCP client connect
-// SOCKET LISTEN  port [,backlog] TO var — TCP server listen socket
-// SOCKET ACCEPT  listenid TO var        — block until a client connects
-// SOCKET SEND    id, data$             — send raw bytes
-// SOCKET RECV    id [,maxbytes] TO var$ — receive bytes (default 4096)
-// SOCKET RECV LINE id TO var$          — receive until CRLF
-// SOCKET CLOSE   id                   — close (also via STREAM CLOSE)
-// SOCKET NOBLOCK id                   — set non-blocking
-// SOCKET TIMEOUT id, ms               — set recv timeout (0 = block)
-// SOCKET UDP     host$, port TO var    — UDP datagram socket
+// SOCKET CONNECT host$, port TO var    - TCP client connect
+// SOCKET LISTEN  port [,backlog] TO var - TCP server listen socket
+// SOCKET ACCEPT  listenid TO var        - block until a client connects
+// SOCKET SEND    id, data$             - send raw bytes
+// SOCKET RECV    id [,maxbytes] TO var$ - receive bytes (default 4096)
+// SOCKET RECV LINE id TO var$          - receive until CRLF
+// SOCKET CLOSE   id                   - close (also via STREAM CLOSE)
+// SOCKET NOBLOCK id                   - set non-blocking
+// SOCKET TIMEOUT id, ms               - set recv timeout (0 = block)
+// SOCKET UDP     host$, port TO var    - UDP datagram socket
 //
 // Query functions:
-//   SOCKETSIZE(id)  — bytes available to read
-//   SOCKETSTATE(id) — 0=closed/invalid  1=connected  2=listening
-//   SOCKETaddr$(id) — "x.x.x.x:port" of remote end
-//   SOCKETPORT(id)  — remote port number
+//   SOCKETSIZE(id)  - bytes available to read
+//   SOCKETSTATE(id) - 0=closed/invalid  1=connected  2=listening
+//   SOCKETaddr$(id) - "x.x.x.x:port" of remote end
+//   SOCKETPORT(id)  - remote port number
 
 {$IFDEF FPC}
   {$MODE Delphi}
@@ -45,7 +45,7 @@ unit SP_Sockets;
     {$DEFINE SP_WINSOCK}   // FPC on Windows
   {$ENDIF}
 {$ELSE}
-  {$DEFINE SP_WINSOCK}     // Delphi — always Windows
+  {$DEFINE SP_WINSOCK}     // Delphi - always Windows
 {$ENDIF}
 {$INCLUDE SpecBAS.inc}
 
@@ -178,21 +178,27 @@ End;
 
 Function ResolveHost(Const Host: aString; Port: Integer; Out Addr: TInetSockAddr): Boolean;
 Var
-  he: PHostEntry;
+  Hints  : AddrInfo;
+  Res    : PAddrInfo;
   sHost: AnsiString;
+  sPort  : AnsiString;
 Begin
   Result := False;
   FillChar(Addr, SizeOf(Addr), 0);
-  Addr.sin_family := AF_INET;
-  Addr.sin_port   := htons(Port);
+  FillChar(Hints, SizeOf(Hints), 0);
+  Hints.ai_family   := AF_INET;
+  Hints.ai_socktype := SOCK_STREAM;
   sHost := AnsiString(Host);
-  Addr.sin_addr.s_addr := StrToNetAddr(sHost).s_addr;
-  If Addr.sin_addr.s_addr = 0 Then Begin
-    he := GetHostByName(PAnsiChar(sHost));
-    If he = Nil Then Exit;
-    Addr.sin_addr.s_addr := NetAddrToStr(he^.Addr.s_addr);
-  End;
+  sPort := AnsiString(IntToStr(Port));
+  If fpGetAddrInfo(PAnsiChar(sHost), PAnsiChar(sPort), @Hints, @Res) <> 0 Then
+    Exit;
+  Try
+    If Res = Nil Then Exit;
+    Move(Res^.ai_addr^, Addr, SizeOf(TInetSockAddr));
   Result := True;
+  Finally
+    fpFreeAddrInfo(Res);
+End;
 End;
 
 Function LastSockError: Integer;
@@ -514,7 +520,7 @@ Begin
     End;
 
     If Sel = 0 Then Begin
-      // Timeout — yield and check for break
+      // Timeout - yield and check for break
       CB_Yield(0);
       If BREAKSIGNAL Or QUITMSG Then Begin
         Error.Code := SP_ERR_SOCKET_TIMEOUT;
@@ -547,7 +553,7 @@ Begin
   {$ENDIF}
 
   If Got = 0 Then Begin
-      // Peer closed — mark state and stop looping
+      // Peer closed - mark state and stop looping
     Stream^.SocketState := SP_SOCKET_CLOSED;
       Break;
   End;
@@ -724,7 +730,7 @@ Begin
       Result := SP_StreamList[Idx]^.SocketState;
       Exit;
     End;
-  // Not found is not an error here — just returns closed (0)
+  // Not found is not an error here - just returns closed (0)
 End;
 
 Function SP_SocketAddr(StreamID: Integer; Var Error: TSP_ErrorCode): aString;
@@ -888,7 +894,7 @@ Begin
     Exit;
   End;
 
-  // Read response — capture status from first line, skip remaining headers, accumulate body
+  // Read response - capture status from first line, skip remaining headers, accumulate body
   InHeader := True;
   FirstLine := True;
   While True Do Begin
@@ -896,7 +902,7 @@ Begin
     If Error.Code <> SP_ERR_OK Then Break;
     If InHeader Then Begin
       If FirstLine Then Begin
-        // "HTTP/1.x NNN reason" — extract the 3-digit status code
+        // "HTTP/1.x NNN reason" - extract the 3-digit status code
         p := Pos(' ', String(Line));
         If p > 0 Then
           HTTPSTATUS := StrToIntDef(String(Copy(Line, p+1, 3)), 0);
@@ -908,7 +914,7 @@ Begin
     If SP_SocketState(StreamID, Error) = SP_SOCKET_CLOSED Then Break;
   End;
 
-  // Clear timeout/closed errors — EOF after body is normal
+  // Clear timeout/closed errors - EOF after body is normal
   If Error.Code In [SP_ERR_SOCKET_TIMEOUT, SP_ERR_SOCKET_CLOSED] Then
     Error.Code := SP_ERR_OK;
 

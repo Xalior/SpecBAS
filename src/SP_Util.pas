@@ -33,7 +33,7 @@ Uses Math, Classes, SysUtils, Types, SyncObjs, SP_AnsiStringlist, RunTimeCompile
 Type
 
   {$IFDEF FPC}
-  aString = AnsiString;
+  aString = RawByteString;
   aChar = AnsiChar;
   TStringlist = TAnsiStringlist;
   pNativeUInt = ^NativeUInt;
@@ -338,7 +338,7 @@ End;
 
 Function  StrPosPtr(Const Str: paString; Position: Integer): Pointer; inline;
 Begin
-  Result := pByte(pNativeUInt(Str)^) + Position -1;
+  Result := PByte(Pointer(Str^)) + Position - 1;
 End;
 
 Function SP_CopyClrs(Const Src: aString; Start, Len: Integer): aString;
@@ -397,8 +397,8 @@ Begin
     End Else
       SetLength(Result, Len);
 
-    pSrc := pByte(pNativeUInt(@Src)^) + Start -1;
-    pDst := pByte(pNativeUInt(@Result)^);
+    pSrc := pByte(Pointer(Src)) + Start -1;
+    pDst := pByte(Pointer(Result));
 
     Move(pSrc^, pDst^, Len);
 
@@ -423,8 +423,8 @@ Begin
     End Else
       SetLength(Result, Len);
 
-    pSrc := pByte(pNativeUInt(@Src)^) + Start -1;
-    pDst := pByte(pNativeUInt(@Result)^);
+    pSrc := pByte(Pointer(Src)) + Start -1;
+    pDst := pByte(Pointer(Result));
 
     Move(pSrc^, pDst^, Len);
 
@@ -459,7 +459,7 @@ Begin
 
 End;
 
-Function StringFromPtr(Ptr: pByte; Len: Integer): aString;
+Function StringFromPtr(Ptr: pByte; Len: Integer): aString; inline;
 Begin
 
   SetLength(Result, Len);
@@ -475,8 +475,8 @@ Begin
 
   Len := Length(Src);
   SetLength(Dest, Len);
-  dPtr := pByte(pNativeUInt(@Dest)^);
-  sPtr := pByte(pNativeUInt(@Src)^);
+  dPtr := pByte(Pointer(Dest));
+  sPtr := pByte(Pointer(Src));
   Move(sPtr^, dPtr^, Len);
 {
   For Idx := 1 To Len Do Begin
@@ -747,8 +747,8 @@ Begin
 
     SetLength(Result, Tl);
 
-    sPtr := pByte(pNativeUInt(@Text)^);
-    dPtr := pByte(pNativeUInt(@Result)^);
+    sPtr := pByte(Pointer(Text));
+    dPtr := pByte(Pointer(Result));
 
     While Tl > 0 Do Begin
        Dec(Tl);
@@ -780,8 +780,8 @@ Begin
 
     SetLength(Result, Tl);
 
-    sPtr := pByte(pNativeUInt(@Text)^);
-    dPtr := pByte(pNativeUInt(@Result)^);
+    sPtr := pByte(Pointer(Text));
+    dPtr := pByte(Pointer(Result));
 
     While Tl > 0 Do Begin
       Dec(Tl);
@@ -860,7 +860,7 @@ Begin
 
   Tl := Length(Text);
 
-  sPtr := pByte(pNativeUInt(@Text)^);
+  sPtr := pByte(Pointer(Text));
   tPtr := sPtr;
   Cnt := Tl;
   While Cnt > 0 Do Begin
@@ -869,7 +869,7 @@ Begin
     Inc(tPtr);
   End;
   SetLength(Result, Tl);
-  dPtr := pByte(pNativeUInt(@Result)^);
+  dPtr := pByte(Pointer(Result));
 
   While Tl > 0 Do Begin
      Dec(Tl);
@@ -899,8 +899,8 @@ Begin
 
   l := Length(Text);
   SetLength(Result, l);
-  q := pByte(pNativeUInt(@Text)^);
-  p := pByte(pNativeUInt(@Result)^);
+  q := pByte(Pointer(Text));
+  p := pByte(Pointer(Result));
   CopyMem(p, q, l);
   For c := 1 to l Do Begin
     If p^ in [97..122] Then
@@ -918,7 +918,7 @@ Begin
 
   {$WARNINGS Off}
   Result := 0;
-  p := pByte(pNativeUInt(@Str)^);
+  p := pByte(Pointer(Str));
   For Cnt := 1 To Length(Str) Do Begin
     Result := Result * 10 + (p^ - 48); // warning here. Unavoidable?
     Inc(p);
@@ -938,7 +938,7 @@ Begin
   Else Begin
     Neg := 0;
     Result := 0;
-    p := pByte(pNativeUInt(@Str)^);
+    p := pByte(Pointer(Str));
     For Cnt := 1 To Length(Str) Do Begin
       If (aChar(p^) = '-') And (Result = 0) Then
         Neg := 1 - Neg
@@ -999,7 +999,7 @@ Begin
     End;
 
     SetLength(Result, Len);
-    cPtr := pByte(pNativeUInt(@Result)^) + Len -1;
+    cPtr := pByte(Pointer(Result)) + Len -1;
     While Value > 0 Do Begin
       cPtr^ := 48 + (Value Mod 10);
       Value := Value Div 10;
@@ -1017,7 +1017,7 @@ Var
 Begin
 
   SetLength(Result, Count);
-  ptr := pByte(pNativeUInt(@Result)^);
+  ptr := pByte(Pointer(Result));
   While Count > 0 Do Begin
     ptr^ := Ord(ch);
     Inc(ptr);
@@ -1112,7 +1112,7 @@ Begin
   {$IF DEFINED(PANDORA) OR DEFINED(RASPI)}
   Unaligned(pFloat(pLongWord(@Result)^)^) := Value;
   {$ELSE}
-  paFloat(pNativeUInt(@Result)^)^ := Value;
+  paFloat(Pointer(Result))^ := Value;
   {$ENDIF}
 
 end;
@@ -1150,7 +1150,7 @@ Function NativeUIntToString(Value: NativeUInt): aString; Inline;
 Begin
 
   SetLength(Result, SizeOf(NativeUInt));
-  pNativeUInt(pNativeUInt(@Result)^)^ := Value;
+  pNativeUInt(Pointer(Result))^ := Value;
 
 End;
 
@@ -1158,7 +1158,7 @@ Function LongWordToString(Value: LongWord): aString; Inline;
 Begin
 
   SetLength(Result, SizeOf(LongWord));
-  pLongWord(pNativeUInt(@Result)^)^ := Value;
+  pLongWord(Pointer(Result))^ := Value;
 
 End;
 
@@ -1166,7 +1166,7 @@ Function WordToString(Value: Word): aString; Inline;
 Begin
 
   SetLength(Result, SizeOf(Word));
-  pWord(pNativeUInt(@Result)^)^ := Value;
+  pWord(Pointer(Result))^ := Value;
 
 End;
 
@@ -1174,7 +1174,7 @@ Function ByteToString(Value: Byte): aString; Inline;
 Begin
 
   SetLength(Result, SizeOf(Byte));
-  pByte(pNativeUInt(@Result)^)^ := Value;
+  pByte(Pointer(Result))^ := Value;
 
 End;
 
@@ -1182,7 +1182,7 @@ Function IntegerToString(Value: Integer): aString; Inline;
 Begin
 
   SetLength(Result, SizeOf(Integer));
-  pInteger(pNativeUInt(@Result)^)^ := Value;
+  pInteger(Pointer(Result))^ := Value;
 
 End;
 
@@ -1524,8 +1524,8 @@ Var
 Begin
 
   Result := True;
-  ps := pByte(pNativeUInt(@s1)^);
-  pd := pByte(pNativeUInt(@s2)^);
+  ps := pByte(Pointer(s1));
+  pd := pByte(Pointer(s2));
   l := NativeUInt(ps) + Length(s1) -1;
   While NativeUint(ps) <= l Do
     If ps^ <> pd^ Then Begin
@@ -1578,8 +1578,8 @@ Begin
 
     Result := StartAt;
     l1 := Length(s);
-    pd := pByte(pNativeUInt(@SubStr)^);
-    ps := pByte(pNativeUInt(@s)^);
+    pd := pByte(Pointer(SubStr));
+    ps := pByte(Pointer(s));
     l := NativeUInt(ps) + l1;
     Inc(ps, StartAt -1);
     pdb := pd;
@@ -1620,7 +1620,7 @@ Begin
   Result := 0;
   If s = '' Then Exit;
 
-  ps := pByte(pNativeUInt(@s)^);
+  ps := pByte(Pointer(s));
   l := NativeUInt(ps) + Length(s);
   pss := NativeUInt(ps);
   inc(ps, StartAt -1);
@@ -1697,7 +1697,7 @@ Begin
   l := Length(s);
   if l >= 2 Then Begin
 
-    sPtr := pByte(pNativeUInt(@s)^);
+    sPtr := pByte(Pointer(s));
     dPtr := pByte(NativeUInt(sPtr) + l -1);
 
     While NativeUInt(dPtr) > NativeUInt(sPtr) Do Begin

@@ -34,7 +34,7 @@ unit SP_MemoUnit;
 
 interface
 
-Uses Math, SysUtils, ClipBrd, Types,
+Uses Math, SysUtils, {$IFNDEF FPC}Vcl.ClipBrd{$ELSE}ClipBrd{$ENDIF}, Types,
      SP_BaseComponentUnit, SP_ContainerUnit, SP_EditUnit, SP_ButtonUnit,
      SP_Util, SP_Errors;
 

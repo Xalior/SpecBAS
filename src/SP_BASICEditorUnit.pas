@@ -3054,9 +3054,9 @@ Begin
 
     InString := False; InREM := False;
 
-    ps := pByte(pNativeUInt(@s)^);
+    ps := pByte(Pointer(s));
     Inc(ps, k - 1);
-    pd := pByte(pNativeUInt(@SearchText)^);
+    pd := pByte(Pointer(SearchText));
 
     While k <= e Do Begin
       If SP_PartialMatchPtrs(ps, pd, tl) Then Begin

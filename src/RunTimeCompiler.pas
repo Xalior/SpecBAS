@@ -200,7 +200,7 @@ var
   i, l, nb, cl: Integer;
   b: aString;
 Begin
-  p := pByte(pNativeUInt(@PayLoad)^);
+  p := pByte(Pointer(PayLoad));
   cl := pLongWord(p)^;
   Inc(p, SizeOf(LongWord));
   WCAPTION := Copy(Payload, SizeOf(LongWord) +1, cl);

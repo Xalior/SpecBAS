@@ -18,7 +18,7 @@
 
 Unit SP_3DEngineUnit32;
 
-// SpecBAS 3D engine — 32bpp render path.
+// SpecBAS 3D engine - 32bpp render path.
 //
 // This unit provides a 32bpp-native render pipeline that runs alongside the
 // 8bpp palette-index pipeline in SP_3DEngineUnit.  All model management,
@@ -151,7 +151,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 1. RasterFlat32  —  flat shaded, no fog
+// 1. RasterFlat32  -  flat shaded, no fog
 // ---------------------------------------------------------------------------
 
 Procedure RasterFlat32(Const RF: pSP_RenderFace;
@@ -242,7 +242,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 2. RasterFlat32Fog  —  flat shaded, fogged
+// 2. RasterFlat32Fog  -  flat shaded, fogged
 // ---------------------------------------------------------------------------
 
 Procedure RasterFlat32Fog(Const RF: pSP_RenderFace;
@@ -333,8 +333,8 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 3. RasterGouraud32  —  Gouraud, no fog
-// Handles both uniform and multi-colour cases — in 32bpp there is no LUT,
+// 3. RasterGouraud32  -  Gouraud, no fog
+// Handles both uniform and multi-colour cases - in 32bpp there is no LUT,
 // RGB channels are interpolated directly from BaseARGB[0..2].
 // ---------------------------------------------------------------------------
 
@@ -556,7 +556,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 4. RasterGouraud32Fog  —  Gouraud, fogged
+// 4. RasterGouraud32Fog  -  Gouraud, fogged
 // ---------------------------------------------------------------------------
 
 Procedure RasterGouraud32Fog(Const RF: pSP_RenderFace;
@@ -789,12 +789,12 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// Textured 32bpp procs — 8 variants (Pow2/NPOT × Opaque/Transp × Plain/Fog)
+// Textured 32bpp procs - 8 variants (Pow2/NPOT × Opaque/Transp × Plain/Fog)
 // RF^.TexPal must be set at gather time to the graphic bank palette pointer.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// 5. RasterTexPow2Opaque32  —  pow2, opaque, no fog
+// 5. RasterTexPow2Opaque32  -  pow2, opaque, no fog
 // ---------------------------------------------------------------------------
 
 Procedure RasterTexPow2Opaque32(Const RF: pSP_RenderFace;
@@ -935,7 +935,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 6. RasterTexPow2Opaque32Fog  —  pow2, opaque, fogged
+// 6. RasterTexPow2Opaque32Fog  -  pow2, opaque, fogged
 // ---------------------------------------------------------------------------
 
 Procedure RasterTexPow2Opaque32Fog(Const RF: pSP_RenderFace;
@@ -1083,7 +1083,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 7. RasterTexPow2Transp32  —  pow2, transparent, no fog
+// 7. RasterTexPow2Transp32  -  pow2, transparent, no fog
 // ---------------------------------------------------------------------------
 
 Procedure RasterTexPow2Transp32(Const RF: pSP_RenderFace;
@@ -1232,7 +1232,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 8. RasterTexPow2Transp32Fog  —  pow2, transparent, fogged
+// 8. RasterTexPow2Transp32Fog  -  pow2, transparent, fogged
 // ---------------------------------------------------------------------------
 
 Procedure RasterTexPow2Transp32Fog(Const RF: pSP_RenderFace;
@@ -1387,7 +1387,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 9. RasterTexNPOTOpaque32  —  non-power-of-2, opaque, no fog
+// 9. RasterTexNPOTOpaque32  -  non-power-of-2, opaque, no fog
 // ---------------------------------------------------------------------------
 
 Procedure RasterTexNPOTOpaque32(Const RF: pSP_RenderFace;
@@ -1530,7 +1530,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 10. RasterTexNPOTOpaque32Fog  —  non-power-of-2, opaque, fogged
+// 10. RasterTexNPOTOpaque32Fog  -  non-power-of-2, opaque, fogged
 // ---------------------------------------------------------------------------
 
 Procedure RasterTexNPOTOpaque32Fog(Const RF: pSP_RenderFace;
@@ -1679,7 +1679,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 11. RasterTexNPOTTransp32  —  non-power-of-2, transparent, no fog
+// 11. RasterTexNPOTTransp32  -  non-power-of-2, transparent, no fog
 // ---------------------------------------------------------------------------
 
 Procedure RasterTexNPOTTransp32(Const RF: pSP_RenderFace;
@@ -1829,7 +1829,7 @@ Begin
 End;
 
 // ---------------------------------------------------------------------------
-// 12. RasterTexNPOTTransp32Fog  —  non-power-of-2, transparent, fogged
+// 12. RasterTexNPOTTransp32Fog  -  non-power-of-2, transparent, fogged
 // ---------------------------------------------------------------------------
 
 Procedure RasterTexNPOTTransp32Fog(Const RF: pSP_RenderFace;
@@ -1984,8 +1984,603 @@ Begin
   End;
 End;
 
+// ---------------------------------------------------------------------------
+// 13. RasterTexPow2Alpha32  -  pow2, 32bpp texture, alpha, no fog
+// ---------------------------------------------------------------------------
+
+Procedure RasterTexPow2Alpha32(Const RF: pSP_RenderFace;
+                               SurfPtr: pByte; Stride: Integer;
+                               ClipX1, ClipY1, ClipX2, ClipY2: Integer);
+Const SUBDIV = 16;
+Var
+  X0,Y0,X1,Y1,X2,Y2            : Integer;
+  UZ0,VZ0,WZ0,UZ1,VZ1,WZ1,
+  UZ2,VZ2,WZ2                   : aFloat;
+  IntenIR, IntenIG, IntenIB     : Integer;
+  TexData                       : pByte;
+  TexW, TexWMask, TexHMask      : Integer;
+  DY, yStart, yEnd, Skip, y     : Integer;
+  xLeft, xRight, SpanW          : Integer;
+  SubEnd, SubW, px, ppx, tInt   : Integer;
+  dxL, xL, dxR, xR              : Int64;
+  dUZL,dVZL,dWZL                : aFloat;
+  dUZR,dVZR,dWZR                : aFloat;
+  UZL,VZL,WZL,UZR,VZR,WZR      : aFloat;
+  ULeft,VLeft,URight,VRight     : aFloat;
+  U_fp,V_fp,dU_fp,dV_fp         : Int64;
+  UZSpan,VZSpan,WZSpan          : aFloat;
+  dUZSpan,dVZSpan,dWZSpan       : aFloat;
+  UZNext,VZNext,WZNext          : aFloat;
+  sUZL,sVZL,sWZL,sUZR,sVZR,sWZR : aFloat;
+  TexIdx                        : Integer;
+  BaseC                         : LongWord;
+  R, G, B                       : Integer;
+  RowPtr                        : pLongWord;
+
+  Procedure SwapIntPair(Var AX,AY: Integer; Var AUZ,AVZ,AWZ: aFloat;
+                        Var BX,BY: Integer; Var BUZ,BVZ,BWZ: aFloat); Inline;
+  Var TX,TY: Integer; TUZ,TVZ,TWZ: aFloat;
+  Begin TX:=AX;TY:=AY;TUZ:=AUZ;TVZ:=AVZ;TWZ:=AWZ; AX:=BX;AY:=BY;AUZ:=BUZ;AVZ:=BVZ;AWZ:=BWZ; BX:=TX;BY:=TY;BUZ:=TUZ;BVZ:=TVZ;BWZ:=TWZ; End;
+
+Begin
+  X0:=RF^.SX[0]; Y0:=RF^.SY[0]; X1:=RF^.SX[1]; Y1:=RF^.SY[1]; X2:=RF^.SX[2]; Y2:=RF^.SY[2];
+  UZ0:=RF^.SU[0]; VZ0:=RF^.SVt[0]; WZ0:=RF^.SW[0];
+  UZ1:=RF^.SU[1]; VZ1:=RF^.SVt[1]; WZ1:=RF^.SW[1];
+  UZ2:=RF^.SU[2]; VZ2:=RF^.SVt[2]; WZ2:=RF^.SW[2];
+  IntenIR:=RF^.IntenIR; IntenIG:=RF^.IntenIG; IntenIB:=RF^.IntenIB;
+  TexData:=RF^.TexData; TexW:=RF^.TexW; TexWMask:=RF^.TexWMask; TexHMask:=RF^.TexHMask;
+
+  If (Y0>=ClipY2) And (Y1>=ClipY2) And (Y2>=ClipY2) Then Exit;
+  If (Y0<ClipY1)  And (Y1<ClipY1)  And (Y2<ClipY1)  Then Exit;
+  If Y0>Y1 Then SwapIntPair(X0,Y0,UZ0,VZ0,WZ0,X1,Y1,UZ1,VZ1,WZ1);
+  If Y0>Y2 Then SwapIntPair(X0,Y0,UZ0,VZ0,WZ0,X2,Y2,UZ2,VZ2,WZ2);
+  If Y1>Y2 Then SwapIntPair(X1,Y1,UZ1,VZ1,WZ1,X2,Y2,UZ2,VZ2,WZ2);
+  If Y0=Y2 Then Exit;
+
+  DY:=Y2-Y0; dxL:=Int64(X2-X0)*65536 Div DY; dUZL:=(UZ2-UZ0)/DY; dVZL:=(VZ2-VZ0)/DY; dWZL:=(WZ2-WZ0)/DY;
+  xL:=Int64(X0)*65536; UZL:=UZ0; VZL:=VZ0; WZL:=WZ0;
+
+  If Y0<Y1 Then Begin
+    DY:=Y1-Y0; dxR:=Int64(X1-X0)*65536 Div DY; dUZR:=(UZ1-UZ0)/DY; dVZR:=(VZ1-VZ0)/DY; dWZR:=(WZ1-WZ0)/DY;
+    xR:=Int64(X0)*65536; UZR:=UZ0; VZR:=VZ0; WZR:=WZ0;
+    yStart:=Y0; yEnd:=Y1;
+    If yStart<ClipY1 Then Begin Skip:=ClipY1-yStart; xL:=xL+dxL*Skip; UZL:=UZL+dUZL*Skip; VZL:=VZL+dVZL*Skip; WZL:=WZL+dWZL*Skip; xR:=xR+dxR*Skip; UZR:=UZR+dUZR*Skip; VZR:=VZR+dVZR*Skip; WZR:=WZR+dWZR*Skip; yStart:=ClipY1; End;
+    If yEnd>ClipY2 Then yEnd:=ClipY2;
+    For y:=yStart To yEnd-1 Do Begin
+      xLeft:=Integer(xL Shr 16); xRight:=Integer(xR Shr 16);
+      If xLeft<=xRight Then Begin sUZL:=UZL;sVZL:=VZL;sWZL:=WZL;sUZR:=UZR;sVZR:=VZR;sWZR:=WZR; End
+      Else Begin tInt:=xLeft;xLeft:=xRight;xRight:=tInt; sUZL:=UZR;sVZL:=VZR;sWZL:=WZR;sUZR:=UZL;sVZR:=VZL;sWZR:=WZL; End;
+      SpanW:=xRight-xLeft;
+      If SpanW>0 Then Begin dUZSpan:=(sUZR-sUZL)/SpanW; dVZSpan:=(sVZR-sVZL)/SpanW; dWZSpan:=(sWZR-sWZL)/SpanW; End Else Begin dUZSpan:=0;dVZSpan:=0;dWZSpan:=0; End;
+      UZSpan:=sUZL; VZSpan:=sVZL; WZSpan:=sWZL;
+      If xLeft<ClipX1 Then Begin Skip:=ClipX1-xLeft; UZSpan:=UZSpan+dUZSpan*Skip; VZSpan:=VZSpan+dVZSpan*Skip; WZSpan:=WZSpan+dWZSpan*Skip; xLeft:=ClipX1; End;
+      If xRight>ClipX2-1 Then xRight:=ClipX2-1;
+      If xLeft<=xRight Then Begin
+        RowPtr:=pLongWord(NativeUInt(SurfPtr)+LongWord(y*Stride+xLeft*4)); px:=xLeft;
+        If WZSpan<>0 Then Begin ULeft:=UZSpan/WZSpan; VLeft:=VZSpan/WZSpan; End Else Begin ULeft:=0; VLeft:=0; End;
+        While px<=xRight Do Begin
+          SubEnd:=px+SUBDIV-1; If SubEnd>xRight Then SubEnd:=xRight; SubW:=SubEnd-px;
+          UZNext:=UZSpan+dUZSpan*(SubW+1); VZNext:=VZSpan+dVZSpan*(SubW+1); WZNext:=WZSpan+dWZSpan*(SubW+1);
+          If WZNext<>0 Then Begin URight:=UZNext/WZNext; VRight:=VZNext/WZNext; End Else Begin URight:=ULeft; VRight:=VLeft; End;
+          U_fp:=Round(ULeft*65536); V_fp:=Round(VLeft*65536);
+          If SubW>0 Then Begin dU_fp:=Round((URight-ULeft)*65536) Div SubW; dV_fp:=Round((VRight-VLeft)*65536) Div SubW; End Else Begin dU_fp:=0; dV_fp:=0; End;
+          For ppx:=px To SubEnd Do Begin
+            TexIdx:=(Integer(V_fp Shr 16) And TexHMask)*TexW+(Integer(U_fp Shr 16) And TexWMask);
+            BaseC:=pLongWord(NativeUInt(TexData)+LongWord(TexIdx)*SizeOf(LongWord))^;
+            If BaseC Shr 24 > 0 Then Begin
+              R:=((BaseC Shr 16) And $FF)*LongWord(IntenIR) Shr 8;
+              G:=((BaseC Shr  8) And $FF)*LongWord(IntenIG) Shr 8;
+              B:=( BaseC         And $FF)*LongWord(IntenIB) Shr 8;
+              RowPtr^:=$FF000000 Or (LongWord(R) Shl 16) Or (LongWord(G) Shl 8) Or LongWord(B);
+            End;
+            Inc(RowPtr); U_fp:=U_fp+dU_fp; V_fp:=V_fp+dV_fp;
+          End;
+          UZSpan:=UZNext; VZSpan:=VZNext; WZSpan:=WZNext; ULeft:=URight; VLeft:=VRight; px:=SubEnd+1;
+        End;
+      End;
+      xL:=xL+dxL; UZL:=UZL+dUZL; VZL:=VZL+dVZL; WZL:=WZL+dWZL;
+      xR:=xR+dxR; UZR:=UZR+dUZR; VZR:=VZR+dVZR; WZR:=WZR+dWZR;
+    End;
+  End;
+
+  xL:=Int64(X0)*65536+dxL*Int64(Y1-Y0); UZL:=UZ0+dUZL*(Y1-Y0); VZL:=VZ0+dVZL*(Y1-Y0); WZL:=WZ0+dWZL*(Y1-Y0);
+  If Y1<Y2 Then Begin
+    DY:=Y2-Y1; dxR:=Int64(X2-X1)*65536 Div DY; dUZR:=(UZ2-UZ1)/DY; dVZR:=(VZ2-VZ1)/DY; dWZR:=(WZ2-WZ1)/DY;
+    xR:=Int64(X1)*65536; UZR:=UZ1; VZR:=VZ1; WZR:=WZ1;
+    yStart:=Y1; yEnd:=Y2;
+    If yStart<ClipY1 Then Begin Skip:=ClipY1-yStart; xL:=xL+dxL*Skip; UZL:=UZL+dUZL*Skip; VZL:=VZL+dVZL*Skip; WZL:=WZL+dWZL*Skip; xR:=xR+dxR*Skip; UZR:=UZR+dUZR*Skip; VZR:=VZR+dVZR*Skip; WZR:=WZR+dWZR*Skip; yStart:=ClipY1; End;
+    If yEnd>ClipY2 Then yEnd:=ClipY2;
+    For y:=yStart To yEnd-1 Do Begin
+      xLeft:=Integer(xL Shr 16); xRight:=Integer(xR Shr 16);
+      If xLeft<=xRight Then Begin sUZL:=UZL;sVZL:=VZL;sWZL:=WZL;sUZR:=UZR;sVZR:=VZR;sWZR:=WZR; End
+      Else Begin tInt:=xLeft;xLeft:=xRight;xRight:=tInt; sUZL:=UZR;sVZL:=VZR;sWZL:=WZR;sUZR:=UZL;sVZR:=VZL;sWZR:=WZL; End;
+      SpanW:=xRight-xLeft;
+      If SpanW>0 Then Begin dUZSpan:=(sUZR-sUZL)/SpanW; dVZSpan:=(sVZR-sVZL)/SpanW; dWZSpan:=(sWZR-sWZL)/SpanW; End Else Begin dUZSpan:=0;dVZSpan:=0;dWZSpan:=0; End;
+      UZSpan:=sUZL; VZSpan:=sVZL; WZSpan:=sWZL;
+      If xLeft<ClipX1 Then Begin Skip:=ClipX1-xLeft; UZSpan:=UZSpan+dUZSpan*Skip; VZSpan:=VZSpan+dVZSpan*Skip; WZSpan:=WZSpan+dWZSpan*Skip; xLeft:=ClipX1; End;
+      If xRight>ClipX2-1 Then xRight:=ClipX2-1;
+      If xLeft<=xRight Then Begin
+        RowPtr:=pLongWord(NativeUInt(SurfPtr)+LongWord(y*Stride+xLeft*4)); px:=xLeft;
+        If WZSpan<>0 Then Begin ULeft:=UZSpan/WZSpan; VLeft:=VZSpan/WZSpan; End Else Begin ULeft:=0; VLeft:=0; End;
+        While px<=xRight Do Begin
+          SubEnd:=px+SUBDIV-1; If SubEnd>xRight Then SubEnd:=xRight; SubW:=SubEnd-px;
+          UZNext:=UZSpan+dUZSpan*(SubW+1); VZNext:=VZSpan+dVZSpan*(SubW+1); WZNext:=WZSpan+dWZSpan*(SubW+1);
+          If WZNext<>0 Then Begin URight:=UZNext/WZNext; VRight:=VZNext/WZNext; End Else Begin URight:=ULeft; VRight:=VLeft; End;
+          U_fp:=Round(ULeft*65536); V_fp:=Round(VLeft*65536);
+          If SubW>0 Then Begin dU_fp:=Round((URight-ULeft)*65536) Div SubW; dV_fp:=Round((VRight-VLeft)*65536) Div SubW; End Else Begin dU_fp:=0; dV_fp:=0; End;
+          For ppx:=px To SubEnd Do Begin
+            TexIdx:=(Integer(V_fp Shr 16) And TexHMask)*TexW+(Integer(U_fp Shr 16) And TexWMask);
+            BaseC:=pLongWord(NativeUInt(TexData)+LongWord(TexIdx)*SizeOf(LongWord))^;
+            If BaseC Shr 24 > 0 Then Begin
+              R:=((BaseC Shr 16) And $FF)*LongWord(IntenIR) Shr 8;
+              G:=((BaseC Shr  8) And $FF)*LongWord(IntenIG) Shr 8;
+              B:=( BaseC         And $FF)*LongWord(IntenIB) Shr 8;
+              RowPtr^:=$FF000000 Or (LongWord(R) Shl 16) Or (LongWord(G) Shl 8) Or LongWord(B);
+            End;
+            Inc(RowPtr); U_fp:=U_fp+dU_fp; V_fp:=V_fp+dV_fp;
+          End;
+          UZSpan:=UZNext; VZSpan:=VZNext; WZSpan:=WZNext; ULeft:=URight; VLeft:=VRight; px:=SubEnd+1;
+        End;
+      End;
+      xL:=xL+dxL; UZL:=UZL+dUZL; VZL:=VZL+dVZL; WZL:=WZL+dWZL;
+      xR:=xR+dxR; UZR:=UZR+dUZR; VZR:=VZR+dVZR; WZR:=WZR+dWZR;
+    End;
+  End;
+End;
+
+// ---------------------------------------------------------------------------
+// 14. RasterTexPow2Alpha32Fog  -  pow2, 32bpp texture, alpha, fog
+// ---------------------------------------------------------------------------
+
+Procedure RasterTexPow2Alpha32Fog(Const RF: pSP_RenderFace;
+                                  SurfPtr: pByte; Stride: Integer;
+                                  ClipX1, ClipY1, ClipX2, ClipY2: Integer);
+Const SUBDIV = 16;
+Var
+  X0,Y0,X1,Y1,X2,Y2            : Integer;
+  UZ0,VZ0,WZ0,UZ1,VZ1,WZ1,
+  UZ2,VZ2,WZ2                   : aFloat;
+  IntenIR, IntenIG, IntenIB     : Integer;
+  TexData                       : pByte;
+  TexW, TexWMask, TexHMask      : Integer;
+  DY, yStart, yEnd, Skip, y     : Integer;
+  xLeft, xRight, SpanW          : Integer;
+  SubEnd, SubW, px, ppx, tInt   : Integer;
+  dxL, xL, dxR, xR              : Int64;
+  dUZL,dVZL,dWZL                : aFloat;
+  dUZR,dVZR,dWZR                : aFloat;
+  UZL,VZL,WZL,UZR,VZR,WZR      : aFloat;
+  ULeft,VLeft,URight,VRight     : aFloat;
+  U_fp,V_fp,dU_fp,dV_fp         : Int64;
+  UZSpan,VZSpan,WZSpan          : aFloat;
+  dUZSpan,dVZSpan,dWZSpan       : aFloat;
+  UZNext,VZNext,WZNext          : aFloat;
+  sUZL,sVZL,sWZL,sUZR,sVZR,sWZR : aFloat;
+  TexIdx                        : Integer;
+  BaseC                         : LongWord;
+  R, G, B                       : Integer;
+  RowPtr                        : pLongWord;
+  FogI, FogR, FogG, FogB        : Integer;
+
+  Procedure SwapIntPair(Var AX,AY: Integer; Var AUZ,AVZ,AWZ: aFloat;
+                        Var BX,BY: Integer; Var BUZ,BVZ,BWZ: aFloat); Inline;
+  Var TX,TY: Integer; TUZ,TVZ,TWZ: aFloat;
+  Begin TX:=AX;TY:=AY;TUZ:=AUZ;TVZ:=AVZ;TWZ:=AWZ; AX:=BX;AY:=BY;AUZ:=BUZ;AVZ:=BVZ;AWZ:=BWZ; BX:=TX;BY:=TY;BUZ:=TUZ;BVZ:=TVZ;BWZ:=TWZ; End;
+
+Begin
+  X0:=RF^.SX[0]; Y0:=RF^.SY[0]; X1:=RF^.SX[1]; Y1:=RF^.SY[1]; X2:=RF^.SX[2]; Y2:=RF^.SY[2];
+  UZ0:=RF^.SU[0]; VZ0:=RF^.SVt[0]; WZ0:=RF^.SW[0];
+  UZ1:=RF^.SU[1]; VZ1:=RF^.SVt[1]; WZ1:=RF^.SW[1];
+  UZ2:=RF^.SU[2]; VZ2:=RF^.SVt[2]; WZ2:=RF^.SW[2];
+  IntenIR:=RF^.IntenIR; IntenIG:=RF^.IntenIG; IntenIB:=RF^.IntenIB;
+  TexData:=RF^.TexData; TexW:=RF^.TexW; TexWMask:=RF^.TexWMask; TexHMask:=RF^.TexHMask;
+
+  FogI:=RF^.FogI;
+  FogR:=(SP3D_FogColour32 Shr 16) And $FF;
+  FogG:=(SP3D_FogColour32 Shr  8) And $FF;
+  FogB:= SP3D_FogColour32         And $FF;
+
+  If (Y0>=ClipY2) And (Y1>=ClipY2) And (Y2>=ClipY2) Then Exit;
+  If (Y0<ClipY1)  And (Y1<ClipY1)  And (Y2<ClipY1)  Then Exit;
+  If Y0>Y1 Then SwapIntPair(X0,Y0,UZ0,VZ0,WZ0,X1,Y1,UZ1,VZ1,WZ1);
+  If Y0>Y2 Then SwapIntPair(X0,Y0,UZ0,VZ0,WZ0,X2,Y2,UZ2,VZ2,WZ2);
+  If Y1>Y2 Then SwapIntPair(X1,Y1,UZ1,VZ1,WZ1,X2,Y2,UZ2,VZ2,WZ2);
+  If Y0=Y2 Then Exit;
+
+  DY:=Y2-Y0; dxL:=Int64(X2-X0)*65536 Div DY; dUZL:=(UZ2-UZ0)/DY; dVZL:=(VZ2-VZ0)/DY; dWZL:=(WZ2-WZ0)/DY;
+  xL:=Int64(X0)*65536; UZL:=UZ0; VZL:=VZ0; WZL:=WZ0;
+
+  If Y0<Y1 Then Begin
+    DY:=Y1-Y0; dxR:=Int64(X1-X0)*65536 Div DY; dUZR:=(UZ1-UZ0)/DY; dVZR:=(VZ1-VZ0)/DY; dWZR:=(WZ1-WZ0)/DY;
+    xR:=Int64(X0)*65536; UZR:=UZ0; VZR:=VZ0; WZR:=WZ0;
+    yStart:=Y0; yEnd:=Y1;
+    If yStart<ClipY1 Then Begin Skip:=ClipY1-yStart; xL:=xL+dxL*Skip; UZL:=UZL+dUZL*Skip; VZL:=VZL+dVZL*Skip; WZL:=WZL+dWZL*Skip; xR:=xR+dxR*Skip; UZR:=UZR+dUZR*Skip; VZR:=VZR+dVZR*Skip; WZR:=WZR+dWZR*Skip; yStart:=ClipY1; End;
+    If yEnd>ClipY2 Then yEnd:=ClipY2;
+    For y:=yStart To yEnd-1 Do Begin
+      xLeft:=Integer(xL Shr 16); xRight:=Integer(xR Shr 16);
+      If xLeft<=xRight Then Begin sUZL:=UZL;sVZL:=VZL;sWZL:=WZL;sUZR:=UZR;sVZR:=VZR;sWZR:=WZR; End
+      Else Begin tInt:=xLeft;xLeft:=xRight;xRight:=tInt; sUZL:=UZR;sVZL:=VZR;sWZL:=WZR;sUZR:=UZL;sVZR:=VZL;sWZR:=WZL; End;
+      SpanW:=xRight-xLeft;
+      If SpanW>0 Then Begin dUZSpan:=(sUZR-sUZL)/SpanW; dVZSpan:=(sVZR-sVZL)/SpanW; dWZSpan:=(sWZR-sWZL)/SpanW; End Else Begin dUZSpan:=0;dVZSpan:=0;dWZSpan:=0; End;
+      UZSpan:=sUZL; VZSpan:=sVZL; WZSpan:=sWZL;
+      If xLeft<ClipX1 Then Begin Skip:=ClipX1-xLeft; UZSpan:=UZSpan+dUZSpan*Skip; VZSpan:=VZSpan+dVZSpan*Skip; WZSpan:=WZSpan+dWZSpan*Skip; xLeft:=ClipX1; End;
+      If xRight>ClipX2-1 Then xRight:=ClipX2-1;
+      If xLeft<=xRight Then Begin
+        RowPtr:=pLongWord(NativeUInt(SurfPtr)+LongWord(y*Stride+xLeft*4)); px:=xLeft;
+        If WZSpan<>0 Then Begin ULeft:=UZSpan/WZSpan; VLeft:=VZSpan/WZSpan; End Else Begin ULeft:=0; VLeft:=0; End;
+        While px<=xRight Do Begin
+          SubEnd:=px+SUBDIV-1; If SubEnd>xRight Then SubEnd:=xRight; SubW:=SubEnd-px;
+          UZNext:=UZSpan+dUZSpan*(SubW+1); VZNext:=VZSpan+dVZSpan*(SubW+1); WZNext:=WZSpan+dWZSpan*(SubW+1);
+          If WZNext<>0 Then Begin URight:=UZNext/WZNext; VRight:=VZNext/WZNext; End Else Begin URight:=ULeft; VRight:=VLeft; End;
+          U_fp:=Round(ULeft*65536); V_fp:=Round(VLeft*65536);
+          If SubW>0 Then Begin dU_fp:=Round((URight-ULeft)*65536) Div SubW; dV_fp:=Round((VRight-VLeft)*65536) Div SubW; End Else Begin dU_fp:=0; dV_fp:=0; End;
+          For ppx:=px To SubEnd Do Begin
+            TexIdx:=(Integer(V_fp Shr 16) And TexHMask)*TexW+(Integer(U_fp Shr 16) And TexWMask);
+            BaseC:=pLongWord(NativeUInt(TexData)+LongWord(TexIdx)*SizeOf(LongWord))^;
+            If BaseC Shr 24 > 0 Then Begin
+              R:=((BaseC Shr 16) And $FF)*LongWord(IntenIR) Shr 8;
+              G:=((BaseC Shr  8) And $FF)*LongWord(IntenIG) Shr 8;
+              B:=( BaseC         And $FF)*LongWord(IntenIB) Shr 8;
+              R:=R+(FogR-R)*FogI Shr 8; G:=G+(FogG-G)*FogI Shr 8; B:=B+(FogB-B)*FogI Shr 8;
+              RowPtr^:=$FF000000 Or (LongWord(R) Shl 16) Or (LongWord(G) Shl 8) Or LongWord(B);
+            End;
+            Inc(RowPtr); U_fp:=U_fp+dU_fp; V_fp:=V_fp+dV_fp;
+          End;
+          UZSpan:=UZNext; VZSpan:=VZNext; WZSpan:=WZNext; ULeft:=URight; VLeft:=VRight; px:=SubEnd+1;
+        End;
+      End;
+      xL:=xL+dxL; UZL:=UZL+dUZL; VZL:=VZL+dVZL; WZL:=WZL+dWZL;
+      xR:=xR+dxR; UZR:=UZR+dUZR; VZR:=VZR+dVZR; WZR:=WZR+dWZR;
+    End;
+  End;
+
+  xL:=Int64(X0)*65536+dxL*Int64(Y1-Y0); UZL:=UZ0+dUZL*(Y1-Y0); VZL:=VZ0+dVZL*(Y1-Y0); WZL:=WZ0+dWZL*(Y1-Y0);
+  If Y1<Y2 Then Begin
+    DY:=Y2-Y1; dxR:=Int64(X2-X1)*65536 Div DY; dUZR:=(UZ2-UZ1)/DY; dVZR:=(VZ2-VZ1)/DY; dWZR:=(WZ2-WZ1)/DY;
+    xR:=Int64(X1)*65536; UZR:=UZ1; VZR:=VZ1; WZR:=WZ1;
+    yStart:=Y1; yEnd:=Y2;
+    If yStart<ClipY1 Then Begin Skip:=ClipY1-yStart; xL:=xL+dxL*Skip; UZL:=UZL+dUZL*Skip; VZL:=VZL+dVZL*Skip; WZL:=WZL+dWZL*Skip; xR:=xR+dxR*Skip; UZR:=UZR+dUZR*Skip; VZR:=VZR+dVZR*Skip; WZR:=WZR+dWZR*Skip; yStart:=ClipY1; End;
+    If yEnd>ClipY2 Then yEnd:=ClipY2;
+    For y:=yStart To yEnd-1 Do Begin
+      xLeft:=Integer(xL Shr 16); xRight:=Integer(xR Shr 16);
+      If xLeft<=xRight Then Begin sUZL:=UZL;sVZL:=VZL;sWZL:=WZL;sUZR:=UZR;sVZR:=VZR;sWZR:=WZR; End
+      Else Begin tInt:=xLeft;xLeft:=xRight;xRight:=tInt; sUZL:=UZR;sVZL:=VZR;sWZL:=WZR;sUZR:=UZL;sVZR:=VZL;sWZR:=WZL; End;
+      SpanW:=xRight-xLeft;
+      If SpanW>0 Then Begin dUZSpan:=(sUZR-sUZL)/SpanW; dVZSpan:=(sVZR-sVZL)/SpanW; dWZSpan:=(sWZR-sWZL)/SpanW; End Else Begin dUZSpan:=0;dVZSpan:=0;dWZSpan:=0; End;
+      UZSpan:=sUZL; VZSpan:=sVZL; WZSpan:=sWZL;
+      If xLeft<ClipX1 Then Begin Skip:=ClipX1-xLeft; UZSpan:=UZSpan+dUZSpan*Skip; VZSpan:=VZSpan+dVZSpan*Skip; WZSpan:=WZSpan+dWZSpan*Skip; xLeft:=ClipX1; End;
+      If xRight>ClipX2-1 Then xRight:=ClipX2-1;
+      If xLeft<=xRight Then Begin
+        RowPtr:=pLongWord(NativeUInt(SurfPtr)+LongWord(y*Stride+xLeft*4)); px:=xLeft;
+        If WZSpan<>0 Then Begin ULeft:=UZSpan/WZSpan; VLeft:=VZSpan/WZSpan; End Else Begin ULeft:=0; VLeft:=0; End;
+        While px<=xRight Do Begin
+          SubEnd:=px+SUBDIV-1; If SubEnd>xRight Then SubEnd:=xRight; SubW:=SubEnd-px;
+          UZNext:=UZSpan+dUZSpan*(SubW+1); VZNext:=VZSpan+dVZSpan*(SubW+1); WZNext:=WZSpan+dWZSpan*(SubW+1);
+          If WZNext<>0 Then Begin URight:=UZNext/WZNext; VRight:=VZNext/WZNext; End Else Begin URight:=ULeft; VRight:=VLeft; End;
+          U_fp:=Round(ULeft*65536); V_fp:=Round(VLeft*65536);
+          If SubW>0 Then Begin dU_fp:=Round((URight-ULeft)*65536) Div SubW; dV_fp:=Round((VRight-VLeft)*65536) Div SubW; End Else Begin dU_fp:=0; dV_fp:=0; End;
+          For ppx:=px To SubEnd Do Begin
+            TexIdx:=(Integer(V_fp Shr 16) And TexHMask)*TexW+(Integer(U_fp Shr 16) And TexWMask);
+            BaseC:=pLongWord(NativeUInt(TexData)+LongWord(TexIdx)*SizeOf(LongWord))^;
+            If BaseC Shr 24 > 0 Then Begin
+              R:=((BaseC Shr 16) And $FF)*LongWord(IntenIR) Shr 8;
+              G:=((BaseC Shr  8) And $FF)*LongWord(IntenIG) Shr 8;
+              B:=( BaseC         And $FF)*LongWord(IntenIB) Shr 8;
+              R:=R+(FogR-R)*FogI Shr 8; G:=G+(FogG-G)*FogI Shr 8; B:=B+(FogB-B)*FogI Shr 8;
+              RowPtr^:=$FF000000 Or (LongWord(R) Shl 16) Or (LongWord(G) Shl 8) Or LongWord(B);
+            End;
+            Inc(RowPtr); U_fp:=U_fp+dU_fp; V_fp:=V_fp+dV_fp;
+          End;
+          UZSpan:=UZNext; VZSpan:=VZNext; WZSpan:=WZNext; ULeft:=URight; VLeft:=VRight; px:=SubEnd+1;
+        End;
+      End;
+      xL:=xL+dxL; UZL:=UZL+dUZL; VZL:=VZL+dVZL; WZL:=WZL+dWZL;
+      xR:=xR+dxR; UZR:=UZR+dUZR; VZR:=VZR+dVZR; WZR:=WZR+dWZR;
+    End;
+  End;
+End;
+
+// ---------------------------------------------------------------------------
+// 15. RasterTexPow2Alpha32  -  NPOT, 32bpp texture, alpha, no fog
+// ---------------------------------------------------------------------------
+
+Procedure RasterTexNPOTAlpha32(Const RF: pSP_RenderFace;
+                               SurfPtr: pByte; Stride: Integer;
+                               ClipX1, ClipY1, ClipX2, ClipY2: Integer);
+Const SUBDIV = 16;
+Var
+  X0,Y0,X1,Y1,X2,Y2            : Integer;
+  UZ0,VZ0,WZ0,UZ1,VZ1,WZ1,
+  UZ2,VZ2,WZ2                   : aFloat;
+  IntenIR, IntenIG, IntenIB     : Integer;
+  TexData                       : pByte;
+  TexW, TexH                    : Integer;
+  DY, yStart, yEnd, Skip, y     : Integer;
+  xLeft, xRight, SpanW          : Integer;
+  SubEnd, SubW, px, ppx, tInt   : Integer;
+  dxL, xL, dxR, xR              : Int64;
+  dUZL,dVZL,dWZL                : aFloat;
+  dUZR,dVZR,dWZR                : aFloat;
+  UZL,VZL,WZL,UZR,VZR,WZR      : aFloat;
+  ULeft,VLeft,URight,VRight     : aFloat;
+  U_fp,V_fp,dU_fp,dV_fp         : Int64;
+  UZSpan,VZSpan,WZSpan          : aFloat;
+  dUZSpan,dVZSpan,dWZSpan       : aFloat;
+  UZNext,VZNext,WZNext          : aFloat;
+  sUZL,sVZL,sWZL,sUZR,sVZR,sWZR : aFloat;
+  TexIdx                        : Integer;
+  BaseC                         : LongWord;
+  R, G, B                       : Integer;
+  RowPtr                        : pLongWord;
+
+  Procedure SwapIntPair(Var AX,AY: Integer; Var AUZ,AVZ,AWZ: aFloat;
+                        Var BX,BY: Integer; Var BUZ,BVZ,BWZ: aFloat); Inline;
+  Var TX,TY: Integer; TUZ,TVZ,TWZ: aFloat;
+  Begin TX:=AX;TY:=AY;TUZ:=AUZ;TVZ:=AVZ;TWZ:=AWZ; AX:=BX;AY:=BY;AUZ:=BUZ;AVZ:=BVZ;AWZ:=BWZ; BX:=TX;BY:=TY;BUZ:=TUZ;BVZ:=TVZ;BWZ:=TWZ; End;
+
+Begin
+  X0:=RF^.SX[0]; Y0:=RF^.SY[0]; X1:=RF^.SX[1]; Y1:=RF^.SY[1]; X2:=RF^.SX[2]; Y2:=RF^.SY[2];
+  UZ0:=RF^.SU[0]; VZ0:=RF^.SVt[0]; WZ0:=RF^.SW[0];
+  UZ1:=RF^.SU[1]; VZ1:=RF^.SVt[1]; WZ1:=RF^.SW[1];
+  UZ2:=RF^.SU[2]; VZ2:=RF^.SVt[2]; WZ2:=RF^.SW[2];
+  IntenIR:=RF^.IntenIR; IntenIG:=RF^.IntenIG; IntenIB:=RF^.IntenIB;
+  TexData:=RF^.TexData; TexW:=RF^.TexW; TexH:=RF^.TexH;
+
+  If (Y0>=ClipY2) And (Y1>=ClipY2) And (Y2>=ClipY2) Then Exit;
+  If (Y0<ClipY1)  And (Y1<ClipY1)  And (Y2<ClipY1)  Then Exit;
+  If Y0>Y1 Then SwapIntPair(X0,Y0,UZ0,VZ0,WZ0,X1,Y1,UZ1,VZ1,WZ1);
+  If Y0>Y2 Then SwapIntPair(X0,Y0,UZ0,VZ0,WZ0,X2,Y2,UZ2,VZ2,WZ2);
+  If Y1>Y2 Then SwapIntPair(X1,Y1,UZ1,VZ1,WZ1,X2,Y2,UZ2,VZ2,WZ2);
+  If Y0=Y2 Then Exit;
+
+  DY:=Y2-Y0; dxL:=Int64(X2-X0)*65536 Div DY; dUZL:=(UZ2-UZ0)/DY; dVZL:=(VZ2-VZ0)/DY; dWZL:=(WZ2-WZ0)/DY;
+  xL:=Int64(X0)*65536; UZL:=UZ0; VZL:=VZ0; WZL:=WZ0;
+
+  If Y0<Y1 Then Begin
+    DY:=Y1-Y0; dxR:=Int64(X1-X0)*65536 Div DY; dUZR:=(UZ1-UZ0)/DY; dVZR:=(VZ1-VZ0)/DY; dWZR:=(WZ1-WZ0)/DY;
+    xR:=Int64(X0)*65536; UZR:=UZ0; VZR:=VZ0; WZR:=WZ0;
+    yStart:=Y0; yEnd:=Y1;
+    If yStart<ClipY1 Then Begin Skip:=ClipY1-yStart; xL:=xL+dxL*Skip; UZL:=UZL+dUZL*Skip; VZL:=VZL+dVZL*Skip; WZL:=WZL+dWZL*Skip; xR:=xR+dxR*Skip; UZR:=UZR+dUZR*Skip; VZR:=VZR+dVZR*Skip; WZR:=WZR+dWZR*Skip; yStart:=ClipY1; End;
+    If yEnd>ClipY2 Then yEnd:=ClipY2;
+    For y:=yStart To yEnd-1 Do Begin
+      xLeft:=Integer(xL Shr 16); xRight:=Integer(xR Shr 16);
+      If xLeft<=xRight Then Begin sUZL:=UZL;sVZL:=VZL;sWZL:=WZL;sUZR:=UZR;sVZR:=VZR;sWZR:=WZR; End
+      Else Begin tInt:=xLeft;xLeft:=xRight;xRight:=tInt; sUZL:=UZR;sVZL:=VZR;sWZL:=WZR;sUZR:=UZL;sVZR:=VZL;sWZR:=WZL; End;
+      SpanW:=xRight-xLeft;
+      If SpanW>0 Then Begin dUZSpan:=(sUZR-sUZL)/SpanW; dVZSpan:=(sVZR-sVZL)/SpanW; dWZSpan:=(sWZR-sWZL)/SpanW; End Else Begin dUZSpan:=0;dVZSpan:=0;dWZSpan:=0; End;
+      UZSpan:=sUZL; VZSpan:=sVZL; WZSpan:=sWZL;
+      If xLeft<ClipX1 Then Begin Skip:=ClipX1-xLeft; UZSpan:=UZSpan+dUZSpan*Skip; VZSpan:=VZSpan+dVZSpan*Skip; WZSpan:=WZSpan+dWZSpan*Skip; xLeft:=ClipX1; End;
+      If xRight>ClipX2-1 Then xRight:=ClipX2-1;
+      If xLeft<=xRight Then Begin
+        RowPtr:=pLongWord(NativeUInt(SurfPtr)+LongWord(y*Stride+xLeft*4)); px:=xLeft;
+        If WZSpan<>0 Then Begin ULeft:=UZSpan/WZSpan; VLeft:=VZSpan/WZSpan; End Else Begin ULeft:=0; VLeft:=0; End;
+        While px<=xRight Do Begin
+          SubEnd:=px+SUBDIV-1; If SubEnd>xRight Then SubEnd:=xRight; SubW:=SubEnd-px;
+          UZNext:=UZSpan+dUZSpan*(SubW+1); VZNext:=VZSpan+dVZSpan*(SubW+1); WZNext:=WZSpan+dWZSpan*(SubW+1);
+          If WZNext<>0 Then Begin URight:=UZNext/WZNext; VRight:=VZNext/WZNext; End Else Begin URight:=ULeft; VRight:=VLeft; End;
+          U_fp:=Round(ULeft*65536); V_fp:=Round(VLeft*65536);
+          If SubW>0 Then Begin dU_fp:=Round((URight-ULeft)*65536) Div SubW; dV_fp:=Round((VRight-VLeft)*65536) Div SubW; End Else Begin dU_fp:=0; dV_fp:=0; End;
+          For ppx:=px To SubEnd Do Begin
+            TexIdx:=(Integer(V_fp Shr 16) Mod TexH)*TexW+(Integer(U_fp Shr 16) Mod TexW);
+            If TexIdx < 0 Then TexIdx := 0;
+            BaseC:=pLongWord(NativeUInt(TexData)+LongWord(TexIdx)*SizeOf(LongWord))^;
+            If BaseC Shr 24 > 0 Then Begin
+              R:=((BaseC Shr 16) And $FF)*LongWord(IntenIR) Shr 8;
+              G:=((BaseC Shr  8) And $FF)*LongWord(IntenIG) Shr 8;
+              B:=( BaseC         And $FF)*LongWord(IntenIB) Shr 8;
+              RowPtr^:=$FF000000 Or (LongWord(R) Shl 16) Or (LongWord(G) Shl 8) Or LongWord(B);
+            End;
+            Inc(RowPtr); U_fp:=U_fp+dU_fp; V_fp:=V_fp+dV_fp;
+          End;
+          UZSpan:=UZNext; VZSpan:=VZNext; WZSpan:=WZNext; ULeft:=URight; VLeft:=VRight; px:=SubEnd+1;
+        End;
+      End;
+      xL:=xL+dxL; UZL:=UZL+dUZL; VZL:=VZL+dVZL; WZL:=WZL+dWZL;
+      xR:=xR+dxR; UZR:=UZR+dUZR; VZR:=VZR+dVZR; WZR:=WZR+dWZR;
+    End;
+  End;
+
+  xL:=Int64(X0)*65536+dxL*Int64(Y1-Y0); UZL:=UZ0+dUZL*(Y1-Y0); VZL:=VZ0+dVZL*(Y1-Y0); WZL:=WZ0+dWZL*(Y1-Y0);
+  If Y1<Y2 Then Begin
+    DY:=Y2-Y1; dxR:=Int64(X2-X1)*65536 Div DY; dUZR:=(UZ2-UZ1)/DY; dVZR:=(VZ2-VZ1)/DY; dWZR:=(WZ2-WZ1)/DY;
+    xR:=Int64(X1)*65536; UZR:=UZ1; VZR:=VZ1; WZR:=WZ1;
+    yStart:=Y1; yEnd:=Y2;
+    If yStart<ClipY1 Then Begin Skip:=ClipY1-yStart; xL:=xL+dxL*Skip; UZL:=UZL+dUZL*Skip; VZL:=VZL+dVZL*Skip; WZL:=WZL+dWZL*Skip; xR:=xR+dxR*Skip; UZR:=UZR+dUZR*Skip; VZR:=VZR+dVZR*Skip; WZR:=WZR+dWZR*Skip; yStart:=ClipY1; End;
+    If yEnd>ClipY2 Then yEnd:=ClipY2;
+    For y:=yStart To yEnd-1 Do Begin
+      xLeft:=Integer(xL Shr 16); xRight:=Integer(xR Shr 16);
+      If xLeft<=xRight Then Begin sUZL:=UZL;sVZL:=VZL;sWZL:=WZL;sUZR:=UZR;sVZR:=VZR;sWZR:=WZR; End
+      Else Begin tInt:=xLeft;xLeft:=xRight;xRight:=tInt; sUZL:=UZR;sVZL:=VZR;sWZL:=WZR;sUZR:=UZL;sVZR:=VZL;sWZR:=WZL; End;
+      SpanW:=xRight-xLeft;
+      If SpanW>0 Then Begin dUZSpan:=(sUZR-sUZL)/SpanW; dVZSpan:=(sVZR-sVZL)/SpanW; dWZSpan:=(sWZR-sWZL)/SpanW; End Else Begin dUZSpan:=0;dVZSpan:=0;dWZSpan:=0; End;
+      UZSpan:=sUZL; VZSpan:=sVZL; WZSpan:=sWZL;
+      If xLeft<ClipX1 Then Begin Skip:=ClipX1-xLeft; UZSpan:=UZSpan+dUZSpan*Skip; VZSpan:=VZSpan+dVZSpan*Skip; WZSpan:=WZSpan+dWZSpan*Skip; xLeft:=ClipX1; End;
+      If xRight>ClipX2-1 Then xRight:=ClipX2-1;
+      If xLeft<=xRight Then Begin
+        RowPtr:=pLongWord(NativeUInt(SurfPtr)+LongWord(y*Stride+xLeft*4)); px:=xLeft;
+        If WZSpan<>0 Then Begin ULeft:=UZSpan/WZSpan; VLeft:=VZSpan/WZSpan; End Else Begin ULeft:=0; VLeft:=0; End;
+        While px<=xRight Do Begin
+          SubEnd:=px+SUBDIV-1; If SubEnd>xRight Then SubEnd:=xRight; SubW:=SubEnd-px;
+          UZNext:=UZSpan+dUZSpan*(SubW+1); VZNext:=VZSpan+dVZSpan*(SubW+1); WZNext:=WZSpan+dWZSpan*(SubW+1);
+          If WZNext<>0 Then Begin URight:=UZNext/WZNext; VRight:=VZNext/WZNext; End Else Begin URight:=ULeft; VRight:=VLeft; End;
+          U_fp:=Round(ULeft*65536); V_fp:=Round(VLeft*65536);
+          If SubW>0 Then Begin dU_fp:=Round((URight-ULeft)*65536) Div SubW; dV_fp:=Round((VRight-VLeft)*65536) Div SubW; End Else Begin dU_fp:=0; dV_fp:=0; End;
+          For ppx:=px To SubEnd Do Begin
+            TexIdx:=(Integer(V_fp Shr 16) Mod TexH)*TexW+(Integer(U_fp Shr 16) Mod TexW);
+            If TexIdx < 0 Then TexIdx := 0;
+            BaseC:=pLongWord(NativeUInt(TexData)+LongWord(TexIdx)*SizeOf(LongWord))^;
+            If BaseC Shr 24 > 0 Then Begin
+              R:=((BaseC Shr 16) And $FF)*LongWord(IntenIR) Shr 8;
+              G:=((BaseC Shr  8) And $FF)*LongWord(IntenIG) Shr 8;
+              B:=( BaseC         And $FF)*LongWord(IntenIB) Shr 8;
+              RowPtr^:=$FF000000 Or (LongWord(R) Shl 16) Or (LongWord(G) Shl 8) Or LongWord(B);
+            End;
+            Inc(RowPtr); U_fp:=U_fp+dU_fp; V_fp:=V_fp+dV_fp;
+          End;
+          UZSpan:=UZNext; VZSpan:=VZNext; WZSpan:=WZNext; ULeft:=URight; VLeft:=VRight; px:=SubEnd+1;
+        End;
+      End;
+      xL:=xL+dxL; UZL:=UZL+dUZL; VZL:=VZL+dVZL; WZL:=WZL+dWZL;
+      xR:=xR+dxR; UZR:=UZR+dUZR; VZR:=VZR+dVZR; WZR:=WZR+dWZR;
+    End;
+  End;
+End;
+
+// ---------------------------------------------------------------------------
+// 16. RasterTexPow2Alpha32Fog  -  NPOT, 32bpp texture, alpha, fog
+// ---------------------------------------------------------------------------
+
+Procedure RasterTexNPOTAlpha32Fog(Const RF: pSP_RenderFace;
+                                  SurfPtr: pByte; Stride: Integer;
+                                  ClipX1, ClipY1, ClipX2, ClipY2: Integer);
+Const SUBDIV = 16;
+Var
+  X0,Y0,X1,Y1,X2,Y2             : Integer;
+  UZ0,VZ0,WZ0,UZ1,VZ1,WZ1,
+  UZ2,VZ2,WZ2                   : aFloat;
+  IntenIR, IntenIG, IntenIB     : Integer;
+  TexData                       : pByte;
+  TexW, TexH                    : Integer;
+  DY, yStart, yEnd, Skip, y     : Integer;
+  xLeft, xRight, SpanW          : Integer;
+  SubEnd, SubW, px, ppx, tInt   : Integer;
+  dxL, xL, dxR, xR              : Int64;
+  dUZL,dVZL,dWZL                : aFloat;
+  dUZR,dVZR,dWZR                : aFloat;
+  UZL,VZL,WZL,UZR,VZR,WZR       : aFloat;
+  ULeft,VLeft,URight,VRight     : aFloat;
+  U_fp,V_fp,dU_fp,dV_fp         : Int64;
+  UZSpan,VZSpan,WZSpan          : aFloat;
+  dUZSpan,dVZSpan,dWZSpan       : aFloat;
+  UZNext,VZNext,WZNext          : aFloat;
+  sUZL,sVZL,sWZL,sUZR,sVZR,sWZR : aFloat;
+  TexIdx                        : Integer;
+  BaseC                         : LongWord;
+  R, G, B                       : Integer;
+  RowPtr                        : pLongWord;
+  FogI, FogR, FogG, FogB        : Integer;
+
+  Procedure SwapIntPair(Var AX,AY: Integer; Var AUZ,AVZ,AWZ: aFloat;
+                        Var BX,BY: Integer; Var BUZ,BVZ,BWZ: aFloat); Inline;
+  Var TX,TY: Integer; TUZ,TVZ,TWZ: aFloat;
+  Begin TX:=AX;TY:=AY;TUZ:=AUZ;TVZ:=AVZ;TWZ:=AWZ; AX:=BX;AY:=BY;AUZ:=BUZ;AVZ:=BVZ;AWZ:=BWZ; BX:=TX;BY:=TY;BUZ:=TUZ;BVZ:=TVZ;BWZ:=TWZ; End;
+
+Begin
+  X0:=RF^.SX[0]; Y0:=RF^.SY[0]; X1:=RF^.SX[1]; Y1:=RF^.SY[1]; X2:=RF^.SX[2]; Y2:=RF^.SY[2];
+  UZ0:=RF^.SU[0]; VZ0:=RF^.SVt[0]; WZ0:=RF^.SW[0];
+  UZ1:=RF^.SU[1]; VZ1:=RF^.SVt[1]; WZ1:=RF^.SW[1];
+  UZ2:=RF^.SU[2]; VZ2:=RF^.SVt[2]; WZ2:=RF^.SW[2];
+  IntenIR:=RF^.IntenIR; IntenIG:=RF^.IntenIG; IntenIB:=RF^.IntenIB;
+  FogI:=RF^.FogI;
+  FogR:=(SP3D_FogColour32 Shr 16) And $FF;
+  FogG:=(SP3D_FogColour32 Shr  8) And $FF;
+  FogB:= SP3D_FogColour32         And $FF;
+  TexData:=RF^.TexData; TexW:=RF^.TexW; TexH:=RF^.TexH;
+
+  If (Y0>=ClipY2) And (Y1>=ClipY2) And (Y2>=ClipY2) Then Exit;
+  If (Y0<ClipY1)  And (Y1<ClipY1)  And (Y2<ClipY1)  Then Exit;
+  If Y0>Y1 Then SwapIntPair(X0,Y0,UZ0,VZ0,WZ0,X1,Y1,UZ1,VZ1,WZ1);
+  If Y0>Y2 Then SwapIntPair(X0,Y0,UZ0,VZ0,WZ0,X2,Y2,UZ2,VZ2,WZ2);
+  If Y1>Y2 Then SwapIntPair(X1,Y1,UZ1,VZ1,WZ1,X2,Y2,UZ2,VZ2,WZ2);
+  If Y0=Y2 Then Exit;
+
+  DY:=Y2-Y0; dxL:=Int64(X2-X0)*65536 Div DY; dUZL:=(UZ2-UZ0)/DY; dVZL:=(VZ2-VZ0)/DY; dWZL:=(WZ2-WZ0)/DY;
+  xL:=Int64(X0)*65536; UZL:=UZ0; VZL:=VZ0; WZL:=WZ0;
+
+  If Y0<Y1 Then Begin
+    DY:=Y1-Y0; dxR:=Int64(X1-X0)*65536 Div DY; dUZR:=(UZ1-UZ0)/DY; dVZR:=(VZ1-VZ0)/DY; dWZR:=(WZ1-WZ0)/DY;
+    xR:=Int64(X0)*65536; UZR:=UZ0; VZR:=VZ0; WZR:=WZ0;
+    yStart:=Y0; yEnd:=Y1;
+    If yStart<ClipY1 Then Begin Skip:=ClipY1-yStart; xL:=xL+dxL*Skip; UZL:=UZL+dUZL*Skip; VZL:=VZL+dVZL*Skip; WZL:=WZL+dWZL*Skip; xR:=xR+dxR*Skip; UZR:=UZR+dUZR*Skip; VZR:=VZR+dVZR*Skip; WZR:=WZR+dWZR*Skip; yStart:=ClipY1; End;
+    If yEnd>ClipY2 Then yEnd:=ClipY2;
+    For y:=yStart To yEnd-1 Do Begin
+      xLeft:=Integer(xL Shr 16); xRight:=Integer(xR Shr 16);
+      If xLeft<=xRight Then Begin sUZL:=UZL;sVZL:=VZL;sWZL:=WZL;sUZR:=UZR;sVZR:=VZR;sWZR:=WZR; End
+      Else Begin tInt:=xLeft;xLeft:=xRight;xRight:=tInt; sUZL:=UZR;sVZL:=VZR;sWZL:=WZR;sUZR:=UZL;sVZR:=VZL;sWZR:=WZL; End;
+      SpanW:=xRight-xLeft;
+      If SpanW>0 Then Begin dUZSpan:=(sUZR-sUZL)/SpanW; dVZSpan:=(sVZR-sVZL)/SpanW; dWZSpan:=(sWZR-sWZL)/SpanW; End Else Begin dUZSpan:=0;dVZSpan:=0;dWZSpan:=0; End;
+      UZSpan:=sUZL; VZSpan:=sVZL; WZSpan:=sWZL;
+      If xLeft<ClipX1 Then Begin Skip:=ClipX1-xLeft; UZSpan:=UZSpan+dUZSpan*Skip; VZSpan:=VZSpan+dVZSpan*Skip; WZSpan:=WZSpan+dWZSpan*Skip; xLeft:=ClipX1; End;
+      If xRight>ClipX2-1 Then xRight:=ClipX2-1;
+      If xLeft<=xRight Then Begin
+        RowPtr:=pLongWord(NativeUInt(SurfPtr)+LongWord(y*Stride+xLeft*4)); px:=xLeft;
+        If WZSpan<>0 Then Begin ULeft:=UZSpan/WZSpan; VLeft:=VZSpan/WZSpan; End Else Begin ULeft:=0; VLeft:=0; End;
+        While px<=xRight Do Begin
+          SubEnd:=px+SUBDIV-1; If SubEnd>xRight Then SubEnd:=xRight; SubW:=SubEnd-px;
+          UZNext:=UZSpan+dUZSpan*(SubW+1); VZNext:=VZSpan+dVZSpan*(SubW+1); WZNext:=WZSpan+dWZSpan*(SubW+1);
+          If WZNext<>0 Then Begin URight:=UZNext/WZNext; VRight:=VZNext/WZNext; End Else Begin URight:=ULeft; VRight:=VLeft; End;
+          U_fp:=Round(ULeft*65536); V_fp:=Round(VLeft*65536);
+          If SubW>0 Then Begin dU_fp:=Round((URight-ULeft)*65536) Div SubW; dV_fp:=Round((VRight-VLeft)*65536) Div SubW; End Else Begin dU_fp:=0; dV_fp:=0; End;
+          For ppx:=px To SubEnd Do Begin
+            TexIdx:=(Integer(V_fp Shr 16) Mod TexH)*TexW+(Integer(U_fp Shr 16) Mod TexW);
+            If TexIdx < 0 Then TexIdx := 0;
+            BaseC:=pLongWord(NativeUInt(TexData)+LongWord(TexIdx)*SizeOf(LongWord))^;
+            If BaseC Shr 24 > 0 Then Begin
+              R:=((BaseC Shr 16) And $FF)*LongWord(IntenIR) Shr 8;
+              G:=((BaseC Shr  8) And $FF)*LongWord(IntenIG) Shr 8;
+              B:=( BaseC         And $FF)*LongWord(IntenIB) Shr 8;
+              R:=R+(FogR-R)*FogI Shr 8; G:=G+(FogG-G)*FogI Shr 8; B:=B+(FogB-B)*FogI Shr 8;
+              RowPtr^:=$FF000000 Or (LongWord(R) Shl 16) Or (LongWord(G) Shl 8) Or LongWord(B);
+            End;
+            Inc(RowPtr); U_fp:=U_fp+dU_fp; V_fp:=V_fp+dV_fp;
+          End;
+          UZSpan:=UZNext; VZSpan:=VZNext; WZSpan:=WZNext; ULeft:=URight; VLeft:=VRight; px:=SubEnd+1;
+        End;
+      End;
+      xL:=xL+dxL; UZL:=UZL+dUZL; VZL:=VZL+dVZL; WZL:=WZL+dWZL;
+      xR:=xR+dxR; UZR:=UZR+dUZR; VZR:=VZR+dVZR; WZR:=WZR+dWZR;
+    End;
+  End;
+
+  xL:=Int64(X0)*65536+dxL*Int64(Y1-Y0); UZL:=UZ0+dUZL*(Y1-Y0); VZL:=VZ0+dVZL*(Y1-Y0); WZL:=WZ0+dWZL*(Y1-Y0);
+  If Y1<Y2 Then Begin
+    DY:=Y2-Y1; dxR:=Int64(X2-X1)*65536 Div DY; dUZR:=(UZ2-UZ1)/DY; dVZR:=(VZ2-VZ1)/DY; dWZR:=(WZ2-WZ1)/DY;
+    xR:=Int64(X1)*65536; UZR:=UZ1; VZR:=VZ1; WZR:=WZ1;
+    yStart:=Y1; yEnd:=Y2;
+    If yStart<ClipY1 Then Begin Skip:=ClipY1-yStart; xL:=xL+dxL*Skip; UZL:=UZL+dUZL*Skip; VZL:=VZL+dVZL*Skip; WZL:=WZL+dWZL*Skip; xR:=xR+dxR*Skip; UZR:=UZR+dUZR*Skip; VZR:=VZR+dVZR*Skip; WZR:=WZR+dWZR*Skip; yStart:=ClipY1; End;
+    If yEnd>ClipY2 Then yEnd:=ClipY2;
+    For y:=yStart To yEnd-1 Do Begin
+      xLeft:=Integer(xL Shr 16); xRight:=Integer(xR Shr 16);
+      If xLeft<=xRight Then Begin sUZL:=UZL;sVZL:=VZL;sWZL:=WZL;sUZR:=UZR;sVZR:=VZR;sWZR:=WZR; End
+      Else Begin tInt:=xLeft;xLeft:=xRight;xRight:=tInt; sUZL:=UZR;sVZL:=VZR;sWZL:=WZR;sUZR:=UZL;sVZR:=VZL;sWZR:=WZL; End;
+      SpanW:=xRight-xLeft;
+      If SpanW>0 Then Begin dUZSpan:=(sUZR-sUZL)/SpanW; dVZSpan:=(sVZR-sVZL)/SpanW; dWZSpan:=(sWZR-sWZL)/SpanW; End Else Begin dUZSpan:=0;dVZSpan:=0;dWZSpan:=0; End;
+      UZSpan:=sUZL; VZSpan:=sVZL; WZSpan:=sWZL;
+      If xLeft<ClipX1 Then Begin Skip:=ClipX1-xLeft; UZSpan:=UZSpan+dUZSpan*Skip; VZSpan:=VZSpan+dVZSpan*Skip; WZSpan:=WZSpan+dWZSpan*Skip; xLeft:=ClipX1; End;
+      If xRight>ClipX2-1 Then xRight:=ClipX2-1;
+      If xLeft<=xRight Then Begin
+        RowPtr:=pLongWord(NativeUInt(SurfPtr)+LongWord(y*Stride+xLeft*4)); px:=xLeft;
+        If WZSpan<>0 Then Begin ULeft:=UZSpan/WZSpan; VLeft:=VZSpan/WZSpan; End Else Begin ULeft:=0; VLeft:=0; End;
+        While px<=xRight Do Begin
+          SubEnd:=px+SUBDIV-1; If SubEnd>xRight Then SubEnd:=xRight; SubW:=SubEnd-px;
+          UZNext:=UZSpan+dUZSpan*(SubW+1); VZNext:=VZSpan+dVZSpan*(SubW+1); WZNext:=WZSpan+dWZSpan*(SubW+1);
+          If WZNext<>0 Then Begin URight:=UZNext/WZNext; VRight:=VZNext/WZNext; End Else Begin URight:=ULeft; VRight:=VLeft; End;
+          U_fp:=Round(ULeft*65536); V_fp:=Round(VLeft*65536);
+          If SubW>0 Then Begin dU_fp:=Round((URight-ULeft)*65536) Div SubW; dV_fp:=Round((VRight-VLeft)*65536) Div SubW; End Else Begin dU_fp:=0; dV_fp:=0; End;
+          For ppx:=px To SubEnd Do Begin
+            TexIdx:=(Integer(V_fp Shr 16) Mod TexH)*TexW+(Integer(U_fp Shr 16) Mod TexW);
+            If TexIdx < 0 Then TexIdx := 0;
+            BaseC:=pLongWord(NativeUInt(TexData)+LongWord(TexIdx)*SizeOf(LongWord))^;
+            If BaseC Shr 24 > 0 Then Begin
+              R:=((BaseC Shr 16) And $FF)*LongWord(IntenIR) Shr 8;
+              G:=((BaseC Shr  8) And $FF)*LongWord(IntenIG) Shr 8;
+              B:=( BaseC         And $FF)*LongWord(IntenIB) Shr 8;
+              R:=R+(FogR-R)*FogI Shr 8; G:=G+(FogG-G)*FogI Shr 8; B:=B+(FogB-B)*FogI Shr 8;
+              RowPtr^:=$FF000000 Or (LongWord(R) Shl 16) Or (LongWord(G) Shl 8) Or LongWord(B);
+            End;
+            Inc(RowPtr); U_fp:=U_fp+dU_fp; V_fp:=V_fp+dV_fp;
+          End;
+          UZSpan:=UZNext; VZSpan:=VZNext; WZSpan:=WZNext; ULeft:=URight; VLeft:=VRight; px:=SubEnd+1;
+        End;
+      End;
+      xL:=xL+dxL; UZL:=UZL+dUZL; VZL:=VZL+dVZL; WZL:=WZL+dWZL;
+      xR:=xR+dxR; UZR:=UZR+dUZR; VZR:=VZR+dVZR; WZR:=WZR+dWZR;
+    End;
+  End;
+End;
+
 // ===========================================================================
-// SP_3D_Render32 — 32bpp entry point
+// SP_3D_Render32 - 32bpp entry point
 // ===========================================================================
 
 Procedure SP_3D_Render32(WindowID, SceneID, ThreadCount: Integer; Var Error: TSP_ErrorCode);
@@ -2092,6 +2687,7 @@ Var
   LastDispTexBank: Integer;
   LastDispGfxInfo: pSP_Graphic_Info;
   ASYNC:        Boolean;
+  TexDepth:     Integer;
 
   // Pre-computed flat colour for dispatch
   WireIntenF    : aFloat;               // float wire intensity for edge draw
@@ -2136,7 +2732,7 @@ Begin
     SP_3D_BuildColourCube;
   End;
 
-  // 32bpp base palette — just ARGB expansion, no nearest-colour search
+  // 32bpp base palette - just ARGB expansion, no nearest-colour search
   If SP3D_ShadeDirty32 Then
     SP_3D_BuildBasePal32(WinPal);
 
@@ -2319,7 +2915,7 @@ Begin
       Continue;
     End;
 
-    // Pre-transform vertices — with animation lerp if active
+    // Pre-transform vertices - with animation lerp if active
     vc := Integer(Hdr^.VertexCount);
     If vc > SP3D_TransVertAlloc Then Begin
       SetLength(SP3D_TransVerts, vc);
@@ -2465,7 +3061,7 @@ Begin
 
         HasTex  := False;
         TexData := Nil;
-        TexW    := 0;  TexH := 0;
+        TexW    := 0;  TexH := 0; TexDepth := 8;
         If (Face^.Flags And SP3D_FACE_TEXTURED) <> 0 Then Begin
           If Face^.TexBank <> LastDispTexBank Then Begin
             GfxErr.Code := SP_ERR_OK;
@@ -2473,11 +3069,12 @@ Begin
             LastDispTexBank := Face^.TexBank;
           End;
           GfxInfo := LastDispGfxInfo;
-          If (GfxErr.Code = SP_ERR_OK) And Assigned(GfxInfo) And (GfxInfo^.Depth = 8) Then Begin
-            HasTex  := True;
-            TexData := GfxInfo^.Data;
-            TexW    := Integer(GfxInfo^.Width);
-            TexH    := Integer(GfxInfo^.Height);
+          If (GfxErr.Code = SP_ERR_OK) And Assigned(GfxInfo) And (GfxInfo^.Depth in [8, 32]) Then Begin
+            HasTex   := True;
+            TexData  := GfxInfo^.Data;
+            TexW     := Integer(GfxInfo^.Width);
+            TexH     := Integer(GfxInfo^.Height);
+            TexDepth := GfxInfo^.Depth;
           End;
         End Else
           GfxInfo := Nil;
@@ -2572,27 +3169,45 @@ Begin
             If RF^.IntenBand > SP3D_SHADE_BANDS-1 Then RF^.IntenBand := SP3D_SHADE_BANDS-1;
           End;
           // Set TexPal for textured faces before selecting rasteriser
-          If RF^.Textured And Assigned(GfxInfo) Then
-            RF^.TexPal := @GfxInfo^.Palette[0]
-          Else
-            RF^.TexPal := Nil;
+          If RF^.Textured And Assigned(GfxInfo) Then Begin
+            RF^.TexDepth := TexDepth;
+            If TexDepth = 8 Then
+              RF^.TexPal := @GfxInfo^.Palette[0]
+            Else
+              RF^.TexPal := Nil;
+          End Else Begin
+            RF^.TexDepth := 8;
+            RF^.TexPal   := Nil;
+          End;
           // Select 32bpp rasteriser
           If RF^.Textured Then Begin
-            If RF^.TexWMask >= 0 Then Begin
-              If RF^.TranspIdx >= 0 Then Begin
-                If RF^.FogI > 0 Then RF^.Raster32 := RasterTexPow2Transp32Fog
-                Else                 RF^.Raster32 := RasterTexPow2Transp32;
+            If RF^.TexDepth = 32 Then Begin
+              // 32bpp texture: direct BGRA read, alpha channel handles transparency.
+              If RF^.TexWMask >= 0 Then Begin
+                If RF^.FogI > 0 Then RF^.Raster32 := RasterTexPow2Alpha32Fog
+                Else                 RF^.Raster32 := RasterTexPow2Alpha32;
               End Else Begin
-                If RF^.FogI > 0 Then RF^.Raster32 := RasterTexPow2Opaque32Fog
-                Else                 RF^.Raster32 := RasterTexPow2Opaque32;
+                If RF^.FogI > 0 Then RF^.Raster32 := RasterTexNPOTAlpha32Fog
+                Else                 RF^.Raster32 := RasterTexNPOTAlpha32;
               End;
             End Else Begin
-              If RF^.TranspIdx >= 0 Then Begin
-                If RF^.FogI > 0 Then RF^.Raster32 := RasterTexNPOTTransp32Fog
-                Else                 RF^.Raster32 := RasterTexNPOTTransp32;
+              // 8bpp texture: palette-indexed, existing rasterisers unchanged.
+              If RF^.TexWMask >= 0 Then Begin
+                If RF^.TranspIdx >= 0 Then Begin
+                  If RF^.FogI > 0 Then RF^.Raster32 := RasterTexPow2Transp32Fog
+                  Else                 RF^.Raster32 := RasterTexPow2Transp32;
+                End Else Begin
+                  If RF^.FogI > 0 Then RF^.Raster32 := RasterTexPow2Opaque32Fog
+                  Else                 RF^.Raster32 := RasterTexPow2Opaque32;
+                End;
               End Else Begin
-                If RF^.FogI > 0 Then RF^.Raster32 := RasterTexNPOTOpaque32Fog
-                Else                 RF^.Raster32 := RasterTexNPOTOpaque32;
+                If RF^.TranspIdx >= 0 Then Begin
+                  If RF^.FogI > 0 Then RF^.Raster32 := RasterTexNPOTTransp32Fog
+                  Else                 RF^.Raster32 := RasterTexNPOTTransp32;
+                End Else Begin
+                  If RF^.FogI > 0 Then RF^.Raster32 := RasterTexNPOTOpaque32Fog
+                  Else                 RF^.Raster32 := RasterTexNPOTOpaque32;
+                End;
               End;
             End;
           End Else If RF^.Gouraud Then Begin

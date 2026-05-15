@@ -4,8 +4,23 @@ unit SP_Display;
 
 interface
 
-  Uses WinAPI.Windows, MultiMon, System.SysUtils, System.SyncObjs, Graphics, Forms, Classes, System.Types, Math, PNGImage, MainForm,
-       SP_FileIO, {$IFDEF OPENGL}dglOpenGL,{$ENDIF} SP_Util, WinAPI.DWMApi;
+Uses
+    {$IFNDEF UNIX}
+    {$IFDEF FPC}
+    Windows, DWMApi, SysUtils, SyncObjs, Types, Controls,
+    {$ELSE}
+    WinAPI.Windows, WinAPI.DWMApi, System.SysUtils, System.SyncObjs, System.Types,
+    {$ENDIF}
+    MultiMon,
+    {$ELSE}
+    {$IFDEF UNIX}Unix, BaseUnix,{$ENDIF}
+    {$ENDIF}
+    Graphics, Forms, Classes, Math, {$IFNDEF FPC}PNGImage,{$ENDIF} MainForm,
+    SP_FileIO,
+    {$IFDEF OPENGL}
+    {$IFDEF FPC}OpenGLContext, GL, GLExt,{$ELSE}dglOpenGL,{$ENDIF}
+    {$ENDIF}
+    SP_Util;
 
   {$IFDEF RefreshThread}
 Type
@@ -14,6 +29,11 @@ Type
     ShouldPause, IsPaused: Boolean;
     Procedure Execute; Override;
   End;
+  {$ENDIF}
+
+  {$IFDEF FPC}
+  Type
+    TPNGImage = TPortableNetworkGraphic;
   {$ENDIF}
 
   {$IFDEF OPENGL}
@@ -60,8 +80,12 @@ Var
   {$IFDEF OPENGL}
     DisplayFlip, GLInitDone, ReScaleFlag: Boolean;
     PixArray: Array of Byte; // DispArray removed
+    {$IFDEF FPC}
+    GLControl: TOpenGLControl; // Set from MainForm after creation; owns context on FPC
+    {$ELSE}
     RC: HGLRC;
     DC: hDc;
+    {$ENDIF}
 
     // --- Shader Related Variables ---
     ScalerProgramID: GLuint;
@@ -93,8 +117,9 @@ Var
   FrameProcessedEvent: TEvent; // Create in InitSystem, Free in FinalizeSystem
   G_DisplayChangeLock: TCriticalSection;
   G_PerformingDisplayChange_Internal: Boolean;
+  {$IFNDEF UNIX}
   _CreateWaitableTimerExW: function(lpTimerAttributes: PSecurityAttributes; lpTimerName: LPCWSTR; dwFlags: DWORD; dwDesiredAccess: DWORD): THandle; stdcall;
-
+  {$ENDIF}
 
 Const
 
@@ -256,94 +281,109 @@ end;
 Procedure InitGL;
 Var
   i: Integer;
+  {$IFNDEF FPC}
   Pixelformat: GLuint;
-  pfd: PIXELFORMATDESCRIPTOR; // Corrected type name
+  pfd: PIXELFORMATDESCRIPTOR;
+  {$ENDIF}
 begin
 
   StartTime := CB_GETTICKS;
   For i := 0 To Length(FrameTimeHistory) -1 Do
     FrameTimeHistory[i] := 0;
 
+  {$IFDEF FPC}
+
+  // FPC path: TOpenGLControl owns and manages the GL context.
+  // We just need to make it current on this thread and load extensions.
+  If Not Assigned(GLControl) Then Exit;
+
+  // Load FBO extension (GL 3.0 core or GL_EXT_framebuffer_object on older drivers)
+  If Not Load_GL_version_3_0 Then
+    Load_GL_EXT_framebuffer_object;  // fallback; FBO_ID stays 0 if neither available
+
+  // VSync: attempt via GLX/WGL extension, fall back gracefully
+  {$IFDEF DOUBLEBUFFER}
+  If Load_WGL_EXT_swap_control Then Begin
+    wglSwapIntervalEXT(1);
+    VSYNCENABLED := True;
+  End Else Begin
+    {$IF DEFINED(LINUX) OR DEFINED(FREEBSD)}
+    If Load_GLX_SGI_swap_control Then Begin
+      glXSwapIntervalSGI(1);
+      VSYNCENABLED := True;
+    End Else
+    {$ENDIF}
+    VSYNCENABLED := False;
+  End;
+  {$ELSE}
+  If Load_WGL_EXT_swap_control Then wglSwapIntervalEXT(0);
+  VSYNCENABLED := False;
+  {$ENDIF}
+
+  {$ELSE}
+
+  // Delphi/Windows path: manual WGL context creation
   If RC <> 0 Then Begin
-    wglMakeCurrent(0, 0); // Detach context before deleting
+    wglMakeCurrent(0, 0);
     wglDeleteContext(RC);
     ReleaseDC(Main.Handle, DC);
-    DC := 0; // Reset DC
-    RC := 0; // Reset RC
+    DC := 0;
+    RC := 0;
     if FBO_ID <> 0 then glDeleteFramebuffers(1, @FBO_ID);
     FBO_ID := 0;
     if IntermediateTextureID <> 0 then
       glDeleteTextures(1, @IntermediateTextureID);
     IntermediateTextureID := 0;
   End Else
-    InitOpenGL; // This is from dglOpenGL, loads library pointers
+    InitOpenGL; // dglOpenGL: loads GL library function pointers
 
   with pfd do begin
-    nSize:= SizeOf( PIXELFORMATDESCRIPTOR );
-    nVersion:= 1;
-    dwFlags:= PFD_DRAW_TO_WINDOW or PFD_SUPPORT_OPENGL {$IFDEF DOUBLEBUFFER}or PFD_DOUBLEBUFFER or PFD_SWAP_COPY{$ENDIF};
-    iPixelType:= PFD_TYPE_RGBA;
-    cColorBits:= 32;
-    cRedBits:= 0;
-    cRedShift:= 0;
-    cGreenBits:= 0;
-    cBlueBits:= 0;
-    cBlueShift:= 0;
-    cAlphaBits:= 0;
-    cAlphaShift:= 0;
-    cAccumBits:= 0;
-    cAccumRedBits:= 0;
-    cAccumGreenBits:= 0;
-    cAccumBlueBits:= 0;
-    cAccumAlphaBits:= 0;
-    cDepthBits:= 0; // Set to 24 or 32 if depth testing is needed for 3D
-    cStencilBits:= 0; // Set to 8 if stencil buffer is needed
-    cAuxBuffers:= 0;
-    iLayerType:= PFD_MAIN_PLANE;
-    bReserved:= 0;
-    dwLayerMask:= 0;
-    dwVisibleMask:= 0;
-    dwDamageMask:= 0;
+    nSize        := SizeOf(PIXELFORMATDESCRIPTOR);
+    nVersion     := 1;
+    dwFlags      := PFD_DRAW_TO_WINDOW or PFD_SUPPORT_OPENGL
+                    {$IFDEF DOUBLEBUFFER}or PFD_DOUBLEBUFFER or PFD_SWAP_COPY{$ENDIF};
+    iPixelType   := PFD_TYPE_RGBA;
+    cColorBits   := 32;
+    cRedBits     := 0; cRedShift   := 0;
+    cGreenBits   := 0; cBlueBits   := 0; cBlueShift  := 0;
+    cAlphaBits   := 0; cAlphaShift := 0;
+    cAccumBits   := 0; cAccumRedBits := 0; cAccumGreenBits := 0;
+    cAccumBlueBits := 0; cAccumAlphaBits := 0;
+    cDepthBits   := 0;
+    cStencilBits := 0;
+    cAuxBuffers  := 0;
+    iLayerType   := PFD_MAIN_PLANE;
+    bReserved    := 0;
+    dwLayerMask  := 0; dwVisibleMask := 0; dwDamageMask := 0;
   end;
 
   DC := GetDC(Main.Handle);
-
   PixelFormat := ChoosePixelFormat(DC, @pfd);
-  If PixelFormat = 0 then begin
-    ReleaseDC(Main.Handle, DC);
-    DC := 0;
-    Exit;
-  end;
-
-  If Not SetPixelFormat(DC,PixelFormat,@pfd) then begin
-    ReleaseDC(Main.Handle, DC);
-    DC := 0;
-    Exit;
-  end;
+  If PixelFormat = 0 then begin ReleaseDC(Main.Handle, DC); DC := 0; Exit; end;
+  If Not SetPixelFormat(DC, PixelFormat, @pfd) then begin ReleaseDC(Main.Handle, DC); DC := 0; Exit; end;
 
   RC := wglCreateContext(DC);
   If RC = 0 then begin ReleaseDC(Main.Handle, DC); DC := 0; Exit; end;
 
   If Not wglMakeCurrent(DC, RC) then begin
-    wglDeleteContext(RC);
-    RC := 0;
-    ReleaseDC(Main.Handle, DC);
-    DC := 0;
+    wglDeleteContext(RC); RC := 0;
+    ReleaseDC(Main.Handle, DC); DC := 0;
     Exit;
   end;
 
-  // Read extensions after a context is current
-  ReadImplementationProperties; // from dglOpenGL
-  ReadExtensions;             // from dglOpenGL
+  ReadImplementationProperties; // dglOpenGL
+  ReadExtensions;               // dglOpenGL
 
   {$IFDEF DOUBLEBUFFER}
-  If WGL_EXT_swap_control then wglSwapIntervalEXT(1) else glFlush; // Check if extension is available
+  If WGL_EXT_swap_control then wglSwapIntervalEXT(1) else glFlush;
   {$ELSE}
   If WGL_EXT_swap_control then wglSwapIntervalEXT(0) else glFinish;
   {$ENDIF}
   If WGL_EXT_swap_control then VSYNCENABLED := wglGetSwapIntervalEXT <> 0 else VSYNCENABLED := False;
 
-  // --- Shader Initialization ---
+  {$ENDIF} // FPC/Delphi context creation
+
+  // --- Shader Initialization (identical on all platforms) ---
   ScalerProgramID := CreateShaderProgram(VertexShaderSource, FragmentShaderSource);
   if ScalerProgramID <> 0 then begin
     glUseProgram(ScalerProgramID);
@@ -351,21 +391,20 @@ begin
     locOriginalTextureSize    := glGetUniformLocation(ScalerProgramID, 'u_originalTextureSize');
     locIntegerNNScale         := glGetUniformLocation(ScalerProgramID, 'u_integerNNScale');
     glUseProgram(0);
-    if (locOriginalTextureSampler = -1) or (locOriginalTextureSize = -1) or (locIntegerNNScale = -1) then begin
-      glDeleteProgram(ScalerProgramID); // Clean up partially failed shader
+    if (locOriginalTextureSampler = -1) or (locOriginalTextureSize = -1) then begin
+      glDeleteProgram(ScalerProgramID);
       ScalerProgramID := 0;
     end;
   end;
 
   // --- Main Texture Initialization ---
   If MainTextureID = 0 then glGenTextures(1, @MainTextureID);
-  // Texture parameters will be set in GLResize and Refresh_Display
 
   // --- FBO Initialization ---
   If FBO_ID = 0 then glGenFramebuffers(1, @FBO_ID);
 
   GLInitDone := True;
-  ReScaleFlag := True; // Force GLResize to run
+  ReScaleFlag := True;
 
 End;
 
@@ -390,18 +429,23 @@ Begin
     ScalerProgramID := 0;
   end;
 
-  If RC <> 0 then
-  begin
+  {$IFNDEF FPC}
+  // Delphi/Windows: release WGL context and GDI device context
+  If RC <> 0 then begin
     wglMakeCurrent(0, 0);
     wglDeleteContext(RC);
     RC := 0;
   end;
-  If DC <> 0 then // DC was obtained from Main.Handle
-  begin
-    ReleaseDC(Main.Handle, DC); // Use ReleaseDC for DC obtained with GetDC
+  If DC <> 0 then begin
+    ReleaseDC(Main.Handle, DC);
     DC := 0;
   end;
-  // DeleteDC(DC); // DeleteDC is for DCs created with CreateDC or CreateCompatibleDC
+  {$ELSE}
+  // FPC: TOpenGLControl handles context destruction automatically.
+  // Just release our current binding so the control can clean up.
+  If Assigned(GLControl) Then
+    GLControl.ReleaseContext;
+  {$ENDIF}
 End;
 
 {$ENDIF} // OPENGL
@@ -539,50 +583,49 @@ Begin
 End;
 
 procedure SmartSleep(const AMilliseconds: aFloat);
-var
+{$IF DEFINED(FPC) AND DEFINED(UNIX)}
+Var
+  ts: TimeSpec;
+  Start, NowTime: aFloat;
+Begin
+  If AMilliseconds > 2 Then Begin
+    ts.tv_sec  := 0;
+    ts.tv_nsec := Round((AMilliseconds - 2) * 1000000);
+    fpnanosleep(@ts, nil);
+  End;
+  Start := CB_GetTicks;
+  Repeat
+    NowTime := CB_GetTicks;
+  Until (NowTime - Start) >= AMilliseconds;
+End;
+{$ELSE}
+Var
   hTimer: THandle;
   DueTime: Int64;
   Start, NowTime: aFloat;
-begin
-  // 1. Try High-Resolution Waitable Timer (Windows 10 1803+)
-  // This is the "Gold Standard": High precision, near 0% CPU usage.
-  if Assigned(_CreateWaitableTimerExW) then
-  begin
-    // Create an anonymous, high-resolution timer
-    hTimer := _CreateWaitableTimerExW(nil, nil, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
-    if hTimer <> 0 then
-    try
-      // Convert ms to 100-nanosecond intervals (negative for relative time)
-      // 1 ms = 10,000 ticks
+Begin
+  If Assigned(_CreateWaitableTimerExW) Then Begin
+    hTimer := _CreateWaitableTimerExW(nil, nil,
+      CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+    If hTimer <> 0 Then
+    Try
       DueTime := -Round(AMilliseconds * 10000);
-      if SetWaitableTimer(hTimer, DueTime, 0, nil, nil, False) then
-      begin
+      If SetWaitableTimer(hTimer, DueTime, 0, nil, nil, False) Then Begin
         WaitForSingleObject(hTimer, INFINITE);
-        Exit; // Success, we are done
-      end;
-    finally
+        Exit;
+      End;
+    Finally
       CloseHandle(hTimer);
-    end;
-  end;
-
-  // 2. Fallback: Hybrid Sleep (Sleep + Spin)
-  // Used if the OS is too old for High-Res timers.
-  // We sleep for most of the time to save CPU, then spin for the last bit.
+    End;
+  End;
   Start := GetTicks;
-
-  // If the delay is large enough (> 2ms), use standard Sleep() to bridge the gap.
-  // We subtract 2ms (or more safe margin) to ensure we wake up BEFORE the target.
-  if AMilliseconds > 2 then
-    Sleep(Trunc(AMilliseconds - 2)); // Sleep uses minimal CPU
-
-  // Spin-wait for the remaining tiny duration to achieve high precision
-  // This uses CPU but only for < 2ms.
-  repeat
+  If AMilliseconds > 2 Then
+    Sleep(Trunc(AMilliseconds - 2));
+  Repeat
     NowTime := GetTicks;
-    // Optional: usage of YieldProcessor or Sleep(0) can be added here,
-    // but pure spinning gives the absolute best precision for the final micro-slice.
-  until (NowTime - Start) >= AMilliseconds;
-end;
+  Until (NowTime - Start) >= AMilliseconds;
+End;
+{$ENDIF}
 
 {$IFDEF RefreshThread}
 Procedure TRefreshThread.Execute;
@@ -595,6 +638,12 @@ Begin
   LastFrames := 0;
   StartTime := 0;
   LastTime := CB_GETTICKS; // Initialize LastTime
+
+  {$IFDEF FPC}
+  // Transfer GL context ownership to this thread.
+  // Must be called before any GL calls, including those in FrameLoop.
+  If Assigned(GLControl) Then GLControl.MakeCurrent(True);
+  {$ENDIF}
 
   While Not (QUITMSG Or Terminated) Do Begin
     If ShouldPause Then Begin
@@ -613,7 +662,11 @@ Begin
   End;
 
   {$IFDEF OPENGL}
-  CloseGL; // Ensure GL resources are cleaned up in the rendering thread
+  CloseGL; // Clean up GL resources in the rendering thread
+  {$IFDEF FPC}
+  // Release context from this thread so it can be destroyed on the main thread
+  If Assigned(GLControl) Then GLControl.DoneCurrentRC;
+  {$ENDIF}
   {$ENDIF}
 
   RefreshThreadAlive := False;
@@ -638,7 +691,7 @@ Var
 Begin
 
   TxLeft := FPSLEFT + FPSWIDTH - (Length(FPSSTRING) * 8 * FPSSCALE);
-  SP_GetRegion32(DISPLAYPOINTER, DISPLAYSTRIDE, DISPLAYHEIGHT, FPSIMAGE, FPSLEFT, FPSTOP, FPSWIDTH, FPSHEIGHT, Error);
+  SP_GetRegion32(DISPLAYPOINTER, DISPLAYWIDTH, DISPLAYHEIGHT, FPSIMAGE, FPSLEFT, FPSTOP, FPSWIDTH, FPSHEIGHT, Error);
   SP_RawTextOut(SYSFONT, DISPLAYPOINTER, DISPLAYSTRIDE Shr 2, DISPLAYHEIGHT, TxLeft, FPSTOP, FPSSTRING, $8000FF00, 0, FPSSCALE, FPSSCALE, True, True);
 
   If SHOWFPSHISTORY Then Begin
@@ -765,11 +818,16 @@ Var
   useTwoPassFBO, useDirectNearest, useDirectLinear: Boolean;
   isPerfectOverallScale: Boolean; // Is final output an exact integer multiple of original?
   effScaleX, effScaleY: aFloat;   // Overall effective scale factors
-  {$IFDEF DOUBLEBUFFER}
+  {$IF DEFINED(DOUBLEBUFFER) AND NOT DEFINED(FPC)}
   currentDC: hDc;
   {$ENDIF}
-  originalProjectionMatrix: TMatrix4f; // To save/restore projection
-  originalModelViewMatrix: TMatrix4f; // To save/restore modelview
+  {$IFDEF FPC}
+  originalProjectionMatrix: Array[0..15] of GLFloat;
+  originalModelViewMatrix:  Array[0..15] of GLFloat;
+  {$ELSE}
+  originalProjectionMatrix: TMatrix4f;
+  originalModelViewMatrix:  TMatrix4f;
+  {$ENDIF}
 {$ENDIF}
 Begin
   {$IFDEF OpenGL}
@@ -932,10 +990,18 @@ Begin
     // (already handled by saving/loading, or explicit re-setup for screen)
 
     {$IFDEF DOUBLEBUFFER}
+    {$IFDEF FPC}
+    If Assigned(GLControl) Then GLControl.SwapBuffers;
+    {$ELSE}
     currentDC := wglGetCurrentDC();
     If currentDC <> 0 then SwapBuffers(currentDC);
+    {$ENDIF}
+    {$ELSE}
+    {$IFDEF FPC}
+    If Assigned(GLControl) Then GLControl.SwapBuffers;
     {$ELSE}
     glFlush;
+    {$ENDIF}
     {$ENDIF}
 
   {$ELSE} // Not OPENGL
@@ -1093,7 +1159,11 @@ Begin
     // WM_RESIZEMAIN should handle setting the form's Left, Top, Width, Height
     // and then call SetScaling with the new ClientWidth/Height
     If AllowResize Then
+      {$IFDEF FPC}
+      Main.DoResizeMain(l, t, sWidth, sHeight)
+      {$ELSE}
       SendMessage(Main.Handle, WM_RESIZEMAIN, MakeLong(Word(l), Word(t)), MakeLong(Word(sWidth), Word(sHeight)))
+    {$ENDIF}
     Else
       SetScaling(DISPLAYWIDTH, DISPLAYHEIGHT, Main.ClientWidth, Main.ClientHeight);
     // After SendMessage, Main.ClientWidth/Height should be sWidth/sHeight.
@@ -1117,25 +1187,29 @@ End;
 Function GetScreenRefreshRate: aFloat;
 var
   DeviceMode: TDeviceMode;
+  {$IFNDEF FPC}
   TimingInfo: DWM_TIMING_INFO;
   HRes: HRESULT;
   Success: Boolean;
+  {$ENDIF}
 const
   ENUM_CURRENT_SETTINGS = DWORD(-1);
 Begin
+  {$IFNDEF FPC}
   ZeroMemory(@TimingInfo, SizeOf(TimingInfo));
   TimingInfo.cbSize := SizeOf(TimingInfo);
   HRes := DwmGetCompositionTimingInfo(0, TimingInfo);
   Success := (HRes = S_OK) And (TimingInfo.rateRefresh.uiDenominator <> 0);
-  If Success Then
-    Result := TimingInfo.rateRefresh.uiNumerator / TimingInfo.rateRefresh.uiDenominator
-  Else Begin
-    DeviceMode.dmSize := SizeOf(TDeviceMode);
-    FillChar(DeviceMode, DeviceMode.dmSize, 0);
-    DeviceMode.dmSize := SizeOf(TDeviceMode);
-    EnumDisplaySettings(nil, ENUM_CURRENT_SETTINGS, DeviceMode);
-    Result := DeviceMode.dmDisplayFrequency;
+  If Success Then Begin
+    Result := TimingInfo.rateRefresh.uiNumerator / TimingInfo.rateRefresh.uiDenominator;
+    Exit;
   End;
+  {$ENDIF}
+  DeviceMode.dmSize := SizeOf(TDeviceMode);
+  FillChar(DeviceMode, DeviceMode.dmSize, 0);
+  DeviceMode.dmSize := SizeOf(TDeviceMode);
+  EnumDisplaySettings(nil, ENUM_CURRENT_SETTINGS, {$IFDEF FPC}@DeviceMode{$ELSE}DeviceMode{$ENDIF});
+  Result := DeviceMode.dmDisplayFrequency;
 End;
 
 function TestScreenResolution(Width, Height: Integer; FullScreen: Boolean): Boolean;
@@ -1150,7 +1224,7 @@ begin
     DeviceMode.dmPelsWidth := Width;
     DeviceMode.dmPelsHeight := Height;
     DeviceMode.dmFields := DM_PELSWIDTH or DM_PELSHEIGHT;
-    hMod := ChangeDisplaySettings(DeviceMode, CDS_TEST);
+    hMod := ChangeDisplaySettings({$IFDEF FPC}@DeviceMode{$ELSE}DeviceMode{$ENDIF}, CDS_TEST);
     Result := hMod = DISP_CHANGE_SUCCESSFUL;
   End Else Begin
     SP_GetMonitorMetrics;
@@ -1169,7 +1243,11 @@ begin
   monInfo.cbSize := sizeof(monInfo);
   if GetMonitorInfo(hmon, @monInfo) then begin // Use Ansi
     DispDev.cb := sizeof(DispDev);
-    EnumDisplayDevices(nil, 0, DispDev, 0); // Use Ansi
+    {$IFNDEF FPC}
+    EnumDisplayDevices(nil, 0, DispDev, 0);
+    {$ELSE}
+    EnumDisplayDevices(nil, 0, @DispDev, 0);
+    {$ENDIF}
     Result := StrPas(monInfo.szDevice); // monInfo.szDevice is array of AnsiChar
   end;
 end;
@@ -1240,7 +1318,7 @@ begin
       // Restore original desktop resolution if it was changed
       // This needs the *original* desktop mode, not just any mode.
       // It's often better to pass NIL to ChangeDisplaySettings to revert to registry default.
-      ChangeDisplaySettings(DeviceMode, 0); // Revert to default screen resolution
+      ChangeDisplaySettings({$IFDEF FPC}@DeviceMode{$ELSE}DeviceMode{$ENDIF}, 0); // Revert to default screen resolution
       Main.BorderStyle := bsSingle;
       SPFULLSCREEN := False; // Set before potentially resizing main form
       // Window position/size will be handled by SetScreen via WM_RESIZEMAIN
@@ -1396,15 +1474,17 @@ End;
 Procedure ScreenShot(fullWindow: Boolean);
 {$IFDEF OPENGL}
 var
+  {$IFNDEF FPC}
   Win: HWND;
-  // DC was conflicting with global DC
-  ScreenDC: HDC; // Changed name
+  ScreenDC: HDC;
+  WinRect, WinRectEx: TRect;
+  TheWidth, TheHeight, ox: Integer;
+  {$ENDIF}
   Bmp: TBitmap;
   Png: TPNGImage;
   Pixels: pByte;
   FName, FileName: string;
-  WinRect, WinRectEx: TRect;
-  TheWidth, TheHeight, ox, i: Integer; // Renamed Width, Height to avoid conflict
+  i: Integer;
   Error: TSP_ErrorCode;
   {$ENDIF}
 begin
@@ -1431,18 +1511,33 @@ begin
         Inc(Pixels, DISPLAYSTRIDE); // DISPLAYSTRIDE is correct for PixArray
       End;
     end
-    else // fullWindow is true AND NOT SPFULLSCREEN: Capture entire window DC
+    else // fullWindow is true AND NOT SPFULLSCREEN: Capture entire window
     begin
-      Win := Main.Handle; // Assuming Main is the TForm
+      {$IFDEF FPC}
+      // On FPC/Linux/macOS: read back from GL framebuffer instead
+      // (Window DC capture is Windows-only)
+      if not Assigned(DISPLAYPOINTER) or (Length(PixArray) = 0) then Exit;
+      Bmp.Height := CurrentOutputHeight;
+      Bmp.Width  := CurrentOutputWidth;
+      Bmp.PixelFormat := pf32bit;
+      SetLength(PixArray, CurrentOutputWidth * CurrentOutputHeight * 4);
+      If Assigned(GLControl) Then GLControl.MakeCurrent(True);
+      glReadPixels(0, 0, CurrentOutputWidth, CurrentOutputHeight,
+                   GL_BGRA, GL_UNSIGNED_BYTE, @PixArray[0]);
+      for i := 0 To Bmp.Height -1 do
+        CopyMemory(Bmp.ScanLine[i],
+                   @PixArray[(Bmp.Height - 1 - i) * CurrentOutputWidth * 4],
+                   Bmp.Width * SizeOf(LongWord));
+      {$ELSE}
+      Win := Main.Handle;
       ox := 0;
       if (Win32MajorVersion >= 6) and DwmCompositionEnabled then Begin
         DwmGetWindowAttribute(Win, DWMWA_EXTENDED_FRAME_BOUNDS, @WinRect, SizeOf(WinRect));
-        GetWindowRect(Win, WinRectEx); // Get standard window rect
-        Ox := WinRect.Left - WinRectEx.Left; // Offset if DWM adds invisible borders
+        GetWindowRect(Win, WinRectEx);
+        Ox := WinRect.Left - WinRectEx.Left;
       End else
         GetWindowRect(Win, WinRect);
-
-      ScreenDC := GetWindowDC(Win); // Get DC for the entire window (including title bar, borders)
+      ScreenDC := GetWindowDC(Win);
       if ScreenDC = 0 then Exit;
       try
         TheWidth := WinRect.Right - WinRect.Left;
@@ -1453,6 +1548,7 @@ begin
       finally
         ReleaseDC(Win, ScreenDC);
       end;
+      {$ENDIF}
     end;
 
     Png := TPNGImage.Create;
@@ -1472,8 +1568,10 @@ Initialization
 
   StartTime := 0;
   G_DisplayChangeLock := TCriticalSection.Create;
-  FrameProcessedEvent := TEvent.Create;
+  FrameProcessedEvent := TEvent.Create{$IFDEF FPC}(nil, False, False, ''){$ENDIF};
+  {$IFNDEF UNIX}
   @_CreateWaitableTimerExW := GetProcAddress(GetModuleHandle(kernel32), 'CreateWaitableTimerExW');
+  {$ENDIF}
 
 Finalization
 

@@ -28,7 +28,7 @@ interface
 Uses SysUtils, Math, Classes, SP_Util, SP_AnsiStringlist;
 
 Type
-  TToken = Packed Record
+  TToken = Record
     Token: Byte;
     Handler: Pointer;
     TokenPos: LongWord;
@@ -64,7 +64,7 @@ Procedure SP_Program_Clear;
 Var
 
   Idx_t: Integer;
-  TempStr: aString;
+  TmpStr: aString;
   SP_KEYWORDS: Array of aString;
   SP_FUNCTIONS: Array of aString;
   SP_OPTIMISE_FLAGS, SP_OPTIMISE_META_FLAGS: Array of Boolean;
@@ -1485,7 +1485,7 @@ Function SP_TokeniseLine(Line: aString; IsExpression, AddLineNum: Boolean): aStr
 Var
   TempExtend: aFloat;
   Keyword, SpaceMod: Integer;
-  StoreVal, StoreLen, TempVal, LineLen, Idx, tIdx, lIdx, cnt, l: Integer;
+  StoreVal, StoreLen, TempVal, LineLen, Idx, tIdx, lIdx, cnt: Integer;
   StoreText, tStore, tempStr, tStr: aString;
   FoundBase: Boolean;
   rPtr, rStart, rEnd: {$IFDEF FPC}Integer{$ELSE}pByte{$ENDIF};
@@ -1511,12 +1511,19 @@ Const
      (Name: 'ENDCASE'; KeyWordID: SP_KW_END_CASE));
 
   procedure AddToResult(const str: aString);
+  var
+    l: Integer;
   begin
     l := Length(Str);
     {$IFNDEF FPC}
     MoveMemory(rPtr, pByte(pNativeUInt(@str)^), l);
     {$ELSE}
-    Move(str[1], Result[rPtr], l);
+    if l > 0 then begin
+      // Grow Result if needed
+      if rPtr + l - 1 > Length(Result) then
+        SetLength(Result, (rPtr + l - 1) * 2);
+      Move(PAnsiChar(Pointer(str))^, (PAnsiChar(Pointer(Result)) + rPtr - 1)^, l);
+    end;
     {$ENDIF}
     inc(rPtr, l);
   end;
@@ -1719,14 +1726,14 @@ Begin
               If Copy(Upper(StoreText), 1, 2) = 'GO' Then Begin
                 // "GO" is a special case, but only if it is followed by "TO" or "SUB".
                 If (Copy(Upper(StoreText), 3, 2) = 'TO') or (Copy(Upper(StoreText), 3, 3) = 'SUB') Then Begin
-                  Dec(Idx, Length(StoreText) -2);
+                  Dec(Idx, Integer(Length(StoreText) -2));
                   StoreText := Copy(StoreText, 1, 2);
                 End;
               End;
               TempStr := Upper(StoreText);
               For lIdx := 0 To High(Compounds) Do Begin
                 If Copy(TempStr, 1, Length(Compounds[lIdx].Name)) = Compounds[lIdx].Name Then Begin
-                  Dec(Idx, Length(StoreText) - Length(Compounds[lIdx].Name));
+                  Dec(Idx, Integer(Length(StoreText) - Length(Compounds[lIdx].Name)));
                   StoreText := Compounds[lIdx].Name;
                   KeyWord := Compounds[lIdx].KeyWordID;
                   SpaceMod := 0;
@@ -1745,13 +1752,13 @@ Begin
                   StoreText := StoreText + ' ';
                 tStore := Upper(StoreText);
                 TempStr := '';
-                Dec(Idx, Length(StoreText));
+                Dec(Idx, Integer(Length(StoreText)));
                 While Pos(' ', tStore) <> 0 Do Begin
                   tStr := Copy(tStore, 1, Pos(' ', tStore) -1);
                   If (SP_IsFunction(tStr) > -1) or (SP_IsKeyWord(tStr) > -1) Then Begin
                     If TempStr = '' Then Begin
                       TempStr := tStr;
-                      Inc(Idx, Length(tStr));
+                      Inc(Idx, Integer(Length(tStr)));
                     End;
                     Break;
                   End Else Begin
@@ -1762,12 +1769,14 @@ Begin
                       tStore := Copy(tStore, 2, Length(tStore));
                       Inc(Idx);
                     End;
-                    Inc(Idx, Length(tStr));
+                    Inc(Idx, Integer(Length(tStr)));
                   End;
                 End;
-                StoreText := Copy(StoreText, 1, Length(TempStr));
-                While StoreText[Length(StoreText)] = ' ' Do
-                  StoreText := Copy(StoreText, 1, Length(StoreText) -1);
+                If Length(TempStr) > 0 Then Begin
+                  StoreText := Copy(StoreText, 1, Length(TempStr));
+                  While (Length(StoreText) > 0) And (StoreText[Length(StoreText)] = ' ') Do
+                    StoreText := Copy(StoreText, 1, Length(StoreText) -1);
+                End;
               End;
 
               lIdx := -1;
@@ -3095,11 +3104,11 @@ Initialization
   SetLength(SP_KEYWORDS, High(SP_KEYWORDS_EXTRA) +1);
   For Idx_t := 0 To High(SP_KEYWORDS_EXTRA) Do Begin
 
-    TempStr := SP_KEYWORDS_EXTRA[Idx_t];
-    If TempStr[1] = ' ' Then TempStr := Copy(TempStr, 2, Length(TempStr));
-    If TempStr[Length(TempStr)] = ' ' Then TempStr := Copy(TempStr, 1, Length(TempStr) -1);
+    TmpStr := SP_KEYWORDS_EXTRA[Idx_t];
+    If TmpStr[1] = ' ' Then TmpStr := Copy(TmpStr, 2, Length(TmpStr));
+    If TmpStr[Length(TmpStr)] = ' ' Then TmpStr := Copy(TmpStr, 1, Length(TmpStr) -1);
 
-    SP_KEYWORDS[Idx_t] := TempStr;
+    SP_KEYWORDS[Idx_t] := TmpStr;
 
   End;
 
@@ -3109,23 +3118,23 @@ Initialization
 
   For Idx_t := 0 To High(SP_FUNCTIONS_EXTRA) Do Begin
 
-    TempStr := SP_FUNCTIONS_EXTRA[Idx_t];
-    If TempStr[1] = 'o' Then SP_OPTIMISE_FLAGS[Idx_t] := True Else SP_OPTIMISE_FLAGS[Idx_t] := False;
-    TempStr := Copy(TempStr, 2, Length(TempStr));
-    If TempStr[1] = ' ' Then TempStr := Copy(TempStr, 2, Length(TempStr));
-    If TempStr[Length(TempStr)] = ' ' Then TempStr := Copy(TempStr, 1, Length(TempStr) -1);
+    TmpStr := SP_FUNCTIONS_EXTRA[Idx_t];
+    If TmpStr[1] = 'o' Then SP_OPTIMISE_FLAGS[Idx_t] := True Else SP_OPTIMISE_FLAGS[Idx_t] := False;
+    TmpStr := Copy(TmpStr, 2, Length(TmpStr));
+    If TmpStr[1] = ' ' Then TmpStr := Copy(TmpStr, 2, Length(TmpStr));
+    If TmpStr[Length(TmpStr)] = ' ' Then TmpStr := Copy(TmpStr, 1, Length(TmpStr) -1);
 
-    SP_FUNCTIONS[Idx_t] := TempStr;
+    SP_FUNCTIONS[Idx_t] := TmpStr;
 
   End;
 
   For Idx_t := 0 To High(SP_FUNCTION_NAMES) Do Begin
 
-    TempStr := SP_FUNCTION_NAMES[Idx_t];
-    If TempStr[1] = 'o' Then SP_OPTIMISE_META_FLAGS[Idx_t] := True Else SP_OPTIMISE_META_FLAGS[Idx_t] := False;
-    TempStr := Copy(TempStr, 2, Length(TempStr));
-    If TempStr[1] = ' ' Then TempStr := Copy(TempStr, 2, Length(TempStr));
-    If TempStr[Length(TempStr)] = ' ' Then TempStr := Copy(TempStr, 1, Length(TempStr) -1);
+    TmpStr := SP_FUNCTION_NAMES[Idx_t];
+    If TmpStr[1] = 'o' Then SP_OPTIMISE_META_FLAGS[Idx_t] := True Else SP_OPTIMISE_META_FLAGS[Idx_t] := False;
+    TmpStr := Copy(TmpStr, 2, Length(TmpStr));
+    If TmpStr[1] = ' ' Then TmpStr := Copy(TmpStr, 2, Length(TmpStr));
+    If TmpStr[Length(TmpStr)] = ' ' Then TmpStr := Copy(TmpStr, 1, Length(TmpStr) -1);
 
   End;
 

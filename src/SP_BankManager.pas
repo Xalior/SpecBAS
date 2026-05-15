@@ -170,7 +170,7 @@ Type
   Procedure SP_Sprite_SetOrder(Id: Integer; Front: Boolean; Var Error: TSP_ErrorCode);
   Procedure SP_Sprite_SetOrderMove(Id, Delta: Integer; Var Error: TSP_ErrorCode);
 
-  Function  SP_New_GraphicA(Width, Height: Integer; Trans: Word; Var Error: TSP_ErrorCode): Integer;
+  Function  SP_New_GraphicA(Width, Height: Integer; Trans: Word; Var Error: TSP_ErrorCode; Depth: Integer = 8): Integer;
   Function  SP_New_GraphicB(GraphicStr: aString; Var Error: TSP_ErrorCode): Integer;
   Function  SP_New_GraphicC(Filename: aString; Trans: Word; Var Error: TSP_ErrorCode): Integer;
   Procedure SP_Load_Graphic(Id: Integer; Filename: aString; Trans: Word; Var Error: TSP_ErrorCode);
@@ -182,6 +182,7 @@ Type
   Function  SP_GetGraphicPalette(Id, PalIndex: Integer; Var Error: TSP_ErrorCode): LongWord;
   Function  SP_GetGraphicPixel(Id: Integer; X, Y: aFloat; Var Error: TSP_ErrorCode): Integer;
   Procedure SP_SetGraphicPixel(Id: Integer; X, Y: aFloat; Clr: Byte; Var Error: TSP_ErrorCode);
+  Procedure SP_SetGraphicPixel32(Id: Integer; X, Y: aFloat; Clr: LongWord; Var Error: TSP_ErrorCode);
   Procedure SP_GFX_UpdateWindowInfo(Var Gfx: pSP_Graphic_Info; Bank: pSP_Bank);
   Function  SP_GraphicToFont(GfxID: Integer; var Output: aString; Spacing: Integer; Var Error: TSP_ErrorCode): Integer;
 
@@ -221,7 +222,7 @@ Var
 
 implementation
 
-Uses SP_FPEditor, SP_BASICEditorHostUnit, SP_Graphics, SP_Sound, SP_Main, SP_BaseComponentUnit, SP_ToolTipWindow, SP_3DEngineUnit;
+Uses MainForm, SP_FPEditor, SP_BASICEditorHostUnit, SP_Graphics, SP_Graphics32, SP_Sound, SP_Main, SP_BaseComponentUnit, SP_ToolTipWindow, SP_3DEngineUnit;
 
 Procedure SP_ChangeBankSize(Index: Integer);
 Begin
@@ -1985,10 +1986,10 @@ Begin
   If Graphic = '' Then
     Error.Code := SP_ERR_INVALID_FRAME
   Else Begin
-    If Length(Graphic) > 10 Then Begin
+    If Length(Graphic) > 12 Then Begin
       tW := pLongWord(@Graphic[1])^;
       tH := pLongWord(@Graphic[5])^;
-      If Length(Graphic) - 10 = tW * tH Then Begin
+      If Length(Graphic) - 12 = tW * tH * Integer(pWord(@Graphic[11])^ Div 8) Then Begin
         Valid := True;
       End;
     End;
@@ -3182,15 +3183,16 @@ Begin
 
 End;
 
-Function  SP_New_GraphicA(Width, Height: Integer; Trans: Word; Var Error: TSP_ErrorCode): Integer;
+Function  SP_New_GraphicA(Width, Height: Integer; Trans: Word; Var Error: TSP_ErrorCode; Depth: Integer = 8): Integer;
 Var
   Bank: pSP_Bank;
   Gfx: pSP_Graphic_Info;
   Idx, BankIdx: Integer;
   PalEntry: LongWord;
+  p32: pLongWord;
 Begin
 
-  // New graphic bank - blank graphic width x height.
+  If Not (Depth In [8, 32]) Then Depth := 8;
 
   Result := SP_NewBank(0);
   BankIdx := SP_FindBankID(Result);
@@ -3199,32 +3201,40 @@ Begin
     Bank := SP_BankList[BankIdx];
     SetLength(Bank^.Info, SizeOf(SP_Graphic_Info));
     Bank^.InfoLength := SizeOf(SP_Graphic_Info);
-    Bank^.DataType := SP_GRAPHIC_BANK;
+    Bank^.DataType   := SP_GRAPHIC_BANK;
     Gfx := @Bank^.Info[0];
-    Gfx^.Width := Width;
-    Gfx^.Height := Height;
-    Gfx^.Transparent := Trans;
-    Gfx^.orgx := 0;
-    Gfx^.orgy := 0;
-    Gfx^.orgw := Gfx^.Width;
-    Gfx^.orgh := Gfx^.Height;
-    Gfx^.clipx1 := 0;
-    Gfx^.clipy1 := 0;
-    Gfx^.clipx2 := Gfx^.Width;
-    Gfx^.clipy2 := Gfx^.Height;
-    Gfx^.scalex := 1;
-    Gfx^.scaley := 1;
-    Gfx^.Depth := 8;
-    SetLength(Bank^.Memory, Width * Height);
-    Gfx^.Data := @Bank^.Memory[0];
+    Gfx^.Width       := Width;
+    Gfx^.Height      := Height;
+    Gfx^.Transparent := IfThen(Depth = 8, Trans, $FFFF);
+    Gfx^.orgx        := 0;    Gfx^.orgy  := 0;
+    Gfx^.orgw        := Gfx^.Width; Gfx^.orgh := Gfx^.Height;
+    Gfx^.clipx1      := 0;    Gfx^.clipy1 := 0;
+    Gfx^.clipx2      := Gfx^.Width; Gfx^.clipy2 := Gfx^.Height;
+    Gfx^.scalex      := 1;    Gfx^.scaley := 1;
+    Gfx^.Depth       := Depth;
 
-    For Idx:= 0 To 255 Do Begin
-      PalEntry := SP_GetPalette(Idx);
-      Gfx^.Palette[Idx].B := (PalEntry Shr 8) And $FF;
-      Gfx^.Palette[Idx].G := (PalEntry Shr 16) And $FF;
-      Gfx^.Palette[Idx].R := (PalEntry Shr 24) And $FF;
+    If Depth = 8 Then Begin
+      SetLength(Bank^.Memory, Width * Height);
+      FillMem(@Bank^.Memory[0], Width * Height, CPAPER);
+      For Idx := 0 To 255 Do Begin
+        PalEntry := SP_GetPalette(Idx);
+        Gfx^.Palette[Idx].B := (PalEntry Shr 8)  And $FF;
+        Gfx^.Palette[Idx].G := (PalEntry Shr 16) And $FF;
+        Gfx^.Palette[Idx].R := (PalEntry Shr 24) And $FF;
+      End;
+    End Else Begin
+      // 32bpp: no palette - pixels are direct BGRA values.
+      // Fill with the BGRA expansion of the current PAPER colour, fully opaque.
+      SetLength(Bank^.Memory, Width * Height * 4);
+      PalEntry := $FF000000 Or (SP_GetPalette(CPAPER) Shr 8);
+      p32 := pLongWord(@Bank^.Memory[0]);
+      For Idx := 0 To Width * Height - 1 Do Begin
+        p32^ := PalEntry;
+        Inc(p32);
+      End;
     End;
 
+    Gfx^.Data := @Bank^.Memory[0];
     SP_GFX_UpdateWindowInfo(Gfx, Bank);
     Result := Bank^.ID;
 
@@ -3239,7 +3249,7 @@ Var
   Width, Height: LongWord;
   PalEntry: LongWord;
   Idx, BankIdx: Integer;
-  Trans: Word;
+  Trans, Depth: Word;
 Begin
 
   // New Graphic bank - use supplied string as a graphic
@@ -3262,9 +3272,10 @@ Begin
       Width := pLongWord(@GraphicStr[1])^;
       Height := pLongWord(@GraphicStr[5])^;
       Trans := pWord(@GraphicStr[9])^;
+      Depth := pWord(@GraphicStr[11])^;
 
-      SetLength(Bank^.Memory, Width * Height);
-      CopyMem(@Bank^.Memory[0], @GraphicStr[11], Width*Height);
+      SetLength(Bank^.Memory, Width * Height * Depth Div 8);
+      CopyMem(@Bank^.Memory[0], @GraphicStr[13], Width * Height * Depth Div 8);
 
       Gfx^.Width := Width;
       Gfx^.Height := Height;
@@ -3288,7 +3299,7 @@ Begin
       Gfx^.clipy2 := Gfx^.Height;
       Gfx^.scalex := 1;
       Gfx^.scaley := 1;
-      Gfx^.Depth := 8;
+      Gfx^.Depth := Depth;
       SP_GFX_UpdateWindowInfo(Gfx, Bank);
 
     End Else
@@ -3302,10 +3313,23 @@ End;
 Function IntLoadImage(Filename: aString): Integer;
 Var
   nError: TSP_ErrorCode;
+  {$IFDEF FPC}Sync: TLoadImageSync;{$ENDIF}
 Begin
   nError.Code := SP_ERR_OK;
+  {$IFNDEF FPC}
   TThread.Synchronize(nil, Procedure Begin CB_Load_Image(Filename, nError); End);
   Result := nError.Code;
+  {$ELSE}
+  Sync := TLoadImageSync.Create;
+  Try
+    Sync.FFilename      := Filename;
+    Sync.FError.Code    := SP_ERR_OK;
+    TThread.Synchronize(nil, Sync.Run);
+    Result := Sync.FError.Code;
+  Finally
+    Sync.Free;
+  End;
+  {$ENDIF}
 End;
 
 Function  SP_New_GraphicC(Filename: aString; Trans: Word; Var Error: TSP_ErrorCode): Integer;
@@ -3336,37 +3360,41 @@ Begin
 
     If Error.Code = SP_ERR_OK Then Begin
 
-      SetLength(Bank^.Memory, ImgWidth * ImgHeight);
-      SrcPtr := ImgPtr;
-      DstPtr := @Bank.Memory[0];
+      Gfx^.Width       := ImgWidth;
+      Gfx^.Height      := ImgHeight;
+      Gfx^.Transparent := IfThen(ImgBpp = 8, Trans, $FFFF);
+      Gfx^.orgx        := 0;    Gfx^.orgy  := 0;
+      Gfx^.orgw        := Gfx^.Width; Gfx^.orgh := Gfx^.Height;
+      Gfx^.clipx1      := 0;    Gfx^.clipy1 := 0;
+      Gfx^.clipx2      := Gfx^.Width; Gfx^.clipy2 := Gfx^.Height;
+      Gfx^.scalex      := 1;    Gfx^.scaley := 1;
+      Gfx^.Depth       := ImgBpp;
 
-      For Idx := 1 To ImgHeight Do Begin
-
-        CopyMem(DstPtr, SrcPtr, ImgWidth);
-        Inc(SrcPtr, ImgStride);
-        Inc(DstPtr, ImgWidth);
-
+      If ImgBpp = 8 Then Begin
+        SetLength(Bank^.Memory, ImgWidth * ImgHeight);
+        SrcPtr := ImgPtr;
+        DstPtr := @Bank^.Memory[0];
+        For Idx := 1 To ImgHeight Do Begin
+          CopyMem(DstPtr, SrcPtr, ImgWidth);
+          Inc(SrcPtr, ImgStride);
+          Inc(DstPtr, ImgWidth);
+        End;
+        For Idx := 0 To 255 Do
+          Gfx^.Palette[Idx] := ImgPalette[Idx];
+      End Else Begin
+        // 32bpp: no palette. ImgStride = ImgWidth * 4 (set by LoadImage).
+        // Transparency is via alpha channel - no colour key stored.
+        SetLength(Bank^.Memory, ImgWidth * ImgHeight * 4);
+        SrcPtr := ImgPtr;
+        DstPtr := @Bank^.Memory[0];
+        For Idx := 1 To ImgHeight Do Begin
+          CopyMem(DstPtr, SrcPtr, ImgWidth * 4);
+          Inc(SrcPtr, ImgStride);
+          Inc(DstPtr, ImgWidth * 4);
+        End;
       End;
 
-      Gfx^.Width := ImgWidth;
-      Gfx^.Height := ImgHeight;
-      Gfx^.Transparent := Trans;
-      Gfx^.orgx := 0;
-      Gfx^.orgy := 0;
-      Gfx^.orgw := Gfx^.Width;
-      Gfx^.orgh := Gfx^.Height;
-      Gfx^.clipx1 := 0;
-      Gfx^.clipy1 := 0;
-      Gfx^.clipx2 := Gfx^.Width;
-      Gfx^.clipy2 := Gfx^.Height;
-      Gfx^.scalex := 1;
-      Gfx^.scaley := 1;
-      Gfx^.Depth := 8;
-      Gfx^.Data := @Bank.Memory[0];
-
-      For Idx:= 0 To 255 Do
-        Gfx^.Palette[Idx] := ImgPalette[Idx];
-
+      Gfx^.Data := @Bank^.Memory[0];
       SP_GFX_UpdateWindowInfo(Gfx, Bank);
 
       CB_Free_Image;
@@ -3408,38 +3436,41 @@ Begin
 
       If Error.Code = SP_ERR_OK Then Begin
 
-        SetLength(Bank^.Memory, ImgWidth * ImgHeight);
-        SrcPtr := ImgPtr;
-        DstPtr := @Bank.Memory[0];
+        Gfx^.Width       := ImgWidth;
+        Gfx^.Height      := ImgHeight;
+        Gfx^.Transparent := IfThen(ImgBpp = 8, Trans, $FFFF);
+        Gfx^.orgx        := 0;    Gfx^.orgy  := 0;
+        Gfx^.orgw        := Gfx^.Width; Gfx^.orgh := Gfx^.Height;
+        Gfx^.clipx1      := 0;    Gfx^.clipy1 := 0;
+        Gfx^.clipx2      := Gfx^.Width; Gfx^.clipy2 := Gfx^.Height;
+        Gfx^.scalex      := 1;    Gfx^.scaley := 1;
+        Gfx^.Depth       := ImgBpp;
 
-        For Idx := 1 To ImgHeight Do Begin
-
-          CopyMem(DstPtr, SrcPtr, ImgWidth);
-          Inc(SrcPtr, ImgStride);
-          Inc(DstPtr, ImgWidth);
-
+        If ImgBpp = 8 Then Begin
+          SetLength(Bank^.Memory, ImgWidth * ImgHeight);
+          SrcPtr := ImgPtr;
+          DstPtr := @Bank^.Memory[0];
+          For Idx := 1 To ImgHeight Do Begin
+            CopyMem(DstPtr, SrcPtr, ImgWidth);
+            Inc(SrcPtr, ImgStride);
+            Inc(DstPtr, ImgWidth);
+          End;
+          For Idx := 0 To 255 Do
+            Gfx^.Palette[Idx] := ImgPalette[Idx];
+        End Else Begin
+          // 32bpp: no palette. ImgStride = ImgWidth * 4 (set by LoadImage).
+          // Transparency is via alpha channel - no colour key stored.
+          SetLength(Bank^.Memory, ImgWidth * ImgHeight * 4);
+          SrcPtr := ImgPtr;
+          DstPtr := @Bank^.Memory[0];
+          For Idx := 1 To ImgHeight Do Begin
+            CopyMem(DstPtr, SrcPtr, ImgWidth * 4);
+            Inc(SrcPtr, ImgStride);
+            Inc(DstPtr, ImgWidth * 4);
+          End;
         End;
 
-        Gfx.Width := ImgWidth;
-        Gfx.Height := ImgHeight;
-        Gfx.Transparent := Trans;
-        Gfx^.orgx := 0;
-        Gfx^.orgy := 0;
-        Gfx^.orgw := Gfx^.Width;
-        Gfx^.orgh := Gfx^.Height;
-        Gfx^.clipx1 := 0;
-        Gfx^.clipy1 := 0;
-        Gfx^.clipx2 := Gfx^.Width;
-        Gfx^.clipy2 := Gfx^.Height;
-        Gfx^.scalex := 1;
-        Gfx^.scaley := 1;
-        Gfx^.Depth := 8;
-        SP_GFX_UpdateWindowInfo(Gfx, Bank);
-        Bank^.Changed := True;
-
-        For Idx:= 0 To 255 Do
-          Gfx^.Palette[Idx] := ImgPalette[Idx];
-
+        Gfx^.Data := @Bank^.Memory[0];
         CB_Free_Image;
 
       End;
@@ -3470,7 +3501,7 @@ Begin
       Gfx := @Bank^.Info[0];
       SetLength(Result, Length(Bank^.Memory));
       CopyMem(@Result[1], @Bank^.Memory[0], Length(Bank^.Memory));
-      Result := LongWordToString(Gfx^.Width) + LongWordToString(Gfx^.Height) + WordToString(Gfx^.Transparent) + Result;
+      Result := LongWordToString(Gfx^.Width) + LongWordToString(Gfx^.Height) + WordToString(Gfx^.Transparent) + WordToString(Gfx^.Depth) + Result;
 
     End Else
       Error.Code := SP_ERR_INVALID_BANK;
@@ -3691,7 +3722,10 @@ Begin
       yP := Round(Y);
       If (Xp < integer(Gfx^.Width)) and (Xp >= 0) and (Yp >= 0) and (Yp < integer(Gfx^.Height)) Then Begin
 
-        Result := pByte(NativeUInt(Gfx^.Data) + LongWord(Xp + (Yp * integer(Gfx^.Width))))^;
+        If Gfx^.Depth = 32 Then
+          Result := Integer(pLongWord(NativeUInt(Gfx^.Data) + LongWord((Xp + (Yp * Integer(Gfx^.Width))) * 4))^)
+        Else
+          Result := pByte(NativeUInt(Gfx^.Data) + LongWord(Xp + (Yp * Integer(Gfx^.Width))))^;
 
       End Else
 
@@ -3738,6 +3772,36 @@ Begin
 
 End;
 
+Procedure SP_SetGraphicPixel32(Id: Integer; X, Y: aFloat; Clr: LongWord; Var Error: TSP_ErrorCode);
+Var
+  Idx: Integer;
+  Bank: pSP_Bank;
+  Gfx: pSP_Graphic_Info;
+  xP, yP: Integer;
+Begin
+
+  Idx := SP_FindBankID(Id);
+  If Idx > -1 Then Begin
+    Bank := SP_BankList[Idx];
+    If Bank^.DataType = SP_GRAPHIC_BANK Then Begin
+      Gfx := @Bank^.Info[0];
+      If Gfx^.Depth <> 32 Then Begin
+        Error.Code := SP_ERR_DEPTH_MISMATCH;
+        Exit;
+      End;
+      SP_ConvertWToOrigin_d(X, Y, @Gfx^.WindowInfo);
+      xP := Round(X);
+      yP := Round(Y);
+      If (xP >= Gfx^.clipx1) And (xP < Gfx^.clipx2) And
+         (yP >= Gfx^.clipy1) And (yP < Gfx^.clipy2) Then
+        pLongWord(NativeUInt(Gfx^.Data) + LongWord((xP + (yP * Integer(Gfx^.Width))) * 4))^ := Clr;
+    End Else
+      Error.Code := SP_ERR_INVALID_BANK;
+  End Else
+    Error.Code := SP_ERR_BANK_NOT_FOUND;
+
+End;
+
 Procedure SP_GFX_UpdateWindowInfo(Var Gfx: pSP_Graphic_Info; Bank: pSP_Bank);
 Var
   Idx: Integer;
@@ -3750,7 +3814,7 @@ Begin
   Gfx^.WindowInfo.ID := 0;
   Gfx^.WindowInfo.Width := Gfx^.Width;
   Gfx^.WindowInfo.Height := Gfx^.Height;
-  Gfx^.WindowInfo.Stride := Gfx^.Width;
+  Gfx^.WindowInfo.Stride := Gfx^.Width * Gfx^.Depth Div 8;
   Gfx^.WindowInfo.Left := 0;
   Gfx^.WindowInfo.Top := 0;
   Gfx^.WindowInfo.FontBankID := FONTBANKID;
@@ -3803,69 +3867,149 @@ Begin
     gW := Gfx^.Width;
     gH := Gfx^.Height;
 
-    If (gw > 119) or (gH > 119) Then Begin
-      If gW > gH Then Begin
-        NewWidth := 119;
-      End Else Begin
+    If (gW > 119) Or (gH > 119) Then Begin
+      If gW > gH Then
+        NewWidth := 119
+      Else
         NewWidth := Trunc(gW * (119/gH));
-      End;
-    End Else Begin
+    End Else
       NewWidth := gW;
+
+    Gfx    := @SP_BankList[gBank]^.Info[0];
+    Scale  := NewWidth / gW;
+
+    If Gfx^.Depth = 32 Then Begin
+
+      // -----------------------------------------------------------------------
+      // 32bpp path: scale, pad, create 32BIT font - no dithering.
+      // -----------------------------------------------------------------------
+      SP_RotAndScaleGfx32(Gfx^.Data, AsciiStr, 0, Scale, Gfx^.Width, Gfx^.Height);
+      NewWidth  := Gfx^.Width;
+      NewHeight := Gfx^.Height;
+
+      // Round up to multiples of 8.
+      If Frac(Gfx^.Width  / 8) > 0 Then Gfx^.Width  := (Trunc(Gfx^.Width  / 8) * 8) + 8
+      Else                                Gfx^.Width  :=  Trunc(Gfx^.Width  / 8) * 8;
+      If Frac(Gfx^.Height / 8) > 0 Then Gfx^.Height := (Trunc(Gfx^.Height / 8) * 8) + 8
+      Else                                Gfx^.Height :=  Trunc(Gfx^.Height / 8) * 8;
+
+      SetLength(SP_BankList[gBank]^.Memory, Gfx^.Width * Gfx^.Height * SizeOf(LongWord));
+      Gfx^.Data := @SP_BankList[gBank]^.Memory[0];
+
+      // Copy scaled pixels into the padded buffer row by row.
+      For Idx := 0 To NewHeight - 1 Do
+        CopyMem(
+          pByte(NativeUInt(Gfx^.Data) + LongWord(Idx * Integer(Gfx^.Width) * SizeOf(LongWord))),
+          @AsciiStr[(Idx * NewWidth * SizeOf(LongWord)) + 1],
+          NewWidth * SizeOf(LongWord));
+
+      // Fill right padding columns with transparent pixels (A=0).
+      If NewWidth < Integer(Gfx^.Width) Then
+        For y := 0 To Gfx^.Height - 1 Do Begin
+          ptr := pByte(NativeUInt(Gfx^.Data) +
+            LongWord((y * Integer(Gfx^.Width) + NewWidth) * SizeOf(LongWord)));
+          FillMem(ptr, (Integer(Gfx^.Width) - NewWidth) * SizeOf(LongWord), 0);
+        End;
+
+      // Fill bottom padding rows with transparent pixels.
+      If NewHeight < Integer(Gfx^.Height) Then Begin
+        ptr := pByte(NativeUInt(Gfx^.Data) +
+          LongWord(NewHeight * Integer(Gfx^.Width) * SizeOf(LongWord)));
+        FillMem(ptr, (Integer(Gfx^.Height) - NewHeight) * Integer(Gfx^.Width) * SizeOf(LongWord), 0);
+      End;
+
+      // Create 32BIT font bank and populate characters.
+      nBank  := SP_Font_Bank_Create(SP_FONT_TYPE_32BIT, 8, 8, $FFFF);
+      nByte  := 33;
+      SetLength(HexStr, 8 * 8 * SizeOf(LongWord));  // 256 bytes per char
+      y := 0;
+      While y < Integer(Gfx^.Height) Do Begin
+        x := 0;
+        While x < Integer(Gfx^.Width) Do Begin
+          // Copy 8 rows of 8 pixels each (32 bytes per row) into HexStr.
+          ptr := pByte(NativeUInt(Gfx^.Data) +
+            LongWord((y * Integer(Gfx^.Width) + x) * SizeOf(LongWord)));
+          For Idx := 0 To 7 Do Begin
+            CopyMem(@HexStr[1 + (Idx * 8 * SizeOf(LongWord))], ptr, 8 * SizeOf(LongWord));
+            Inc(ptr, Gfx^.Width * SizeOf(LongWord));
+          End;
+          SP_Font_Bank_SetChar(nBank, nByte, @HexStr[1]);
+          Inc(x, 8);
+          Inc(nByte);
+        End;
+        Inc(y, 8);
+      End;
+
+      // Space character: fully transparent 8×8 block.
+      FillMem(@HexStr[1], 8 * 8 * SizeOf(LongWord), 0);
+      SP_Font_Bank_SetChar(nBank, 32, @HexStr[1]);
+
+    End Else Begin
+
+      // -----------------------------------------------------------------------
+      // 8bpp path: existing behaviour unchanged.
+      // -----------------------------------------------------------------------
+      SP_RotAndScaleGfx(Gfx^.Data, AsciiStr, 0, Scale, Gfx^.Width, Gfx^.Height,
+                        Gfx^.Transparent, Error);
+      NewWidth  := Gfx^.Width;
+      NewHeight := Gfx^.Height;
+
+      If Frac(Gfx^.Width  / 8) > 0 Then Gfx^.Width  := (Trunc(Gfx^.Width  / 8) * 8) + 8
+      Else                                Gfx^.Width  :=  Trunc(Gfx^.Width  / 8) * 8;
+      If Frac(Gfx^.Height / 8) > 0 Then Gfx^.Height := (Trunc(Gfx^.Height / 8) * 8) + 8
+      Else                                Gfx^.Height :=  Trunc(Gfx^.Height / 8) * 8;
+
+      SetLength(SP_BankList[gBank]^.Memory, Gfx^.Width * Gfx^.Height);
+      Gfx^.Data := @SP_BankList[gBank]^.Memory[0];
+
+      For Idx := 0 To NewHeight - 1 Do
+        CopyMem(
+          pByte(NativeUInt(Gfx^.Data) + LongWord(Idx * Integer(Gfx^.Width))),
+          @AsciiStr[(Idx * NewWidth) + 1],
+          NewWidth);
+
+      If NewWidth < Integer(Gfx^.Width) Then
+        For y := 0 To Gfx^.Height - 1 Do Begin
+          ptr := pByte(NativeUInt(Gfx^.Data) + LongWord((y * Integer(Gfx^.Width)) + NewWidth));
+          For x := NewWidth To Gfx^.Width - 1 Do Begin
+            ptr^ := T_PAPER;
+            Inc(ptr);
+          End;
+        End;
+
+      If NewHeight < Integer(Gfx^.Height) Then
+        For y := NewHeight To Gfx^.Height - 1 Do Begin
+          ptr := pByte(NativeUInt(Gfx^.Data) + LongWord(y * Integer(Gfx^.Width)));
+          For x := 0 To Gfx^.Width - 1 Do Begin
+            ptr^ := T_PAPER;
+            Inc(ptr);
+          End;
+        End;
+
+      nBank  := SP_Font_Bank_Create(SP_FONT_TYPE_COLOUR, 8, 8, Gfx^.Transparent);
+      nByte  := 33;
+      SetLength(HexStr, 64);
+      y := 0;
+      While y < Integer(Gfx^.Height) Do Begin
+        x := 0;
+        While x < Integer(Gfx^.Width) Do Begin
+          ptr := pByte(NativeUInt(Gfx^.Data) + LongWord((y * Integer(Gfx^.Width)) + x));
+          For Idx := 0 To 7 Do Begin
+            CopyMem(@HexStr[1 + (Idx * 8)], ptr, 8);
+            Inc(ptr, Gfx^.Width);
+          End;
+          SP_Font_Bank_SetChar(nBank, nByte, @HexStr[1]);
+          Inc(x, 8);
+          Inc(nByte);
+        End;
+        Inc(y, 8);
+      End;
+
+      HexStr := '';
+      For Idx := 0 To 63 Do HexStr := HexStr + aChar(T_PAPER);
+      SP_Font_Bank_SetChar(nBank, 32, @HexStr[1]);
+
     End;
-
-    Gfx := @SP_BankList[gBank]^.Info[0];
-    Scale := NewWidth/gW;
-    SP_RotAndScaleGfx(Gfx.Data, AsciiStr, 0, Scale, Gfx^.Width, Gfx^.Height, Gfx^.Transparent, Error);
-    NewWidth := Gfx^.Width;
-    NewHeight := Gfx^.Height;
-    If Frac(Gfx^.Width/8) > 0 Then Gfx^.Width := (Trunc(Gfx^.Width/8) * 8) + 8 Else Gfx^.Width := Trunc(Gfx^.Width/8) * 8;
-    If Frac(Gfx^.Height/8) > 0 Then Gfx^.Height := (Trunc(Gfx^.Height/8) * 8) + 8 Else Gfx^.Height := Trunc(Gfx^.Height/8) * 8;
-    SetLength(SP_BankList[gBank]^.Memory, Gfx^.Width * Gfx^.Height);
-    Gfx^.Data := @SP_BankList[gBank]^.Memory[0];
-    For Idx := 0 To NewHeight -1 Do
-      CopyMem(pByte(NativeUInt(Gfx^.Data)+LongWord(Idx * integer(Gfx^.Width))), @AsciiStr[(Idx * NewWidth) +1], NewWidth);
-    SP_Dither_Image(Gfx, 7);
-
-    Output := '';
-    If NewWidth < integer(Gfx^.Width) Then
-      For y := 0 To Gfx^.Height -1 Do Begin
-        ptr := pByte(NativeUInt(Gfx^.Data) + Longword((y * integer(Gfx^.Width)) + NewWidth));
-        For x := NewWidth To Gfx^.Width -1 Do Begin
-          ptr^ := T_PAPER;
-          Inc(ptr);
-        End;
-      End;
-    If NewHeight < integer(Gfx^.Height) Then
-      For y := NewHeight To Gfx^.Height -1 Do Begin
-        ptr := pByte(NativeUInt(Gfx^.Data) + LongWord(y * integer(Gfx^.Width)));
-        For x := 0 To Gfx^.Width -1 Do Begin
-          ptr^ := T_PAPER;
-          Inc(ptr);
-        End;
-      End;
-
-    nBank := SP_Font_Bank_Create(1, 8, 8, Gfx^.Transparent);
-    HexStr := '';
-    nByte := 33;
-    For Idx := 0 To 63 Do HexStr := HexStr + aChar(0);
-    y := 0;
-    While y < integer(Gfx^.Height) Do Begin
-      x := 0;
-      While x < integer(Gfx.Width) Do Begin
-        ptr := pByte(NativeUInt(Gfx^.Data) + LongWord((y * integer(Gfx.Width)) + x));
-        For Idx := 0 To 7 Do Begin
-          CopyMem(@HexStr[1 + (Idx * 8)], ptr, 8);
-          Inc(ptr, Gfx^.Width);
-        End;
-        SP_Font_Bank_SetChar(nBank, nByte, @HexStr[1]);
-        Inc(x, 8);
-        Inc(nByte);
-      End;
-      Inc(y, 8);
-    End;
-    HexStr := '';
-    For Idx := 0 To 63 Do HexStr := HexStr + aChar(T_PAPER);
-    SP_Font_Bank_SetChar(nBank, 32, @HexStr[1]);
 
     x := Gfx^.Width Div 8;
     y := Gfx^.Height Div 8;
@@ -3873,11 +4017,11 @@ Begin
     AsciiStr := '';
     While Length(AsciiStr) < Spacing Do AsciiStr := AsciiStr + ' ';
     Output := Output + AsciiStr;
-    For Idx := 0 To (x * y) -1 Do Begin
+    For Idx := 0 To (x * y) - 1 Do Begin
       If Idx > 0 Then
         If Idx Mod x = 0 Then
           Output := Output + #13 + AsciiStr;
-      Output := OutPut + aChar(Idx + 33);
+      Output := Output + aChar(Idx + 33);
     End;
 
     SP_DeleteBank(gBank, Error);
@@ -3983,10 +4127,10 @@ Begin
   If Gfx = '' Then
     SP_DefaultFill(Gfx, T_INK);
 
-  If Length(Gfx) > 10 Then Begin
+  If Length(Gfx) > 12 Then Begin
     tW := pLongWord(@Gfx[1])^;
     tH := pLongWord(@Gfx[5])^;
-    Valid := Length(Gfx) - 10 = tW * tH;
+    Valid := Length(Gfx) - 12 = tW * tH * Integer(pWord(@Gfx[11])^ Div 8);
   End;
   If Not Valid Then Begin
     Gfx := SP_StringToTexture(Gfx);
@@ -4024,7 +4168,7 @@ Begin
     TMInfo^.MapHeight := MapHeight;
     TMInfo^.TileWidth := TileWidth;
     TMInfo^.TileHeight := TileHeight;
-    TMInfo^.GraphicData := @Bank^.Memory[0];
+    TMInfo^.GraphicData := @Bank^.Memory[12];
     TMInfo^.GraphicWidth := tW;
     TMInfo^.GraphicHeight := tH;
     TMInfo^.GraphicTransparent := Trans;
@@ -4191,10 +4335,12 @@ Begin
   If Graphic = '' Then
     SP_DefaultFill(Graphic, T_INK);
 
-  If Length(Graphic) > 10 Then Begin
+  If Length(Graphic) > 12 Then Begin
     tW := pLongWord(@Graphic[1])^;
     tH := pLongWord(@Graphic[5])^;
-    Valid := Length(Graphic) - 10 = tW * tH;
+    If Length(Graphic) - 12 = tW * tH * Integer(pWord(@Graphic[11])^ Div 8) Then Begin
+      Valid := True;
+    End;
   End;
   If Not Valid Then Begin
     Graphic := SP_StringToTexture(Graphic);
@@ -4251,7 +4397,7 @@ Begin
       TileMap^.NumTilesY := tH Div TileHeight;
       TileMap^.TileWidth := TileWidth;
       TileMap^.TileHeight := TileHeight;
-      TileMap^.GraphicData := @Bank.Memory[0];
+      TileMap^.GraphicData := @Bank.Memory[12];
       TileMap^.GraphicWidth := tW;
       TileMap^.GraphicHeight := tH;
       TileMap^.GraphicTransparent := Trans;
