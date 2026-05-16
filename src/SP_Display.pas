@@ -1202,14 +1202,19 @@ Begin
   Success := (HRes = S_OK) And (TimingInfo.rateRefresh.uiDenominator <> 0);
   If Success Then Begin
     Result := TimingInfo.rateRefresh.uiNumerator / TimingInfo.rateRefresh.uiDenominator;
-    Exit;
+    If Result >= 10 Then Exit;  // only trust it if sane
   End;
   {$ENDIF}
   DeviceMode.dmSize := SizeOf(TDeviceMode);
   FillChar(DeviceMode, DeviceMode.dmSize, 0);
   DeviceMode.dmSize := SizeOf(TDeviceMode);
-  EnumDisplaySettings(nil, ENUM_CURRENT_SETTINGS, {$IFDEF FPC}@DeviceMode{$ELSE}DeviceMode{$ENDIF});
+  EnumDisplaySettings(nil, ENUM_CURRENT_SETTINGS,
+    {$IFDEF FPC}@DeviceMode{$ELSE}DeviceMode{$ENDIF});
   Result := DeviceMode.dmDisplayFrequency;
+
+  // Guard against zero/invalid return (Win7 RDP, some VM drivers, Aero off)
+  If Result < 10 Then
+    Result := 50;
 End;
 
 function TestScreenResolution(Width, Height: Integer; FullScreen: Boolean): Boolean;

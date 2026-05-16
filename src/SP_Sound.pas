@@ -420,6 +420,7 @@ Var
   Idx: Integer;
   Val, oVal: Byte;
   Channel: HChannel;
+  TargetTicks: aFloat;
 Begin
 
   If SoundEnabled Then Begin
@@ -446,12 +447,13 @@ Begin
     End;
     Channel := SP_Sample_Play(SIGSAMPLEBANK, -1, '', 0, CLICKVOL, 0, Error);
     SoundEnabled := (BASS_ErrorGetCode = 0) And SoundEnabled;
-    If SoundEnabled Then
+    If SoundEnabled And (Channel <> 0) Then Begin
+      TargetTicks := CB_GetTicks + 2000; // 2 second safety timeout
       Repeat
         CB_YIELD(0.1);
-      Until BASS_ChannelGetPosition(Channel, BASS_POS_BYTE) >= 0;
+      Until (BASS_ChannelGetPosition(Channel, BASS_POS_BYTE) >= 0) Or (CB_GetTicks > TargetTicks) Or QUITMSG;
+    End;
   End;
-
 End;
 
 Procedure SP_UpdateSampleSize(Bank: pSP_Bank);

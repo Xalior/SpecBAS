@@ -3032,11 +3032,11 @@ Begin
             Inten := 1.0;
           If (Face^.Flags And SP3D_FACE_GOURAUD) <> 0 Then Begin
             With pSP_3DVertex(NativeUInt(VBase) + LongWord(Face^.V0)*SizeOf(TSP_3DVertex))^ Do
-              BaseC0 := SP3D_BasePal32[Byte(ResolveVertexColour(Colour, (Flags And SP3D_VERTEX_DEFAULTCOLOUR) <> 0, Face^.Colour, Inst))];
+              BaseC0 := ResolveVertexColour(Colour, (Flags And SP3D_VERTEX_DEFAULTCOLOUR) <> 0, Face^.Colour, Inst);
             With pSP_3DVertex(NativeUInt(VBase) + LongWord(Face^.V1)*SizeOf(TSP_3DVertex))^ Do
-              BaseC1 := SP3D_BasePal32[Byte(ResolveVertexColour(Colour, (Flags And SP3D_VERTEX_DEFAULTCOLOUR) <> 0, Face^.Colour, Inst))];
+              BaseC1 := ResolveVertexColour(Colour, (Flags And SP3D_VERTEX_DEFAULTCOLOUR) <> 0, Face^.Colour, Inst);
             With pSP_3DVertex(NativeUInt(VBase) + LongWord(Face^.V2)*SizeOf(TSP_3DVertex))^ Do
-              BaseC2 := SP3D_BasePal32[Byte(ResolveVertexColour(Colour, (Flags And SP3D_VERTEX_DEFAULTCOLOUR) <> 0, Face^.Colour, Inst))];
+              BaseC2 := ResolveVertexColour(Colour, (Flags And SP3D_VERTEX_DEFAULTCOLOUR) <> 0, Face^.Colour, Inst);
             If SP3D_Light_Active Then Begin
               VDot := -(SP3D_TransNormals[Face^.V0].NX*SP3D_Light_DX + SP3D_TransNormals[Face^.V0].NY*SP3D_Light_DY + SP3D_TransNormals[Face^.V0].NZ*SP3D_Light_DZ);
               If VDot < 0 Then VDot := 0;
@@ -3161,7 +3161,7 @@ Begin
             RF^.Textured  := False;
             RF^.TranspIdx := -1;
             If Not RF^.Gouraud Then
-              RF^.Colour := SP3D_BasePal32[Byte(ResolveColour(Face^.Colour, (Face^.Flags And SP3D_FACE_DEFAULTCOLOUR) <> 0, Inst))];
+              RF^.Colour := ResolveColour(Face^.Colour, (Face^.Flags And SP3D_FACE_DEFAULTCOLOUR) <> 0, Inst);
             RF^.IntenF  := Inten;
             RF^.IntenIR := Round(Inten * SP3D_Light_R * 256);
             RF^.IntenIG := Round(Inten * SP3D_Light_G * 256);
@@ -3278,7 +3278,7 @@ Begin
           RF^.SX[0] := SX0; RF^.SY[0] := SY0;
           RF^.SX[1] := SX1; RF^.SY[1] := SY1;
           RF^.SX[2] := SX2; RF^.SY[2] := SY2;
-          RF^.Colour := SP3D_BasePal32[Byte(CPAPER)];
+          RF^.Colour := CPAPER;
           RF^.IntenF := 1.0;
           RF^.FogI := 0;
           RasterFlat32(RF, SurfPtr, Stride, ClipX1, ClipY1, ClipX2, ClipY2);
@@ -3303,7 +3303,7 @@ Begin
           If Edge^.F1 >= 0 Then
           WireIntenF := (WireIntenF + SP3D_FaceIntenF[Edge^.F1]) * 0.5;
         End;
-        WireColour32 := ApplyInten32(SP3D_BasePal32[Byte(ResolveColour(SrcVtx^.Colour, (SrcVtx^.Flags And SP3D_VERTEX_DEFAULTCOLOUR) <> 0, Inst))], WireIntenF);
+        WireColour32 := ApplyInten32(ResolveColour(SrcVtx^.Colour, (SrcVtx^.Flags And SP3D_VERTEX_DEFAULTCOLOUR) <> 0, Inst), WireIntenF);
 
         ECX0 := SP3D_TransVerts[Edge^.V0].X;  ECY0 := SP3D_TransVerts[Edge^.V0].Y;  ECZ0 := SP3D_TransVerts[Edge^.V0].Z;
         ECX1 := SP3D_TransVerts[Edge^.V1].X;  ECY1 := SP3D_TransVerts[Edge^.V1].Y;  ECZ1 := SP3D_TransVerts[Edge^.V1].Z;
