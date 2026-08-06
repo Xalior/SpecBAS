@@ -64,6 +64,7 @@ SP_PopupMenu = Class(SP_BaseComponent)
     fShortcutLen: Integer;
     fCapOfs: Integer;
     fMenuClr: Byte;
+    fMouseIn: Boolean;
 
     Compiled_OnSelect,
     User_OnSelect: aString;
@@ -82,6 +83,7 @@ SP_PopupMenu = Class(SP_BaseComponent)
     Procedure MouseUp(Sender: SP_BaseComponent; X, Y, Btn: Integer); Override;
     Procedure MouseMove(Sender: SP_BaseComponent; X, Y, Btn: Integer); Override;
     Procedure MouseLeave; Override;
+    Procedure MouseEnter(X, Y: Integer); Override;
     Function  ItemAtPos(x, y: Integer): Integer;
     Procedure SetItemCaption(Index: Integer; Caption: aString);
     Function  GetItemCaption(Index: Integer): aString;
@@ -147,7 +149,8 @@ Function ShortCutToString(i: Integer): aString;
 
 implementation
 
-Uses Math, SP_WindowMenuUnit, SP_BankManager, SP_BankFiling, SP_Components, SP_Graphics, SP_Input, SP_SysVars, SP_Sound, SP_FPEditor, SP_Tokenise, SP_Interpret_PostFix;
+Uses Math, SP_WindowMenuUnit, SP_BankManager, SP_BankFiling, SP_Components, SP_Graphics, SP_Input,
+     SP_SysVars, SP_Sound, SP_Tokenise, SP_Interpret_PostFix;
 
 // SP_PopupMenu
 
@@ -576,6 +579,7 @@ Begin
 
   Old := fSelected;
   If PtInRect(Rect(0, 0, fWidth, fHeight), Point(X, Y)) Then Begin
+    fMouseIn := True;
     i := ItemAtPos(X, Y);
     If i >= 0 Then Begin // Hovering an item inside this menu
       Lock;
@@ -620,8 +624,17 @@ Begin
   SubOpen := False;
   For i := 0 To Length(fItems) -1 Do
     SubOpen := SubOpen or (Assigned(fItems[i].SubMenu) And fItems[i].SubMenu.Visible);
-  If Not SubOpen Then
+  If Not SubOpen And fMouseIn Then
     CancelSelection;
+  fMouseIn := False;
+
+End;
+
+Procedure SP_PopUpMenu.MouseEnter(X, Y: integer);
+Begin
+
+  fMouseIn := True;
+  Inherited;
 
 End;
 
@@ -772,7 +785,6 @@ Begin
   If Assigned(OnPopUp) Then
     OnPopup(Self);
 
-  CancelSelection;
   BringToFront;
   SetFocus(True);
   Visible := True;

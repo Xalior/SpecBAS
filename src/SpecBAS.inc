@@ -11,7 +11,9 @@
 {$RTTI EXPLICIT METHODS([]) PROPERTIES([]) FIELDS([])}
 {$ENDIF}
 {$IF DEFINED(WINDOWS) AND DEFINED(FPC)}
-//  {$DEFINE OPENGL}
+  {$DEFINE OPENGL}
 {$ENDIF}
+//{$DEFINE RUNTIMEONLY}  // passed on command line to build "rt"
+//{$DEFINE DEBUGPAYLOAD} // Debugging the compiler
 //{$DEFINE RefreshThread}
 

@@ -40,8 +40,15 @@ Type
 
 Var
 
+  // Tools
+  ToolWindowDone: Boolean;
+  ToolStrResult: aString;
+  ToolMode: NativeInt;
+
   // System-wide sysvars
 
+  FPWINDOWID:               Integer;
+  DWWINDOWID:               Integer;
   EXENAME:                  String;       // Yes a string, not ansistring. Don't worry about it.
   PAYLOADPRESENT:           Boolean;
   PCOUNT:                   Integer;      // Number of parameters on command line
@@ -511,6 +518,9 @@ Const
   SS_NEW =              6;
   SS_DIRECT =           7;
   SS_EVALUATE =         8;
+
+  fwNone =       -1;
+  fwDebugPanel = -2;
 
   BlockGraphics: Array[0..127] of Byte =
     (0, 0, 0, 0, 0, 0, 0, 0,
@@ -1506,9 +1516,8 @@ Const
    spPopUpMenu = 13;
    spSlider = 14;
    spMemo = 15;
-   spBASIC = 16;
 
-   SP_Constants: Array[0..134] of TConstant =
+   SP_Constants: Array[0..133] of TConstant =
    ((Name: 'TRUE'; Value: 1),
     (Name: 'FALSE'; Value: 0),
 
@@ -1648,9 +1657,7 @@ Const
     (Name: 'SPMENU'; Value: spWindowMenu),
     (Name: 'SPSUBMENU'; Value: spPopUpMenu),
     (Name: 'SPSLIDER'; Value: spSlider),
-    (Name: 'SPMEMO'; Value: spMemo),
-    (Name: 'SPBASIC'; Value: spBASIC)
-    );
+    (Name: 'SPMEMO'; Value: spMemo));
 
   SysVars: Array[0..260] of TSysVar =
   ((Name: 'BUILDSTR'; svType: svString; Size: 0; Data: @BUILDSTR),
@@ -1927,7 +1934,7 @@ Const
 
 implementation
 
-Uses SP_Editor, SP_BankManager;
+Uses SP_BankManager;
 
 Function SP_FindSysVar(Var ID: aString): Integer;
 Begin
@@ -2115,5 +2122,14 @@ Initialization
   CIRCLEASPECT := False;
   SHOWFPS := False;
   FPSHISTSIZE := 64;
+
+  // Window decor colours
+
+  winBack     := 7;                                    // Default window background colour for dialogs etc
+  capBack     := 228;                                  // Caption bar colour
+  winBorder   := 0;                                    // Window border colour
+  capText     := 15;                                   // Caption active text
+  capInactive := 240;                                  // Caption inactive text
+  gripClr     := 0;                                    // Text colour of the sizegrip for resizeable windows
 
 end.

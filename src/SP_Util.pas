@@ -50,6 +50,7 @@ Type
 
 Procedure LogError(const Msg: aString);
 
+Function  SafeRound(d: Double): Integer; inline;
 Procedure Delay(ms: Integer);
 {$IFDEF FPC}
 Function  IntersectRect(R1, R2: TRect): Boolean;
@@ -59,6 +60,7 @@ Function  Pos(Const SubStr: aChar; s: aString; StartAt: Integer = 1): Integer; O
 Function  ReadLinuxFile(Filename: aString): aString;
 Procedure WriteLinuxFile(Filename, Value: aString);
 Function  GetCRC32FromString(Str: aString): LongWord;
+Procedure SP_ReplaceAll(Const Host, Find, Rep: aString; var OutStr: aString);
 Function  SP_Copy(Const Src: aString; Start, Len: Integer): aString; overload; inline;
 Function  SP_Copy(Const Src: aString; Start: Integer): aString; overload; inline;
 Function  SP_CopyClrs(Const Src: aString; Start, Len: Integer): aString;
@@ -237,6 +239,18 @@ Begin
   CloseFile(lxFile);
 End;
 
+Function SafeRound(d: Double): Integer; inline;
+Begin
+  If IsNaN(d) Or IsInfinite(d) Then
+    Result := 0
+  Else If d > MaxInt Then
+    Result := MaxInt
+  Else If d < -MaxInt Then
+    Result := -MaxInt
+  Else
+    Result := Round(d);
+End;
+
 Function NumToText(Number: Integer): aString;
 Begin
 
@@ -335,6 +349,49 @@ Begin
   End;
   Result := CRCValue;
 End;
+
+Procedure SP_ReplaceAll(Const Host, Find, Rep: aString; var OutStr: aString);
+var
+  hLen, rLen, fLen, cnt: Integer;
+  src, dst, dStart, rPtr, dPtr, fPtr1, fPtr2, hostEnd: pByte;
+begin
+  hLen := Length(Host);
+  rLen := Length(Rep);
+  fLen := Length(Find);
+  SetLength(OutStr, Max(hLen * rLen, hLen));
+  dst := pByte(pNativeUInt(@OutStr)^);
+  src := pByte(pNativeUInt(@Host)^);
+  dStart := dst;
+  rPtr := pByte(pNativeUint(@Rep)^);
+  fPtr1 := pByte(pNativeUInt(@Find)^);
+  fPtr2 := fPtr1;
+  hostEnd := pByte(NativeUInt(src) + hLen);
+  cnt := 0;
+  While src < hostEnd do Begin
+    dst^ := src^;
+    If src^ = fPtr2^ Then Begin
+      Inc(src);
+      Inc(dst);
+      Inc(cnt);
+      Inc(fPtr2);
+      if cnt = fLen then Begin
+        dPtr := pByte(NativeUInt(dst) - cnt);
+        Move(rPtr^, dPtr^, rLen);
+        dst := pByte(NativeUInt(dPtr) + rLen);
+        cnt := 0;
+        fPtr2 := fPtr1;
+      End Else
+        If src^ <> fPtr2^ then Begin
+          cnt := 0;
+          fPtr2 := fPtr1;
+        End;
+    End Else Begin
+      Inc(src);
+      Inc(dst);
+    End;
+  End;
+  SetLength(OutStr, NativeUInt(dst) - NativeUint(dStart));
+end;
 
 Function  StrPosPtr(Const Str: paString; Position: Integer): Pointer; inline;
 Begin

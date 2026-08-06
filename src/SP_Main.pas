@@ -38,7 +38,8 @@ Uses
   Math, Classes, SysUtils, SP_Graphics32,
   SP_Graphics, SP_SysVars, SP_Input, SP_Errors, SP_Util, SP_Tokenise,
   SP_InfixToPostFix, SP_Interpret_PostFix, SP_Variables, SP_BankManager,
-  SP_FileIO, SP_Sound, SP_Editor, SP_PreRun, SyncObjs, SP_EditorTabsUnit;
+  SP_FileIO, SP_Sound, SP_Editor, SP_PreRun, SyncObjs
+  {$IFNDEF RUNTIMEONLY}, SP_EditorTabsUnit{$ENDIF};
 
 Type
 
@@ -54,7 +55,9 @@ Type
   TCB_GeneralProc = Procedure;
 
 Function  SP_FrameUpdate: Boolean;
+{$IFNDEF RUNTIMEONLY}
 Procedure DoAutoSave(SaveOLD: Boolean = False);
+{$ENDIF}
 Procedure SP_MainLoop;
 Procedure SP_CleanUp;
 Function  SP_TestScroll(Height: Integer; var Error: TSP_ErrorCode): Boolean;
@@ -134,6 +137,7 @@ Begin
 
 End;
 
+{$IFNDEF RUNTIMEONLY}
 Procedure DoAutoSave(SaveOLD: Boolean = False);
 Var
   Error:      TSP_ERRORCODE;
@@ -196,6 +200,7 @@ Begin
     FileSection.Leave;
   End;
 End;
+{$ENDIF}
 
 Procedure SP_MainLoop;
 Var

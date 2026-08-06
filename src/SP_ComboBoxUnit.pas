@@ -104,7 +104,7 @@ End;
 
 implementation
 
-Uses Math, SP_Interpret_PostFix, SP_Input, SP_Sound;
+Uses Math, SP_Interpret_PostFix, SP_Sound, SP_Input;
 
 // SP_Combobox
 
@@ -379,7 +379,7 @@ Begin
   Edit.Shadow := False;
 
   Edit.SetBounds(2, 2, Width - Height -3, Height -1);
-  Labl.SetBounds(spcW, 1, Width - Height - spcW -1, Height -2);
+  Labl.SetBounds(spcW + 1, 1, Width - Height - spcW -2, Height -2);
 
   Edit.Visible := Editable;
   Labl.Visible := Not Editable;
@@ -401,6 +401,8 @@ Begin
 
   If Menu.fCount > 0 Then Begin
     Menu.Proportional := Proportional;
+    If fItemIndex >= 0 Then
+      Menu.SelectItem(fItemIndex, False);
     Menu.PopUp(Left, Top + Height + (Ord(Not fBorder) * 2) -1);
   End;
 
@@ -431,12 +433,14 @@ End;
 Procedure SP_ComboBox.OnMenuSelect(Sender: SP_BaseComponent; ItemIndex: Integer);
 begin
 
+  fItemIndex := Menu.fSelected;
   Text := Menu.fItems[Menu.fSelected].Caption;
   If Editable Then Begin
     Edit.SetFocus(True);
     Edit.SelectAll;
   End Else
     SetFocus(True);
+  EditAccept(Self, Edit.Text);
 
 end;
 
@@ -517,6 +521,7 @@ End;
 Procedure SP_ComboBox.EditAccept;
 begin
 
+  Edit.SetFocus(False);
   If Assigned(fOnAccept) Then
     fOnAccept(Self, Edit.Text);
   If Compiled_OnAccept <> '' Then

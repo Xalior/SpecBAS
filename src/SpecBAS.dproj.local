@@ -37,6 +37,10 @@
     <Transaction>2026/04/13 14:54:41.000.486,=D:\Projects\SpecBAS\src\Unit1.pas</Transaction>
     <Transaction>2026/04/13 14:55:09.000.196,D:\Projects\SpecBAS\src\Unit1.pas=D:\Projects\SpecBAS\src\SP_AmigaNarrator.pas</Transaction>
     <Transaction>2026/04/14 14:11:58.000.115,D:\Projects\SpecBAS\src\SP_AmigaNarrator.pas=</Transaction>
+    <Transaction>2026/05/16 15:43:09.000.615,=D:\Projects\SpecBAS\src\Unit1.pas</Transaction>
+    <Transaction>2026/05/16 15:43:23.000.400,D:\Projects\SpecBAS\src\SP_Debugging.pas=D:\Projects\SpecBAS\src\Unit1.pas</Transaction>
+    <Transaction>2026/05/16 15:50:50.000.633,=D:\Projects\SpecBAS\src\Unit1.pas</Transaction>
+    <Transaction>2026/05/16 15:51:24.000.543,D:\Projects\SpecBAS\src\SP_Execute.pas=D:\Projects\SpecBAS\src\Unit1.pas</Transaction>
   </Transactions>
 	<ProjectSortOrder AutoSort="0" SortType="0">
     <File Path="MainForm.pas"/>

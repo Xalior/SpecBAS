@@ -129,6 +129,8 @@ Type
   Function  SP_Add_Window(Left, Top, Width, Height, TransIdx, Bpp, Alpha: Integer; Var Error: TSP_ErrorCode): Integer;
   Procedure SP_SetWindowVisible(WindowID: Integer; Vis: Boolean; Error: TSP_ErrorCode);
   Procedure SP_SetWindowShadow(WindowID: Integer; Enabled: Boolean; ShadowSize: Integer = 0; ShadowAlpha: Integer = 0);
+  Procedure SP_Decorate_User_Window(WindowID: Integer);
+  Procedure SP_DrawStripe(Dst: pByte; Width, StripeWidth, StripeHeight, BatteryLevel: Integer; Focused: Boolean);
   Procedure SwitchFocusedWindow(ID: Integer);
 
   Function  SP_Program_Bank_Create(Name: aString): Integer;
@@ -222,7 +224,8 @@ Var
 
 implementation
 
-Uses MainForm, SP_FPEditor, SP_BASICEditorHostUnit, SP_Graphics, SP_Graphics32, SP_Sound, SP_Main, SP_BaseComponentUnit, SP_ToolTipWindow, SP_3DEngineUnit;
+Uses MainForm, {$IFNDEF RUNTIMEONLY}SP_FPEditor, SP_BASICEditorHostUnit, SP_ToolTipWindow, {$ENDIF}
+     SP_Graphics, SP_Graphics32, SP_Sound, SP_Main, SP_BaseComponentUnit, SP_3DEngineUnit;
 
 Procedure SP_ChangeBankSize(Index: Integer);
 Begin
@@ -617,6 +620,18 @@ Begin
       If (FocusedWindow = SP_BankList[Index]^.ID) And (SP_BankList[Index]^.DataType = SP_WINDOW_BANK) Then
         SwitchFocusedWindow(pSP_Window_Info(@SP_BankList[Index]^.Info[0])^.PrevWin);
 
+      // aString fields embedded inside Bank^.Info (a raw byte array) are invisible
+      // to the compiler's reference counting. Release them explicitly here, before
+      // Dispose frees the raw memory, to prevent heap leaks.
+      Case SP_BankList[Index]^.DataType Of
+        SP_WINDOW_BANK:
+          pSP_Window_Info(@SP_BankList[Index]^.Info[0])^.Caption := '';
+        SP_GRAPHIC_BANK:
+          pSP_Graphic_Info(@SP_BankList[Index]^.Info[0])^.WindowInfo.Caption := '';
+        SP_PROGRAM_BANK:
+          pSP_Program_Info(@SP_BankList[Index]^.Info[0])^.Name := '';
+      End;
+
       Dispose(SP_BankList[Index]);
       For Idx := Index To Length(SP_BankList) -2 Do
         SP_BankList[Idx] := SP_BankList[Idx +1];
@@ -661,6 +676,11 @@ Begin
           SP_RemoveSpriteFromWindowList(Sprite);
           If Sprite^.Enabled Then Dec(NUMSPRITES);
         End;
+        Case SP_BankList[Idx]^.DataType Of
+          SP_WINDOW_BANK:  pSP_Window_Info(@SP_BankList[Idx]^.Info[0])^.Caption := '';
+          SP_GRAPHIC_BANK: pSP_Graphic_Info(@SP_BankList[Idx]^.Info[0])^.WindowInfo.Caption := '';
+          SP_PROGRAM_BANK: pSP_Program_Info(@SP_BankList[Idx]^.Info[0])^.Name := '';
+        End;
         Dispose(SP_BankList[Idx]);
         For i := Idx To Length(SP_BankList) -2 Do
           SP_BankList[i] := SP_BankList[i +1];
@@ -675,8 +695,14 @@ Begin
       NUMBANKS := 0;
       NUMSPRITES := 0;
       pSP_Window_Info(@SP_BankList[0]^.Info[0]).Component.Free;
-      For Idx := 0 To Length(SP_BankList) -1 Do
+      For Idx := 0 To Length(SP_BankList) -1 Do Begin
+        Case SP_BankList[Idx]^.DataType Of
+          SP_WINDOW_BANK:  pSP_Window_Info(@SP_BankList[Idx]^.Info[0])^.Caption := '';
+          SP_GRAPHIC_BANK: pSP_Graphic_Info(@SP_BankList[Idx]^.Info[0])^.WindowInfo.Caption := '';
+          SP_PROGRAM_BANK: pSP_Program_Info(@SP_BankList[Idx]^.Info[0])^.Name := '';
+        End;
         Dispose(SP_BankList[Idx]);
+      End;
       SetLength(SP_BankList, 0);
     End;
 
@@ -1377,9 +1403,11 @@ Begin
   If FocusedWindow <> ID Then
     SP_InvalidateWindow(FocusedWindow, Error);
   FocusedWindow := ID;
+  {$IFNDEF RUNTIMEONLY}
   If TipWindowActive Then Exit;
   If Assigned(FPBASICEditor) And (FocusedWindow <> FPWindowID) Then
     FPBASICEditor.SetFocus(False);
+  {$ENDIF}
   // Redecorate the newly-focused window
   SP_InvalidateWindow(ID, Error);
 End;
@@ -1450,6 +1478,131 @@ Begin
   Inc(NUMWINDOWS);
 
   DisplaySection.Leave;
+
+End;
+
+Procedure SP_Decorate_User_Window(WindowID: Integer);
+Var
+  Win: pSP_Window_Info;
+  Err: TSP_ErrorCode;
+  SaveWindow: Integer;
+  Sp, i, FB: Integer;
+  iFPFh, iFPFw: Integer;
+  iEdSc, s: aString;
+  Stroke, Scale: aFloat;
+  Focused: Boolean;
+Begin
+
+  SP_GetWindowDetails(WindowID, Win, Err);
+  If Not Assigned(Win) Or Not Win^.Decorated Then Exit;
+
+  SaveWindow := SCREENBANK;
+  Focused    := (FocusedWindow = WindowID) or (MODALWINDOW = WindowID);
+
+  If SYSTEMSTATE In [SS_EDITOR, SS_DIRECT, SS_NEW, SS_ERROR] Then Begin
+    FB    := EDITORFONT;
+    iFPFW := Trunc(EDFONTWIDTH  * EDFONTSCALEX);
+    iFPFH := Trunc(EDFONTHEIGHT * EDFONTSCALEY);
+    iEdSc := #25 + aFloatToString(EDFONTSCALEX) + aFloatToString(EDFONTSCALEY);
+    Scale := EDFONTSCALEX;
+  End Else Begin
+    FB    := FONTBANKID;
+    iFPFH := Round(FONTHEIGHT * T_SCALEY);
+    iFPFW := Round(FONTWIDTH  * T_SCALEX);
+    iEdSc := #25 + aFloatToString(T_SCALEX) + aFloatToString(T_SCALEY);
+    Scale := T_SCALEX;
+  End;
+  T_FONT := FB;
+
+  SP_SetDrawingWindow(WindowID);
+
+  T_INK    := capBack;
+  T_OVER   := 0;
+  T_BOLD   := 0;
+  T_CLIPX1 := 0;
+  T_CLIPX2 := Win^.Width;
+  T_CLIPY1 := 0;
+  T_CLIPY2 := Win^.Height;
+  Win^.Transparent := 11;
+
+  // Caption bar fill
+  SP_FillRect(0, 0, Win^.Width, iFPFH + 2, capBack);
+
+  // Truncate title to fit available width (same calc as SP_Decorate_Window)
+  Sp := Win^.Width - ((iFPFW * 4)) - iFPFH * 2 - iFPFW;
+  s  := '';
+  i  := 1;
+  While (i <= Length(Win^.Caption)) And (Round(SP_GetPropTextWidth(T_FONT, s, '') * Scale) < Sp) Do Begin
+    s := s + Win^.Caption[i];
+    Inc(i);
+  End;
+
+  Stroke   := T_STROKE;
+  T_STROKE := 1;
+
+  // Border rectangle
+  T_INK := 0;
+  SP_DrawRectangle(0, 0, Win^.Width - 1, Win^.Height - 1);
+
+  // Caption text
+  If Focused Then
+    SP_TextOut(FB, iFPFW Div 2, 1, iEdSc + s, capText,     capBack, True)
+  Else
+    SP_TextOut(FB, iFPFW Div 2, 1, iEdSc + s, capInactive, capBack, True);
+
+  // Clear top corners to transparent
+  SP_SetPixelClr(0,             0, 11);
+  SP_SetPixelClr(Win^.Width -1, 0, 11);
+
+  // Stripe
+  SP_DrawStripe(Win^.Surface, Win^.Width, iFPFW, iFPFH, 100, Focused);
+
+  // Size grip
+  If Win^.Resizable Then Begin
+    T_STROKE := Stroke;
+    SP_TextOut(FB, Win^.Width - (iFPFW + 2), Win^.Height - (iFPFH + 2),
+               #25 + aFloatToString(1) + aFloatToString(1) + #250,
+               gripClr, -1, False);
+  End;
+
+  SP_SetDirtyRect(Win^.Left, Win^.Top,
+                  Win^.Left + Win^.Width - 1, Win^.Top + Win^.Height);
+
+  SP_SetDrawingWindow(SaveWindow);
+  T_STROKE := Stroke;
+
+End;
+
+Procedure SP_DrawStripe(Dst: pByte; Width, StripeWidth, StripeHeight, BatteryLevel: Integer; Focused: Boolean);
+Var
+  X, Y, X2, i, bw, sw: Integer;
+  oPtr: pByte;
+Const
+  ClrsFocused: Array[0..3] of Byte   = (2, 6, 4, 5);
+  ClrsUnFocused: Array[0..3] of Byte = (238, 252, 246, 243); //(231, 245, 238, 241);
+Begin
+
+  sw := StripeWidth * 5;
+  X := Width - sw - StripeHeight;
+  {$IFNDEF RUNTIMEONLY}
+  FPStripePos := X;
+  {$ENDIF}
+  oPtr := pByte(NativeUInt(Dst) + (Width * StripeHeight) + X);
+
+  bw := Round((BatteryLevel / 100) * (sw -2));
+
+  For Y := StripeHeight DownTo 1 Do Begin
+    For X2 := X to X + (StripeWidth * 4) -1 Do Begin
+      i := (X2 - X) Div StripeWidth;
+      If ((Y = StripeHeight) or (Y = 1) or (X2 = X) or (X2 = X + SW -1)) or (X2 < bw + X + 1) Then
+        If Focused Then
+          oPtr^ := ClrsFocused[i] + (8 * Ord(i < 4))
+        Else
+          oPtr^ := ClrsUnFocused[i];
+      inc(oPtr);
+    End;
+    Dec(oPtr, Width + (StripeWidth * 4) - ({y and }1)); // change "(y and 1)" to "1" for 45 degree stripes
+  End;
 
 End;
 
@@ -2120,7 +2273,7 @@ Begin
     FrameW := pLongWord(StrPtr)^;
     Inc(StrPtr, SizeOf(LongWord));
     FrameH := pLongWord(StrPtr)^;
-    Inc(StrPtr, SizeOf(LongWord) + SizeOf(Word));
+    Inc(StrPtr, SizeOf(LongWord) + SizeOf(Word) + SizeOf(Word)); // skip H + Trans + bpp
     While FrameIdx <> FrameNum Do Begin
       Inc(FrameIdx);
       Inc(StrPtr, FrameW * FrameH);
@@ -2128,10 +2281,10 @@ Begin
       FrameW := pLongWord(StrPtr)^;
       Inc(StrPtr, SizeOf(LongWord));
       FrameH := pLongWord(StrPtr)^;
-      Inc(StrPtr, SizeOf(LongWord) + SizeOf(Word));
+      Inc(StrPtr, SizeOf(LongWord) + SizeOf(Word) + SizeOf(Word)); // skip H + Trans + bpp
     End;
-    Dec(StrPtr, (SizeOf(LongWord) * 3) + SizeOf(Word));
-    StrLen := (FrameW * FrameH) + (SizeOf(LongWord) * 3) + SizeOf(Word);
+    Dec(StrPtr, (SizeOf(LongWord) * 3) + SizeOf(Word) + SizeOf(Word)); // back over Delay + W + H + Trans + bpp
+    StrLen := (FrameW * FrameH) + (SizeOf(LongWord) * 3) + SizeOf(Word) + SizeOf(Word); // Delay + W + H + Trans + bpp + pixels
   End;
 
 End;
@@ -2157,7 +2310,7 @@ Begin
       FrameW := pLongWord(StrPtr)^;
       Inc(StrPtr, SizeOf(LongWord));
       FrameH := pLongWord(StrPtr)^;
-      Inc(StrPtr, SizeOf(LongWord) + SizeOf(Word));
+      Inc(StrPtr, SizeOf(LongWord) + SizeOf(Word) + SizeOf(Word)); // skip H + Trans + bpp
       While FrameIdx < Frame Do Begin
         Inc(FrameIdx);
         Inc(StrPtr, FrameW * FrameH);
@@ -2165,9 +2318,9 @@ Begin
         FrameW := pLongWord(StrPtr)^;
         Inc(StrPtr, SizeOf(LongWord));
         FrameH := pLongWord(StrPtr)^;
-        Inc(StrPtr, SizeOf(LongWord) + SizeOf(Word));
+        Inc(StrPtr, SizeOf(LongWord) + SizeOf(Word) + SizeOf(Word)); // skip H + Trans + bpp
       End;
-      Dec(StrPtr, (SizeOf(LongWord) * 3) + SizeOf(Word));
+      Dec(StrPtr, (SizeOf(LongWord) * 3) + SizeOf(Word) + SizeOf(Word)); // back over Delay + W + H + Trans + bpp
       Result := NativeUInt(StrPtr) - NativeUInt(Sprite^.Data);
     End Else
       Error.Code := SP_ERR_EMPTY_SPRITE;
@@ -2323,7 +2476,7 @@ Begin
       fW := pLongWord(SrcPtr)^;
       Inc(SrcPtr, SizeOf(LongWord));
       fH := pLongWord(SrcPtr)^;
-      Inc(SrcPtr, SizeOf(LongWord) + SizeOf(Word));
+      Inc(SrcPtr, SizeOf(LongWord) + SizeOf(Word) + SizeOf(Word)); // skip H + Trans + bpp
       SP_MirrorGfx(SrcPtr, fW, fH);
       Inc(SrcPtr, fW * fH);
     End;
@@ -2347,7 +2500,7 @@ Begin
       fW := pLongWord(SrcPtr)^;
       Inc(SrcPtr, SizeOf(LongWord));
       fH := pLongWord(SrcPtr)^;
-      Inc(SrcPtr, SizeOf(LongWord) + SizeOf(Word));
+      Inc(SrcPtr, SizeOf(LongWord) + SizeOf(Word) + SizeOf(Word)); // skip H + Trans + bpp
       SP_FlipGfx(SrcPtr, fW, fH);
       Inc(SrcPtr, fW * fH);
     End;
@@ -2747,6 +2900,7 @@ Begin
   Inc(Src, SizeOf(LongWord));
   TransparentColour := pWord(Src)^;
   Inc(Src, SizeOf(Word));
+  Inc(Src, SizeOf(Word));   // skip bpp field
 
   Result := False;
 

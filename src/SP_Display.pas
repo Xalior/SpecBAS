@@ -747,9 +747,9 @@ Procedure PrepFPSVars;
 Begin
   If FPSIMAGE <> '' Then RestoreFPSRegion;
   // These are in logical (DISPLAYWIDTH/HEIGHT) coordinates
-  GLFX := 8; // FPS X position
+  GLFX := DISPLAYWIDTH - (8 + FPSHISTSIZE + ((Length(OSD + ' ' + FPSSTRING) * 8) * FPSSCALE)); // FPS X position
   GLFY := 8; // FPS Y position
-  GLFW := DISPLAYWIDTH - 16; // FPS region width
+  GLFW := DISPLAYWIDTH - GLFX - 8; // FPS region width
   GLFH := 8 * FPSSCALE;      // FPS region height
   FPSTOP := GLFY; FPSLEFT := GLFX;
   FPSWIDTH := GLFW; FPSHEIGHT := GLFH;

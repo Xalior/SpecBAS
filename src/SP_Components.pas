@@ -140,7 +140,7 @@ implementation
 
 Uses SP_Main, SP_Sound, SP_BankManager, SP_BankFiling, SP_Graphics, SP_Graphics32, SP_Input, SP_Tokenise, SP_Interpret_PostFix,
      SP_PopupMenuUnit, SP_WindowMenuUnit, SP_CheckBoxUnit, SP_ComboBoxUnit, SP_RadioGroupUnit, SP_CheckListUnit, SP_ContainerUnit, SP_EditUnit,
-     SP_ListBoxUnit, SP_FileListBoxUnit, SP_LabelUnit, SP_ProgressBarUnit, SP_ScrollBarUnit, SP_SliderUnit, SP_MemoUnit, SP_BASICEditorUnit;
+     SP_ListBoxUnit, SP_FileListBoxUnit, SP_LabelUnit, SP_ProgressBarUnit, SP_ScrollBarUnit, SP_SliderUnit, SP_MemoUnit{$IFNDEF RUNTIMEONLY}, SP_BASICEditorUnit{$ENDIF};
 
 // Timer Functions
 
@@ -168,6 +168,7 @@ Procedure DoTimerEvents;
 Var
   i: Integer;
 Begin
+
 
   TimerSection.Enter;
 
@@ -808,10 +809,6 @@ Begin
       spMemo:
         Begin
           Control := SP_Memo.Create(Parent);
-        End;
-      spBASIC:
-        Begin
-          Control := SP_BASICEditor.Create(Parent);
         End;
     End;
     If Assigned(Control) Then Begin

@@ -1,5 +1,8 @@
 unit SP_ButtonUnit;
 
+{$IFDEF FPC}
+  {$MODE Delphi}
+{$ENDIF}
 {$INCLUDE SpecBAS.inc}
 
 interface

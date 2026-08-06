@@ -499,8 +499,8 @@ Every keyword and function in SpecBAS is listed here. Press F1 in the editor wit
 @{"PROCID          " LINK PROCID}
 @{"PROCID$         " LINK PROCID$}
 @{"PROJECT3D       " LINK TRANSFORM3D}
-@{"PTOLOGX         " LINK PTOLOGX}
-@{"PTOLOGY         " LINK PTOLOGY}
+@{"PTOLX           " LINK PTOLX}
+@{"PTOLY           " LINK PTOLY}
 @{"PUSH            " LINK PUSH}
 @{"PUT             " LINK PUT}
 @{"PYTH            " LINK PYTH}
@@ -11681,7 +11681,7 @@ See @{"Turtle Graphics" LINK Sec_TurtleGraphics} for a full overview.
 ;         POINT, TXTW, TXTH,
 ;         WINw, WINh, WINx, WINy, SCRw, SCRh, cWIN,
 ;         ORGX, ORGY, LOGW, LOGH,
-;         PTOLOGX, PTOLOGY, LTOPX, LTOPY
+;         PTOLX, PTOLY, LTOPX, LTOPY
 ; ================================================================
 
 
@@ -12115,7 +12115,7 @@ These functions return information about windows and the display.
 
 
 ; ----------------------------------------------------------------
-;  ORGX/ORGY/LOGW/LOGH/PTOLOGX/PTOLOGY/LTOPX/LTOPY
+;  ORGX/ORGY/LOGW/LOGH/PTOLX/PTOLY/LTOPX/LTOPY
 ; ----------------------------------------------------------------
 
 @NODE ORGX "Coordinate Conversion"
@@ -12126,8 +12126,8 @@ These functions return information about windows and the display.
 @{fg 1}ORGY@{fg text}
 @{fg 1}LOGW@{fg text}
 @{fg 1}LOGH@{fg text}
-@{fg 1}PTOLOGX n@{fg text}
-@{fg 1}PTOLOGY n@{fg text}
+@{fg 1}PTOLX n@{fg text}
+@{fg 1}PTOLY n@{fg text}
 @{fg 1}LTOPX n@{fg text}
 @{fg 1}LTOPY n@{fg text}
 @{BODY}
@@ -12174,11 +12174,11 @@ With a -1 to 1 origin on a 320-pixel wide window, pixel 160 maps to logical x=0.
 @REDIRECT ORGX
 @ENDNODE
 
-@NODE PTOLOGX "PTOLX"
+@NODE PTOLX "PTOLX"
 @REDIRECT ORGX
 @ENDNODE
 
-@NODE PTOLOGY "PTOLY"
+@NODE PTOLY "PTOLY"
 @REDIRECT ORGX
 @ENDNODE
 

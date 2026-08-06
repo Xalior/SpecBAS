@@ -29,7 +29,7 @@ type
 implementation
 
 uses
-  ActiveX, SP_Tokenise, SP_Util, SP_BankFiling, SP_SysVars;
+  SysUtils, ActiveX, SP_Tokenise, SP_Util, SP_BankFiling, SP_SysVars;
 
 type
   TPayloadFooter = packed record
@@ -49,8 +49,7 @@ begin
   Footer.WaterMark := cWaterMarkGUID;
 end;
 
-function ReadFooter(var F: File;
-  out Footer: TPayloadFooter): Boolean;
+function ReadFooter(var F: File; out Footer: TPayloadFooter): Boolean;
 var
   FileLen: Integer;
 begin
@@ -152,8 +151,7 @@ begin
   end;
 end;
 
-procedure TPayload.SetPayload(const Data;
-  const DataSize: Integer);
+procedure TPayload.SetPayload(const Data; const DataSize: Integer);
 var
   Footer: TPayloadFooter;
 begin
@@ -182,11 +180,34 @@ end;
 Function MakeDataPayload(Line: Integer; Caption: ansiString; Banks: Array of Integer): ansiString;
 var
   i: Integer;
-  b: aString;
+  b, stripped: aString;
+
+  Function StripHandlers(const Tokens: aString): aString;
+  var
+    Idx: Integer;
+    Tkn: pToken;
+  Begin
+    Result := Tokens;
+    If Result = '' Then Exit;
+    Idx := 1;
+    If Result[Idx] = aChar(SP_LINE_NUM) Then
+      Inc(Idx, 1 + SizeOf(LongWord));
+    If Result[Idx] = aChar(SP_STATEMENTS) Then
+      Idx := pLongWord(@Result[1 + Idx + SizeOf(LongWord)])^;
+    While Idx < Length(Result) Do Begin
+      Tkn := @Result[Idx];
+      Tkn^.Handler := nil;
+      If Tkn^.Token = SP_TERMINAL Then Break;
+      Inc(Idx, SizeOf(TToken) + Tkn^.TokenLen);
+    End;
+  End;
+
 Begin
   Result := LongwordToString(Length(Caption)) + Caption + LongWordToString(Line) + LongWordToString(SP_Program_Count);
-  For i := 0 To SP_Program_Count -1 do
-    Result := Result + LongWordToString(Length(SP_Program[i])) + SP_Program[i];
+  For i := 0 To SP_Program_Count -1 Do Begin
+    stripped := StripHandlers(SP_Program[i]);
+    Result := Result + LongWordToString(Length(SP_Program[i])) + stripped;
+  End;
   Result := Result + LongWordToString(Length(Banks));
   For i := 0 To Length(Banks) -1 Do Begin
     b := SP_BankToString(Banks[i]);

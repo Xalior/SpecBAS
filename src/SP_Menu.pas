@@ -96,7 +96,7 @@ Const
 
 implementation
 
-Uses SP_SysVars, SP_Graphics, SP_Graphics32, SP_FPEditor;
+Uses SP_SysVars, SP_Graphics, SP_Graphics32;
 
 Function SP_FindMenuID(MenuID: Integer): Integer;
 Begin
@@ -756,40 +756,30 @@ Begin
   m := SP_FindMenuID(mIdx);
   If m > -1 Then Begin
 
-    If CLISTWINDOW Then Begin
-      fH := Trunc(fPFH);
-      fW := Trunc(fPFW);
-      SclX := EDFONTSCALEX;
-      SclY := EDFONTSCALEY;
-      fB := SP_FindBankID(EDITORFONT);
-      If fB = SP_ERR_BANK_ID_NOT_FOUND Then
-        fB := SP_FindBankID(SYSFONT);
-    End Else Begin
-      If SP_MENUS[m].Font <> -1 Then Begin
-        fB := SP_FindBankID(SP_MENUS[m].Font);
-        If fB <> SP_ERR_BANK_ID_NOT_FOUND Then Begin
-          FontBank := @SP_BankList[fB]^.Info[0];
-          fW := FontBank^.Width;
-          fH := FontBank^.Height;
-        End Else Begin
-          fB := SP_FindBankID(EDITORFONT);
-          If fB = SP_ERR_BANK_ID_NOT_FOUND Then
-            fB := SP_FindBankID(SYSFONT);
-        End;
-        SclX := SP_MENUS[m].ScaleX;
-        SclY := SP_MENUS[m].ScaleY;
+    If SP_MENUS[m].Font <> -1 Then Begin
+      fB := SP_FindBankID(SP_MENUS[m].Font);
+      If fB <> SP_ERR_BANK_ID_NOT_FOUND Then Begin
+        FontBank := @SP_BankList[fB]^.Info[0];
+        fW := FontBank^.Width;
+        fH := FontBank^.Height;
       End Else Begin
-        fB := SP_FindBankID(FONTBANKID);
+        fB := SP_FindBankID(EDITORFONT);
         If fB = SP_ERR_BANK_ID_NOT_FOUND Then
           fB := SP_FindBankID(SYSFONT);
-        fH := FONTHEIGHT;
-        fW := FONTWIDTH;
-        SclX := CSCALEX;
-        SclY := CSCALEY;
       End;
-      fW := Trunc(fW * SclX);
-      fH := Trunc(fH * SclY);
+      SclX := SP_MENUS[m].ScaleX;
+      SclY := SP_MENUS[m].ScaleY;
+    End Else Begin
+      fB := SP_FindBankID(FONTBANKID);
+      If fB = SP_ERR_BANK_ID_NOT_FOUND Then
+        fB := SP_FindBankID(SYSFONT);
+      fH := FONTHEIGHT;
+      fW := FONTWIDTH;
+      SclX := CSCALEX;
+      SclY := CSCALEY;
     End;
+    fW := Trunc(fW * SclX);
+    fH := Trunc(fH * SclY);
 
     If SP_MENUS[m].Visible Then Begin
 
@@ -923,40 +913,30 @@ Begin
 
     If SP_MENUS[m].Visible Then Begin
 
-      If CLISTWINDOW Then Begin
-        fH := Trunc(fpFH);
-        fW := Trunc(fpFW);
-        SclX := EDFONTSCALEX;
-        SclY := EDFONTSCALEY;
-        fB := SP_FindBankID(EDITORFONT);
-        If fB = SP_ERR_BANK_ID_NOT_FOUND Then
-          fB := SP_FindBankID(SYSFONT);
-      End Else Begin
-        If SP_MENUS[m].Font <> -1 Then Begin
-          fB := SP_FindBankID(SP_MENUS[m].Font);
-          If fB <> SP_ERR_BANK_ID_NOT_FOUND Then Begin
-            FontBank := @SP_BankList[fB]^.Info[0];
-            fW := FontBank^.Width;
-            fH := FontBank^.Height;
-          End Else Begin
-            fB := SP_FindBankID(EDITORFONT);
-            If fB = SP_ERR_BANK_ID_NOT_FOUND Then
-              fB := SP_FindBankID(SYSFONT);
-          End;
-          SclX := SP_MENUS[m].ScaleX;
-          SclY := SP_MENUS[m].ScaleY;
+      If SP_MENUS[m].Font <> -1 Then Begin
+        fB := SP_FindBankID(SP_MENUS[m].Font);
+        If fB <> SP_ERR_BANK_ID_NOT_FOUND Then Begin
+          FontBank := @SP_BankList[fB]^.Info[0];
+          fW := FontBank^.Width;
+          fH := FontBank^.Height;
         End Else Begin
-          fB := SP_FindBankID(FONTBANKID);
+          fB := SP_FindBankID(EDITORFONT);
           If fB = SP_ERR_BANK_ID_NOT_FOUND Then
             fB := SP_FindBankID(SYSFONT);
-          fH := FONTHEIGHT;
-          fW := FONTWIDTH;
-          SclX := CSCALEX;
-          SclY := CSCALEY;
         End;
-        fW := Trunc(fW * SclX);
-        fH := Trunc(fH * SclY);
+        SclX := SP_MENUS[m].ScaleX;
+        SclY := SP_MENUS[m].ScaleY;
+      End Else Begin
+        fB := SP_FindBankID(FONTBANKID);
+        If fB = SP_ERR_BANK_ID_NOT_FOUND Then
+          fB := SP_FindBankID(SYSFONT);
+        fH := FONTHEIGHT;
+        fW := FONTWIDTH;
+        SclX := CSCALEX;
+        SclY := CSCALEY;
       End;
+      fW := Trunc(fW * SclX);
+      fH := Trunc(fH * SclY);
 
       // Calculate the menu's extents
 

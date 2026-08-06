@@ -72,8 +72,8 @@ ThreadVar
 
 implementation
 
-Uses SyncObjs, SP_Compiler, SP_Interpret_PostFix, SP_Tokenise, SP_Variables, SP_Streams, SP_Menu,
-     SP_Graphics, SP_Main, SP_FPEditor, SP_InfixToPostFix, SP_BankManager, SP_FileIO;
+Uses SyncObjs, {$IFNDEF RUNTIMEONLY}SP_Compiler,{$ENDIF} SP_Interpret_PostFix, SP_Tokenise, SP_Variables, SP_Streams, SP_Menu,
+     SP_Graphics, SP_Main, SP_InfixToPostFix, SP_BankManager, SP_FileIO{$IFNDEF RUNTIMEONLY}, SP_Debugging{$ENDIF};
 
 Function IsColourCommand(KW: LongWord): Boolean;
 Begin
@@ -633,7 +633,9 @@ Begin
     End;
 
     SP_ClearEvery;
+    {$IFNDEF RUNTIMEONLY}
     SP_ResetConditionalBreakPoints;
+    {$ENDIF}
     EveryEnabled := True;
     ResetErrorFlags;
     ERROR_LineNum := -1;
@@ -652,8 +654,10 @@ Begin
     T_USINGMASK := '';
     OnActive := 0;
 
+    {$IFNDEF RUNTIMEONLY}
     FPWindowID := -1;
     DWWindowID := -1;
+    {$ENDIF}
 
     If INCLUDEFROM >= 0 Then
       SP_DeleteIncludes;
@@ -679,7 +683,9 @@ Begin
 
   // Finally, insert breakpoint flags if necessary
 
+  {$IFNDEF RUNTIMEONLY}
   SP_PrepareBreakpoints(True);
+  {$ENDIF}
   FN_Recursion_Count := 0;
 
 End;
@@ -737,7 +743,7 @@ Begin
   // If Position falls between the JUMP and the jump's target, increment the JUMP.
   // Also check for other jumps, and if their target is beyond the position, increment them also.
   // *AND* check the labels list for their positions in a similar manner.
-  // NEW! Now also check the list of offsets after am SP_IJMP opcode (indexed jump)
+  // NEW! Now also check the list of offsets after an SP_IJMP opcode (indexed jump)
 
   If Length(SP_LabelList) > 0 Then
     For Idx := 0 To Length(SP_LabelList) -1 Do Begin

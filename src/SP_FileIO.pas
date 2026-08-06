@@ -25,7 +25,7 @@ unit SP_FileIO;
 
 interface
 
-Uses {$IFNDEF FPC}Windows, {$ENDIF}Types, Classes, SysUtils, SyncObjs, SP_Util, SP_Errors, SP_Tokenise,
+Uses {$IFNDEF FPC}Windows, {$ENDIF}Types, Classes, SysUtils, SyncObjs, SP_Util, SP_Errors,
      SP_SysVars, SP_Variables, SP_InfixToPostFix{$IFDEF FPC}, FileUtil{$ENDIF}, SP_AnsiStringlist;
 
 Type
@@ -59,6 +59,7 @@ Procedure SP_FileClose(ID: Integer; Var Error: TSP_ErrorCode);
 Function  SP_FileExists(Filename: aString): Boolean;
 Procedure SP_SetCurrentDir(Dir: aString; Var Error: TSP_ErrorCode);
 Function  SP_GetCurrentDir: aString;
+Function  SP_GetHostCWD: aString;
 Function  SP_IsDirectory(const Path: aString): Boolean;
 Function  SP_GetParentDir(Const Dir: aString): aString;
 Function  SP_DirectoryExists(Dir: aString): Boolean;
@@ -106,7 +107,11 @@ Var
 
 implementation
 
-Uses SP_Compiler, SP_Main, SP_Editor, SP_Package, SP_FPEditor, SP_BASICEditorUnit, SP_Graphics, SP_PreRun, SP_BASICEditorHostUnit;
+Uses SP_Main, SP_Package, SP_Graphics, SP_PreRun, SP_Tokenise
+     {$IFNDEF RUNTIMEONLY}
+     , SP_Compiler, SP_Editor, SP_FPEditor, SP_BASICEditorUnit,
+     SP_BASICEditorHostUnit
+     {$ENDIF};
 
 Procedure CopyFiles(inDir: String; outDir: String);
 Var
@@ -887,10 +892,13 @@ Begin
 End;
 
 Function SP_GetProgName(s: aString; Display: Boolean = False): aString;
+{$IFNDEF RUNTIMEONLY}
 Var
   cl_changed, cl_normal: Longword;
+{$ENDIF}
 Begin
 
+  {$IFNDEF RUNTIMEONLY}
   If Not FILENAMED Then
     Result := NEWPROGNAME
   Else
@@ -909,10 +917,12 @@ Begin
     Else
       Result := Result + aChar(#16)+LongWordToString(cl_normal)+' '+ BlobChar;
   End;
+  {$ENDIF}
 
 End;
 
 Procedure SP_SaveProgram(Filename: aString; AutoStart: Integer; Var Error: TSP_ErrorCode);
+{$IFNDEF RUNTIMEONLY}
 Var
   FileID, Idx, ProgLen, p: Integer;
   SaveBuffer, Backup: aString;
@@ -920,7 +930,9 @@ Var
 Const
   ASCIITAG: aString = 'ZXASCII'#13#10;
   TrueFalse: Array[0..1] of aString = ('FALSE', 'TRUE');
+{$ENDIF}
 Begin
+  {$IFNDEF RUNTIMEONLY}
   BackBool := FILENAMED;
   Backup   := PROGNAME;
 
@@ -989,7 +1001,7 @@ Begin
   End Else
     If Error.Code = SP_ERR_OK Then
       Error.Code := SP_ERR_SAVE_OPEN_ERROR;
-
+  {$ENDIF}
 End;
 
 Procedure SP_IncludeFile(Filename: aString; Var Error: TSP_ErrorCode);
@@ -1255,14 +1267,136 @@ Begin
     FilterList.Free;
   End;
 
+End;
+
+Procedure SP_LoadFromRawText(Const RawText: aString; Out AutoStart: Integer; Out ProgName: aString; Out Changed: Boolean; Var Error: TSP_ErrorCode);
+Var
+  Lines:     TStringList;
+  i:         Integer;
+  s, s2:     aString;
+  Compiled:  aString;
+  InString:  Boolean;
+  CCol:      Integer;
+  CleanText: aString;
+  InStr:     Boolean;
+  k:         Integer;
+
+  // Inline equivalent of SP_LineHasNumber (from SP_FPEditor) but working on
+  // a raw source text line rather than Listing. Returns the length of the
+  // leading decimal digit run, or 0 if the line has no line number.
+  Function LineHasNumber(Const Line: aString): Integer;
+  Var
+    j: Integer;
+  Begin
+    Result := 0;
+    j := 1;
+    // Skip any leading spaces
+    While (j <= Length(Line)) And (Line[j] = ' ') Do Inc(j);
+    If j > Length(Line) Then Exit;
+    If Not (Line[j] In ['0'..'9']) Then Exit;
+    While (j <= Length(Line)) And (Line[j] In ['0'..'9']) Do Begin
+      Inc(Result);
+      Inc(j);
+    End;
+  End;
+
+Begin
+
+  AutoStart := -1;
+  ProgName  := '';
+  Changed   := False;
+  Error.Code := SP_ERR_OK;
+
+  // Strip tabs outside strings (matches EditorHost_LoadFromText behaviour)
+  CleanText := RawText;
+  Begin
+    Instr := False;
+    For i := 1 To Length(CleanText) Do
+      If CleanText[i] = '"' Then
+        InStr := Not InStr
+      Else If (CleanText[i] = #9) And Not InStr Then
+        CleanText[i] := ' ';
+  End;
+
+  // Expand compound keywords: DEFPROC->DEF PROC, GOTO->GO TO, etc.
+  // CCol is a cursor-column hint used by the editor; pass 1 as a dummy.
+  CCol := 1;
+  AutoExpandCompounds(CleanText, CCol);
+
+  // Parse headers and split into source lines.
+  // After this call, Lines contains only BASIC source lines (no ZXASCII/AUTO/PROG headers).
+  // SP_ParseBASICText is the renamed version of SP_BASICEditor.ParseBASICText,
+  // moved to SP_Tokenise as part of the editor/runtime split.
+  Lines := ParseBASICText(CleanText, AutoStart, ProgName, Changed);
+  Try
+
+    SP_Program_Clear;
+
+    i := 0;
+    While i < Lines.Count Do Begin
+
+      s := Lines[i];
+      Inc(i);
+
+      // Join continuation lines (lines without a leading line number) onto
+      // the current numbered line, exactly as SP_ForceCompile does.
+      InString := False;
+      If s <> '' Then Begin
+        For k := 1 To Length(s) Do
+          If s[k] = '"' Then InString := Not InString;
+      End;
+
+      While (i < Lines.Count) And (LineHasNumber(Lines[i]) = 0) Do Begin
+        s2 := Lines[i];
+        If (s <> '') And (s2 <> '') And Not InString Then
+          s := s + ' ' + s2
+        Else
+          s := s + s2;
+        If s2 <> '' Then Begin
+          For k := 1 To Length(s2) Do
+            If s2[k] = '"' Then InString := Not InString;
+        End;
+        Inc(i);
+      End;
+
+      // Tokenise and compile the joined line
+      Compiled := SP_TokeniseLine(s, False, True) + SP_TERMINAL_SEQUENCE;
+
+      If Compiled <> SP_TERMINAL_SEQUENCE Then Begin
+
+        SP_Convert_ToPostFix(Compiled, Error.Position, Error);
+
+        If Error.Code = SP_ERR_OK Then
+          SP_Store_Line(Compiled)
+        Else Begin
+          // Non-fatal: record the error but continue loading remaining lines.
+          // Matches SP_ForceCompile behaviour - a bad line doesn't abort the load.
+          Error.Code := SP_ERR_OK;
+          Error.Position := 0;
+        End;
+
+      End;
+      // Empty/whitespace-only lines produce SP_TERMINAL_SEQUENCE alone - skip them.
+
+    End;
+
+  Finally
+    Lines.Free;
+  End;
+
+  SP_RESTORE;
 
 End;
 
 Procedure SP_LoadProgram(Filename: aString; Merge, DirtyFile: Boolean;
                          Const pList: TAnsiStringList; Var Error: TSP_ErrorCode);
 Var
-  FileID, FileSize, AutoStart, Idx, LineNum, InsertAt: Integer;
-  pName, Dir, tStr, RawText, s: aString;
+  FileID, FileSize, AutoStart, Idx: Integer;
+  {$IFNDEF RUNTIMEONLY}
+  LineNum, InsertAt: Integer;
+  s: aString;
+  {$ENDIF}
+  pName, Dir, tStr, RawText: aString;
   Changed, isAutoSaved: Boolean;
   Buffer: Array of Byte;
   ParsedLines: TAnsiStringList;
@@ -1368,11 +1502,14 @@ Finish:
     If Error.Code = SP_ERR_OK Then Begin
 
       SP_DeleteIncludes;
+      {$IFNDEF RUNTIMEONLY}
       DoAutoSave;
+      {$ENDIF}
 
       If Not Merge Then Begin
         // Component parses ZXASCII headers and loads lines into the editor.
         // OnTextReset fires ? TextReset ? Listing rebuilt + SetAllToCompile.
+        {$IFNDEF RUNTIMEONLY}
         FPShowingSearchResults := False;
         SP_LoadIntoEditorFromText(RawText, AutoStart, pName, Changed);
 
@@ -1383,6 +1520,9 @@ Finish:
 
         // Build runtime bytecode from the freshly-populated Listing
         SP_ForceCompile;
+        {$ELSE}
+        SP_LoadFromRawText(RawText, AutoStart, pName, Changed, Error);
+        {$ENDIF}
 
         If AutoStart <> -1 Then Begin
           NXTLINE := SP_FindLine(AutoStart, False);
@@ -1403,14 +1543,16 @@ Finish:
           FILENAMED := False;
         End;
 
+        {$IFNDEF RUNTIMEONLY}
         If SP_Program_Count > 0 Then
           SP_SysVars.PROGLINE := SP_GetFPLineNumber(0);
+        {$ENDIF}
         SP_RESTORE;
       End Else Begin
-
+        {$IFNDEF RUNTIMEONLY}
         // Merge=True: insert/replace lines from the incoming file.
         // Incoming lines take priority on line-number collision.
-        ParsedLines := SP_BASICEditor.ParseBASICText(RawText, AutoStart, pName, Changed);
+        ParsedLines := ParseBASICText(RawText, AutoStart, pName, Changed);
         Try
           CompilerLock.Enter;
           Try
@@ -1447,7 +1589,7 @@ Finish:
         SP_ForceCompile;
         FILECHANGED := True;
         PROGCHANGED := True;
-
+        {$ENDIF}
       End;
 
     End;
@@ -1455,7 +1597,7 @@ Finish:
   End Else Begin
     // pList non-nil: caller wants lines without touching the editor
     // (SP_IncludeFile, internal use). Parse without loading.
-    ParsedLines := SP_BASICEditor.ParseBASICText(RawText, AutoStart, pName, Changed);
+    ParsedLines := ParseBASICText(RawText, AutoStart, pName, Changed);
     Try
       pList.Clear;
       For Idx := 0 To ParsedLines.Count - 1 Do
@@ -1710,6 +1852,15 @@ Begin
         Error.Code := SP_ERR_DIR_NOT_FOUND;
     End Else
       SP_SetPackageDir(Dir, Error);
+
+End;
+
+Function SP_GetHostCWD: aString;
+Var
+  Error: TSP_ErrorCode;
+Begin
+
+  Result := SP_ConvertHostFilename(SP_GetCurrentDir, Error);
 
 End;
 

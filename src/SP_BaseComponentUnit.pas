@@ -438,7 +438,7 @@ implementation
 Uses
 
   SP_Main, SP_Input, SP_Graphics, SP_BankFiling, SP_BankManager, SP_SysVars,
-  SP_PopUpMenuUnit, SP_Components, SP_Interpret_PostFix, SP_ToolTipWindow, SP_FPEditor;
+  SP_PopUpMenuUnit, SP_Components, SP_Interpret_PostFix {$IFNDEF RUNTIMEONLY}, SP_ToolTipWindow, SP_FPEditor{$ENDIF};
 
 // All controls should register their extra properties and methods via this routine in the base class.
 // These are properties that the user can change or read.
@@ -1729,6 +1729,8 @@ End;
 Procedure SP_BaseComponent.Abort;
 Begin
 
+
+  SetFocus(False);
   If Assigned(OnAbort) Then Begin
     OnAbort(Self);
     If Not IsLocked And (Compiled_OnAbort <> '') Then
@@ -2550,7 +2552,9 @@ Begin
     cKeyRepeat := AddTimer(Self, REPDEL, KeyRepeat, False, False)^.ID;
   End Else
     If Not fWantTab And (Key = K_TAB) Then Begin
+      {$IFNDEF RUNTIMEONLY}
       If FocusedWindow = FPWindowID Then Exit;
+      {$ENDIF}
       If Assigned(chainControl) then
         ChainControl.SetFocus(True)
       Else Begin
@@ -2807,15 +2811,19 @@ Begin
 End;
 
 Procedure SP_BaseComponent.PreMouseMove(X, Y, Btn: Integer);
+{$IFNDEF RUNTIMEONLY}
 Var
   p: TPoint;
+{$ENDIF}
 Begin
 
   // All controls can pop up a hint window if they want.
+  {$IFNDEF RUNTIMEONLY}
   If ((fHint <> '') And (MOUSEBTN = 0)) or (TipWindowID <> -1) Then Begin
     p := ClientToScreen(Point(X, Y));
     CheckForTip(p.x, p.y);
   End;
+  {$ENDIF}
   MouseMove(Self, X, Y, Btn);
 
 End;

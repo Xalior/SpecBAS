@@ -37,7 +37,7 @@ implementation
 
 Uses
 
-  SP_Main, SP_Compiler, SP_Components, SP_FPEditor, SP_Errors, SP_Input, SP_SysVars, SP_DebugPanel, SP_UITools;
+  SP_Main, SP_Compiler, SP_Components, SP_FPEditor, SP_Errors, SP_Input, SP_SysVars, SP_DebugPanel, SP_UITools, SP_Debugging;
 
 Procedure ProcessNextControlMsg;
 Var

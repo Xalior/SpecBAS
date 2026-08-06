@@ -62,13 +62,14 @@ Type
   TSP_EditorTab = Record
 
     // -- Listing snapshot ------------------------------------------------
-    ListingText:    AnsiString;
-    ListingFlags:   Array of TLineFlags;
-    ListingCount:   Integer;
-    ListingFPCLine: Integer;
-    ListingFPCPos:  Integer;
+    ListingText:      AnsiString;
+    ListingFlags:     Array of TLineFlags;
+    ListingCount:     Integer;
+    ListingFPCLine:   Integer;
+    ListingFPCPos:    Integer;
     ListingFPSelLine: Integer;
     ListingFPSelPos:  Integer;
+    ListingCWD:       AnsiString;
 
     // -- Tokenised program snapshot --------------------------------------
     ProgTokens:     Array of aString;
@@ -158,9 +159,11 @@ implementation
 
 Uses
   Math, SysUtils, SyncObjs,
+  SP_FileIO,
   SP_FPEditor,
   SP_Tokenise,
   SP_SysVars,
+  SP_Errors,
   SP_BASICEditorHostUnit;
 
 // ---------------------------------------------------------------------------
@@ -372,7 +375,8 @@ Begin
   SP_EditorTabs[SP_ActiveTab].StoredProgName    := PROGNAME;
   SP_EditorTabs[SP_ActiveTab].StoredProgLine    := PROGLINE;
   SP_EditorTabs[SP_ActiveTab].StoredFileChanged := FILECHANGED;
-  SP_EditorTabs[SP_ActiveTab].StoredFileNamed  := FILENAMED;
+  SP_EditorTabs[SP_ActiveTab].StoredFileNamed   := FILENAMED;
+  SP_EditorTabs[SP_ActiveTab].ListingCWD        := SP_GetHostCWD;
 
   // Sync tab bar caption.
   If Assigned(FPTabBar) Then
@@ -380,6 +384,8 @@ Begin
 End;
 
 Procedure SP_EditorTab_RestoreActive;
+Var
+  Error: TSP_ErrorCode;
 Begin
   If (SP_ActiveTab < 0) Or (SP_ActiveTab >= Length(SP_EditorTabs)) Then Exit;
   If Not Assigned(FPBASICEditor) Then Exit;
@@ -422,6 +428,8 @@ Begin
   // FILECHANGED is set last: everything above may set it as a side-effect.
   FILECHANGED := SP_EditorTabs[SP_ActiveTab].StoredFileChanged;
   FILENAMED := SP_EditorTabs[SP_ActiveTab].StoredFileNamed;
+
+  SP_SetCurrentDir(SP_EditorTabs[SP_ActiveTab].ListingCWD, Error);
 
   If Assigned(SP_EditorTab_OnAfterSwitch) Then SP_EditorTab_OnAfterSwitch;
 End;
@@ -505,6 +513,7 @@ Begin
   NewTab.StoredProgLine        := 0;
   NewTab.StoredFileChanged     := False;
   NewTab.StoredFileNamed       := False;
+  NewTab.ListingCWD            := SP_GetHostCWD;
 
   NewIdx := Length(SP_EditorTabs);
   SetLength(SP_EditorTabs, NewIdx + 1);

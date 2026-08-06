@@ -30,6 +30,7 @@ SP_Edit = Class(SP_BaseComponent)
     fGhostText: aString;
     fAllowLiterals: Boolean;
 
+    Compiled_OnAccept, User_OnAccept: aString;
     Compiled_OnChange, User_OnChange: aString;
 
     Procedure SetText(s: aString);
@@ -87,6 +88,7 @@ SP_Edit = Class(SP_BaseComponent)
     Procedure Set_Editable(s: aString; Var Handled: Boolean; Var Error: TSP_ErrorCode); Function Get_Editable: aString;
     Procedure Set_CursorPos(s: aString; Var Handled: Boolean; Var Error: TSP_ErrorCode); Function Get_CursorPos: aString;
     Procedure Set_Justify(s: aString; Var Handled: Boolean; Var Error: TSP_ErrorCode); Function Get_Justify: aString;
+    Procedure Set_OnAccept(s: aString; Var Handled: Boolean; Var Error: TSP_ErrorCode); Function Get_OnAccept: aString;
     Procedure Set_OnChange(s: aString; Var Handled: Boolean; Var Error: TSP_ErrorCode); Function Get_OnChange: aString;
 
     Procedure RegisterMethods; Override;
@@ -589,8 +591,11 @@ Begin
 
     K_RETURN:
       Begin
-        If fAccepted And Assigned(OnAccept) Then Begin
-          OnAccept(Self, fText);
+        If fAccepted Then Begin
+          If Assigned(OnAccept) Then
+            OnAccept(Self, fText);
+          If Not Locked And (Compiled_OnAccept <> '') Then
+            SP_AddOnEvent(Compiled_OnAccept);
           Handled := True;
         End;
       End;
@@ -753,7 +758,7 @@ Begin
   If cKEYSTATE[K_SHIFT] = 0 Then
     fSelStart := fCursorPos;
   SP_PlaySystem(CLICKCHAN, CLICKBANK);
-  Paint;
+  FlashTimer(nil);
 
   Inherited;
 
@@ -908,6 +913,7 @@ Begin
   RegisterProperty('readonly', Get_Editable, Set_Editable, ':v|v');
   RegisterProperty('pos', Get_CursorPos, Set_CursorPos, ':v|v');
   RegisterProperty('justify', Get_Justify, Set_Justify, ':v|v');
+  RegisterProperty('onaccept', Get_OnAccept, Set_OnAccept, ':s|s');
   RegisterProperty('onchange', Get_OnChange, Set_OnChange, ':s|s');
 
 End;
@@ -975,6 +981,22 @@ Begin
     Result := '1'
   Else
     Result := '-1';
+
+End;
+
+Procedure SP_Edit.Set_OnAccept(s: aString; Var Handled: Boolean; Var Error: TSP_ErrorCode);
+Begin
+
+  Compiled_OnAccept := SP_ConvertToTokens(s, Error);
+  If Compiled_OnAccept <> '' Then
+    User_OnAccept := s;
+
+End;
+
+Function SP_Edit.Get_OnAccept: aString;
+Begin
+
+  Result := User_OnAccept;
 
 End;
 

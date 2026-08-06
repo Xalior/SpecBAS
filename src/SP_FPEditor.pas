@@ -47,10 +47,10 @@ Unit SP_FPEditor;
 interface
 
 Uses Types, Classes, SyncObjs, SysUtils, Math{$IFNDEF FPC}, Windows{$ENDIF}, SP_Graphics, SP_BankManager, SP_SysVars,
-     SP_Errors, SP_Main, SP_Tokenise, SP_BankFiling, SP_UITools, SP_Input, SP_Sound, SP_InfixToPostFix, SP_Interpret_PostFix,
-     SP_FileIO, SP_Package, SP_Variables, SP_Components, SP_Menu, SP_AnsiStringlist, SP_WindowMenuUnit, SP_PopUpMenuUnit,
-     SP_MenuActions, SP_Util, SP_ProgressBarUnit, SP_ToolTipWindow, SP_Compiler, SP_BASICEditorHostUnit, SP_MemoUnit,
-     SP_EditorTabsUnit;
+     SP_Errors, SP_Main, SP_Tokenise, SP_BankFiling, {$IFNDEF RUNTIMEONLY}SP_UITools, {$ENDIF}SP_Input, SP_Sound,
+     SP_InfixToPostFix, SP_Interpret_PostFix, SP_FileIO, SP_Package, SP_Variables, SP_Components, SP_Menu, SP_AnsiStringlist,
+     SP_WindowMenuUnit, SP_PopUpMenuUnit, SP_MenuActions, SP_Util, SP_ProgressBarUnit, SP_ToolTipWindow, SP_Compiler,
+     SP_BASICEditorHostUnit, SP_MemoUnit, SP_EditorTabsUnit, SP_Debugging;
 
 Type
 
@@ -91,8 +91,6 @@ Procedure SP_FPCycleEditorWindows(HideMode: Integer);
 Procedure SP_FPResizeWindow(NewH: Integer);
 Procedure SP_DWResizeWindow(NewW, NewH: Integer);
 Procedure SP_Decorate_Window(WindowID: Integer; Title: aString; Clear, SizeGrip, Focused: Boolean);
-Procedure SP_Decorate_User_Window(WindowID: Integer);
-Procedure SP_DrawStripe(Dst: pByte; Width, StripeWidth, StripeHeight, BatteryLevel: Integer; Focused: Boolean);
 Function  SP_SetFPEditorFont: Integer;
 Procedure SP_SwitchFocus(FocusMode: Integer);
 Procedure SP_FPNewProgram;
@@ -125,11 +123,6 @@ Procedure SP_DWStoreLine(Line: aString);
 Procedure SP_StoreBASICLine(Const TokensStr: aString);
 Procedure SP_ShowExprResult(Const Expr: aString);
 Procedure SP_FPExecuteEditLine(Var Line: aString);
-Function  SP_FPExecuteNumericExpression(Const Expr: aString; var Error: TSP_ErrorCode): aFloat;
-Function  SP_FPExecuteStringExpression(Const Expr: aString; var Error: TSP_ErrorCode): aString;
-Function  SP_FPExecuteAnyExpression(Const Expr: aString; var Error: TSP_ErrorCode): aString;
-Procedure SP_FPExecuteExpression(Const Expr: aString; var Error: TSP_ErrorCode);
-Function  SP_FPCheckExpression(Const Expr: aString; var Error: TSP_ErrorCode): Boolean;
 Procedure SP_CloseEditorWindows;
 Procedure SP_CreateEditorWindows;
 Function  SP_ReOrderListing(Var Error: TSP_ErrorCode): Boolean;
@@ -157,19 +150,11 @@ Procedure EvaluateHint(Var Result: SP_Hint);
 Function  SP_CheckProgram(OnlyErrors: Boolean = False): Boolean;
 Procedure SP_ShowError(Code, Line, Pos: Integer);
 Procedure SP_FPSetDisplayColours;
-Procedure SP_ToggleBreakPoint(Hidden: Boolean);
 Procedure SP_FPGotoLine(line, statement: Integer);
-Procedure SP_ResetConditionalBreakPoints;
-Procedure SP_PrepareBreakpoints(Create: Boolean);
-Function  SP_IsSourceBreakPoint(Line, Statement: Integer): Boolean;
-Procedure SP_SingleStep;
-Function  SP_StepOver: Boolean;
-Procedure SP_ClearBreakPoints;
-Procedure SP_GetDebugStatus(StatType: Integer);
 
 Var
   // Editor window
-  FPWindowID, FPFw, FPFh, Fw, Fh, FPWindowWidth, FPWindowHeight, FPWindowTop, FPWindowLeft: Integer;
+  FPFw, FPFh, Fw, Fh, FPWindowWidth, FPWindowHeight, FPWindowTop, FPWindowLeft: Integer;
   FPGutterWidth, FPCaptionHeight, FPStripePos: Integer;
   BringToEditorAfterError: Boolean = False;
   Listing: TAnsiStringlist;
@@ -179,7 +164,7 @@ Var
   FPShowingSearchResults, FPShowingBraces, FPHasBookMarks: Boolean;
   FPGotoText: aString;
   // Direct command window
-  DWWindowID, DWWindowWidth, DWWindowHeight, DWWIndowTop, DWWindowLeft,
+  DWWindowWidth, DWWindowHeight, DWWIndowTop, DWWindowLeft,
   FPEditorDefaultWindow: Integer;
   FPEditorDRPOSX, FPEditorDRPOSY, FPEditorSaveFPS: aFloat;
   FPEditorPRPOSX, FPEditorPRPOSY, FPEditorFRAME_MS: aFloat;
@@ -196,10 +181,6 @@ Var
   FPWIndowMode: Integer;
   FPEditorOutSet: Boolean;
   NeedGutterRefresh: Boolean;
-  // Tools
-  ToolWindowDone: Boolean;
-  ToolStrResult: aString;
-  ToolMode: NativeInt;
 
   // Search system
   LastFindwasReplace: Boolean;
@@ -238,12 +219,9 @@ Const
   spHardReturn = 1;
   spSoftReturn = 2;
 
-  fwNone =       -1;
-  fwDebugPanel = -2;
-
 implementation
 
-Uses SP_ControlMsgs, SP_DebugPanel, SP_PreRun, SP_Display, SP_Graphics32, SP_BaseComponentUnit, SP_BASICEditorUnit, SP_AmigaGuideUnit, SP_Narrator;
+Uses SP_ControlMsgs, SP_Dialogs, SP_DebugPanel, SP_PreRun, SP_Display, SP_Graphics32, SP_BaseComponentUnit, SP_BASICEditorUnit, SP_AmigaGuideUnit, SP_Narrator, SP_Execute;
 
 Procedure SetIsPoI(Index: Integer);
 var
@@ -337,7 +315,9 @@ Begin
 
   WaitForDisplayInit;
 
+  {$IFNDEF RUNTIMEONLY}
   ShowAboutDialog(True);
+  {$ENDIF}
 
   FPDebugPanelVisible := False;
   FPResizingDebugPanel := False;
@@ -416,8 +396,12 @@ Begin
 End;
 
 Procedure SP_DeleteLine(Index: Integer; MarkDirty: Boolean = True);
+Var
+  LineNum: Integer;
 Begin
   CompilerLock.Enter;
+  LineNum := SP_GetLineNumberFromText(Listing[Index]);
+  If LineNum > 0 Then SP_Program_Delete_Line(LineNum);
   Listing.Delete(Index);
   CompilerLock.Leave;
 End;
@@ -621,131 +605,6 @@ Begin
   SP_SetDirtyRect(Win^.Left, Win^.Top, Win^.Left + Win^.Width -1, Win^.Top + Win^.Height);
   SP_SetDrawingWindow(Window);
   T_STROKE := Stroke;
-
-End;
-
-Procedure SP_Decorate_User_Window(WindowID: Integer);
-Var
-  Win: pSP_Window_Info;
-  Err: TSP_ErrorCode;
-  SaveWindow: Integer;
-  Sp, i, FB: Integer;
-  iFPFh, iFPFw: Integer;
-  iEdSc, s: aString;
-  Stroke, Scale: aFloat;
-  Focused: Boolean;
-Begin
-
-  SP_GetWindowDetails(WindowID, Win, Err);
-  If Not Assigned(Win) Or Not Win^.Decorated Then Exit;
-
-  SaveWindow := SCREENBANK;
-  Focused    := (FocusedWindow = WindowID);
-
-  If SYSTEMSTATE In [SS_EDITOR, SS_DIRECT, SS_NEW, SS_ERROR] Then Begin
-    FB    := EDITORFONT;
-    iFPFW := Trunc(EDFONTWIDTH  * EDFONTSCALEX);
-    iFPFH := Trunc(EDFONTHEIGHT * EDFONTSCALEY);
-    iEdSc := #25 + aFloatToString(EDFONTSCALEX) + aFloatToString(EDFONTSCALEY);
-    Scale := EDFONTSCALEX;
-  End Else Begin
-    FB    := FONTBANKID;
-    iFPFH := Round(FONTHEIGHT * T_SCALEY);
-    iFPFW := Round(FONTWIDTH  * T_SCALEX);
-    iEdSc := #25 + aFloatToString(T_SCALEX) + aFloatToString(T_SCALEY);
-    Scale := T_SCALEX;
-  End;
-  T_FONT := FB;
-
-  SP_SetDrawingWindow(WindowID);
-
-  T_INK    := capBack;
-  T_OVER   := 0;
-  T_BOLD   := 0;
-  T_CLIPX1 := 0;
-  T_CLIPX2 := Win^.Width;
-  T_CLIPY1 := 0;
-  T_CLIPY2 := Win^.Height;
-  Win^.Transparent := 11;
-
-  // Caption bar fill
-  SP_FillRect(0, 0, Win^.Width, iFPFH + 2, capBack);
-
-  // Truncate title to fit available width (same calc as SP_Decorate_Window)
-  Sp := Win^.Width - ((iFPFW * 4)) - iFPFH * 2 - iFPFW;
-  s  := '';
-  i  := 1;
-  While (i <= Length(Win^.Caption)) And (Round(SP_GetPropTextWidth(T_FONT, s, '') * Scale) < Sp) Do Begin
-    s := s + Win^.Caption[i];
-    Inc(i);
-  End;
-
-  Stroke   := T_STROKE;
-  T_STROKE := 1;
-
-  // Border rectangle
-  T_INK := 0;
-  SP_DrawRectangle(0, 0, Win^.Width - 1, Win^.Height - 1);
-
-  // Caption text
-  If Focused Then
-    SP_TextOut(FB, iFPFW Div 2, 1, iEdSc + s, capText,     capBack, True)
-  Else
-    SP_TextOut(FB, iFPFW Div 2, 1, iEdSc + s, capInactive, capBack, True);
-
-  // Clear top corners to transparent
-  SP_SetPixelClr(0,             0, 11);
-  SP_SetPixelClr(Win^.Width -1, 0, 11);
-
-  // Stripe
-  SP_DrawStripe(Win^.Surface, Win^.Width, iFPFW, iFPFH, 100, Focused);
-
-  // Size grip
-  If Win^.Resizable Then Begin
-    T_STROKE := Stroke;
-    SP_TextOut(FB, Win^.Width - (iFPFW + 2), Win^.Height - (iFPFH + 2),
-               #25 + aFloatToString(1) + aFloatToString(1) + #250,
-               gripClr, -1, False);
-  End;
-
-  SP_SetDirtyRect(Win^.Left, Win^.Top,
-                  Win^.Left + Win^.Width - 1, Win^.Top + Win^.Height);
-
-  SP_SetDrawingWindow(SaveWindow);
-  T_STROKE := Stroke;
-
-End;
-
-Procedure SP_DrawStripe(Dst: pByte; Width, StripeWidth, StripeHeight, BatteryLevel: Integer; Focused: Boolean);
-Var
-  X, Y, X2, i, bw, sw: Integer;
-  oPtr: pByte;
-Const
-  ClrsFocused: Array[0..3] of Byte   = (2, 6, 4, 5);
-  ClrsUnFocused: Array[0..3] of Byte = (238, 252, 246, 243); //(231, 245, 238, 241);
-Begin
-
-  If Width < 160 Then Exit;
-
-  sw := StripeWidth * 5;
-  X := Width - sw - StripeHeight;
-  FPStripePos := X;
-  oPtr := pByte(NativeUInt(Dst) + (Width * StripeHeight) + X);
-
-  bw := Round((BatteryLevel / 100) * (sw -2));
-
-  For Y := StripeHeight DownTo 1 Do Begin
-    For X2 := X to X + (StripeWidth * 4) -1 Do Begin
-      i := (X2 - X) Div StripeWidth;
-      If ((Y = StripeHeight) or (Y = 1) or (X2 = X) or (X2 = X + SW -1)) or (X2 < bw + X + 1) Then
-        If Focused Then
-          oPtr^ := ClrsFocused[i] + (8 * Ord(i < 4))
-        Else
-          oPtr^ := ClrsUnFocused[i];
-      inc(oPtr);
-    End;
-    Dec(oPtr, Width + (StripeWidth * 4) - ({y and }1)); // change "(y and 1)" to "1" for 45 degree stripes
-  End;
 
 End;
 
@@ -2454,120 +2313,6 @@ Begin
 
 End;
 
-Function SP_FPExecuteNumericExpression(Const Expr: aString; var Error: TSP_ErrorCode): aFloat;
-Var
-  Backup: Pointer;
-Begin
-
-  Result := 0;
-  Backup := SP_StackPtr;
-  Error.Code := SP_ERR_OK;
-  Error.ReturnType := 0;
-  SP_FPExecuteExpression(Expr, Error);
-  If Error.Code = SP_ERR_OK Then
-    If SP_StackPtr^.OpType = SP_VALUE Then Begin
-      Error.ReturnType := SP_VALUE;
-      Result := SP_StackPtr^.Val
-    End Else
-      Error.Code := SP_ERR_SYNTAX_ERROR;
-  SP_StackPtr := pSP_StackItem(Backup);
-
-End;
-
-Function SP_FPExecuteStringExpression(Const Expr: aString; var Error: TSP_ErrorCode): aString;
-Var
-  Backup: Pointer;
-Begin
-
-  Backup := SP_StackPtr;
-  SP_FPExecuteExpression(Expr, Error);
-  If Error.Code = SP_ERR_OK Then
-    If SP_StackPtr^.OpType = SP_STRING Then
-      Result := SP_StackPtr^.Str
-    Else
-      Error.Code := SP_ERR_SYNTAX_ERROR;
-  SP_StackPtr := pSP_StackItem(Backup);
-
-End;
-
-Function SP_FPCheckExpression(Const Expr: aString; var Error: TSP_ErrorCode): Boolean;
-Var
-  Position: Integer;
-  s, t: aString;
-Begin
-
-  Position := 1;
-  s := SP_TokeniseLine(Expr, True, False) + #255;
-  t := SP_Convert_Expr(s, Position, Error, -1);
-  Result := (Error.Code = SP_ERR_OK) And (Position >= Length(s));
-
-End;
-
-Function SP_FPExecuteAnyExpression(Const Expr: aString; var Error: TSP_ErrorCode): aString;
-Var
-  sbnk: Integer;
-  Backup: Pointer;
-Begin
-
-  Result := '';
-  sBnk := SCREENBANK;
-  Backup := SP_StackPtr;
-  SP_SetDrawingWindow(FPEditorDefaultWindow);
-  SP_FPExecuteExpression(Expr, Error);
-  If Error.Code = SP_ERR_OK Then
-    If SP_StackPtr^.OpType = SP_VALUE Then
-      Result := aFloatToStr(SP_StackPtr^.Val)
-    Else
-      Result := SP_StackPtr^.Str;
-  SP_StackPtr := pSP_StackItem(Backup);
-  SP_SetDrawingWindow(sBnk);
-
-End;
-
-Procedure SP_FPExecuteExpression(Const Expr: aString; var Error: TSP_ErrorCode);
-Var
-  Position, state: Integer;
-  ValTkn: paString;
-  Str1, ValTokens: aString;
-  changed: Boolean;
-Begin
-
-  // Executes a line of BASIC as an expression. Calling functions can deal with the result and any errors.
-
-  Position := 1;
-  State := SYSTEMSTATE;
-  SYSTEMSTATE := SS_EVALUATE;
-  If Expr <> '' Then Begin
-    If Expr[1] <> #$F Then Begin
-      Str1 := SP_TokeniseLine(Expr, True, False) + #255;
-      ValTokens := SP_Convert_Expr(Str1, Position, Error, -1) + #255;
-      If (Position <> Length(Str1)) or ((Position < Length(Str1)) And (Str1[Position] <> #255)) Then Begin
-        Error.Code := SP_ERR_SYNTAX_ERROR;
-        SYSTEMSTATE := State;
-        Exit;
-      End;
-      SP_RemoveBlocks(ValTokens);
-      SP_TestConsts(ValTokens, 1, Error, False, changed);
-      SP_AddHandlers(ValTokens);
-    End Else
-      ValTokens := Copy(Expr, 2);
-
-    If ValTokens = #255 Then Begin
-      Error.Code := SP_ERR_SYNTAX_ERROR;
-      SYSTEMSTATE := State;
-      Exit;
-    End;
-
-    If Error.Code = SP_ERR_OK Then Begin
-      Position := 1;
-      ValTkn := @ValTokens;
-      SP_InterpretCONTSafe(ValTkn, Position, Error);
-    End;
-  End;
-  SYSTEMSTATE := State;
-
-End;
-
 Procedure SP_StoreBASICLine(Const TokensStr: aString);
 // Stores a numbered BASIC line into the listing and syncs the editor component.
 Begin
@@ -2850,7 +2595,7 @@ Begin
         SP_FPBringToEditor(PROGLINE, Error.Statement, Error, True);
         SP_SwitchFocus(fwDirect);
       End Else
-        If (PROGLINE > 0) And Not (Error.Code in [SP_ERR_OK, SP_ERR_BREAK]) Then Begin
+        If (PROGLINE > 0) And Not (Error.Code in [SP_ERR_OK, SP_ERR_BREAK, SP_ERR_STOP]) Then Begin
           // Normal error: scroll editor to the error line, no DW population
           SP_FPBringToEditor(PROGLINE, Error.Statement, Error, False);
         End;
@@ -3645,13 +3390,6 @@ Begin
   proglineGtr := 35;                                   // Colour for PROGLINE's gutter
   lineErrClr  := 2;
 
-  winBack     := 7;                                    // Default window background colour for dialogs etc
-  capBack     := 228;                                  // Caption bar colour
-  winBorder   := 0;                                    // Window border colour
-  capText     := 15;                                   // Caption active text
-  capInactive := 240;                                  // Caption inactive text
-  gripClr     := 0;                                    // Text colour of the sizegrip for resizeable windows
-
   scrollback  := 7;                                    // Background colour of the scrollbar. Should be the same as the editor window background
   scrolltrack := 8;                                    // Colour of the "track" where the thumb sits
   scrollActive := 0;                                   // Colour of an active button
@@ -3665,243 +3403,9 @@ Begin
 
 End;
 
-// Debugging
-
-Procedure SP_ToggleBreakPoint(Hidden: Boolean);
-Begin
-
-  // If editing, this toggles a breakpoint at the start of the current statement.
-  // If in Direct mode, toggles a breakpoint at the first statement of PROGLINE
-
-  If FocusedWindow = fwEditor Then
-    EditorHost_ToggleBreakpoint
-  Else
-    SP_AddSourceBreakpoint(Hidden, PROGLINE, 1, 0, '');
-
-End;
-
-Function SP_IsSourceBreakPoint(Line, Statement: Integer): Boolean;
-Var
-  Idx: Integer;
-Begin
-
-  Idx := 0;
-  Result := False;
-  While Idx < Length(SP_SourceBreakpointList) Do
-    If (SP_SourceBreakpointList[Idx].Line = Line) And (SP_SourceBreakpointList[Idx].Statement = Statement) And (SP_SourceBreakpointList[Idx].bpType <> BP_IsHidden) Then Begin
-      Result := True;
-      Exit;
-    End Else
-      Inc(Idx);
-
-End;
-
-Procedure SP_ResetConditionalBreakPoints;
-Var
-  i: Integer;
-  res: aString;
-  Error: TSP_ErrorCode;
-Begin
-
-  For i := 0 To Length(SP_ConditionalBreakPointList) -1 Do Begin
-    SP_ConditionalBreakPointList[i].PassCount := SP_ConditionalBreakPointList[i].PassNum;
-    res := SP_FPExecuteAnyExpression(SP_ConditionalBreakPointList[i].Compiled_Condition, Error);
-    If Error.Code = SP_ERR_OK Then Begin
-      SP_ConditionalBreakPointList[i].HasResult := True;
-      SP_ConditionalBreakPointList[i].CurResult := res;
-    End Else
-      SP_ConditionalBreakPointList[i].HasResult := False;
-  End;
-
-End;
-
-Procedure SP_PrepareBreakpoints(Create: Boolean);
-Var
-  i, j, l, Idx, stIdx, LineNum, Statement: Integer;
-  Tokens: paString;
-  Token: pToken;
-Begin
-
-  If Create Then Begin
-
-    For i := 0 To Length(SP_SourceBreakpointList) -1 Do Begin
-
-      LineNum := SP_SourceBreakpointList[i].Line;
-      Statement := SP_SourceBreakpointList[i].Statement;
-
-      Idx := SP_FindLine(LineNum, True);
-      If Idx > -1 Then Begin
-        Tokens := @SP_Program[Idx];
-        stIdx := SP_FindStatement(Tokens, Statement);
-        Token := @Tokens^[stIdx];
-        Token^.BPIndex := i;
-        SP_SourceBreakpointList[i].PassCount := SP_SourceBreakpointList[i].PassNum;
-      End;
-
-    End;
-
-  End Else Begin
-
-    // Also remove hidden breakpoints from the list.
-
-    l := Length(SP_SourceBreakpointList);
-    i := 0;
-    While i < l Do Begin
-      If SP_SourceBreakpointList[i].bpType = BP_IsHidden Then Begin
-        For j := i To l -2 Do
-          SP_SourceBreakpointList[j] := SP_SourceBreakpointList[j +1];
-        Dec(l);
-        SetLength(SP_SourceBreakpointList, l);
-      End Else
-        Inc(i);
-    End;
-
-  End;
-
-  SP_GetDebugStatus(dbgBreakpoints);
-
-End;
-
-Procedure SP_SingleStep;
-Var
-  Info: TSP_iInfo;
-  Inf: pSP_iInfo;
-  Tokens: paString;
-  Position, savedContline,
-  savedContStatement: Integer;
-  Error: TSP_ErrorCode;
-  tStr: aString;
-Label
-  WasActuallyAnError;
-Begin
-
-  // Set the BPSIGNAL to true, so the first statement will be executed and then terminate back to the
-  // editor. Also set STEPMODE so the interpreter knows not to stop with an error.          after step/step over/bp triggered, show continue statement as gray text in direct window
-
-  SP_SwitchFocus(fwDirect);
-  STEPMODE := SM_Single;
-  SP_GetDebugStatus(MAXINT);
-
-  Listing.CompleteUndo;
-  If Assigned(CompilerThread) Then SP_StopCompiler;
-  inf := @Info;
-  Error.Code := SP_ERR_OK;
-  Error.ReturnType := 0;
-  Info.Error := @Error;
-
-  PROGSTATE := SP_PR_RUN;
-  SP_WaitForSync;
-
-  tStr := '';
-  // SP_PreParse - SP_ForceCompile - SP_InterpretCONTSafe clobbers CONTSTATEMENT
-  // (the "safe" wrapper increments it as a side-effect of constant folding/AUTODIM).
-  // Save and restore so the continuation point is intact when SP_Interpret_CONTINUE runs.
-  savedContLine := CONTLINE;
-  savedContStatement := CONTSTATEMENT;
-  SP_Preparse(False, False, Error, tStr);
-  CONTLINE      := savedContLine;
-  CONTSTATEMENT := savedContStatement;
-  SP_Interpret_CONTINUE(Inf);
-  If Error.Code = SP_ERR_OK Then Begin
-    Tokens := nil;
-    Position := 0;
-    BPSIGNAL := True;
-    Error.ReturnType := 0;
-    Error.Code := SP_ERR_OK;
-    SP_SetDrawingWindow(FPEditorDefaultWindow);
-    SP_ClearAllKeys;
-    SP_Interpreter(Tokens, Position, Info.Error^, 0, True);
-    SP_ClearAllKeys;
-    FPEditorDefaultWindow := SCREENBANK;
-    FPEditorDRPOSX := DRPOSX;
-    FPEditorDRPOSY := DRPOSY;
-    FPEditorPRPOSX := PRPOSX;
-    FPEditorPRPOSY := PRPOSY;
-    FPEditorOVER := COVER;
-    FPEditorSaveFPS := FPS;
-    FPEditorFRAME_MS := FRAME_MS;
-    FPEditorMouseStatus := MOUSEVISIBLE;
-    If STEPMODE > 0 Then
-      If FocusedWindow = fwEditor then
-        SP_SetDrawingWindow(FPWindowID)
-      else
-        SP_SetDrawingWindow(DWWindowID);
-    SP_PrepareBreakpoints(False);
-  End;
-  STEPMODE := 0;
-  SCREENLOCK := False;
-  PROGSTATE := SP_PR_STOP;
-  SYSTEMSTATE := SS_DIRECT;
-  If CONTSTATEMENT = 0 Then
-    Inc(CONTSTATEMENT);
-  If (Error.Code <> SP_ERR_BREAKPOINT) And (Error.Code <> SP_ERR_OK) Then Begin
-    WasActuallyAnError:
-    If Error.Code = SP_ERR_STATEMENT_LOST Then Begin
-      Error.Line := -2;
-      Error.Statement := 0;
-    End;
-    If FPWindowID >= 0 Then SP_CloseEditorWindows;
-    SP_FPEditorError(Error);
-    SP_CreateEditorWindows;
-  End Else Begin
-    If (CONTLINE = -1) or (CONTLINE >= SP_Program_Count) or (SP_Program[CONTLINE] = '') Then
-      Goto WasActuallyAnError;
-    PROGLINE := pLongWord(@SP_Program[CONTLINE][2])^;
-    If FPWindowID = -1 Then SP_CreateEditorWindows;
-    EditorHost_SetExecLineWithScroll(pLongWord(@SP_Program[CONTLINE][2])^, CONTSTATEMENT);
-  End;
-
-  SP_Reset_Temp_Colours;
-  SP_GetDebugStatus(dbgVariables or dbgWatches);
-  SP_StartCompiler;
-
-End;
-
-Function SP_StepOver: Boolean;
-Var
-  line: TSP_GOSUB_Item;
-Begin
-
-  SP_SwitchFocus(fwDirect);
-  STEPMODE := SM_StepOver;
-  PROGSTATE := SP_PR_RUN;
-  SP_WaitForSync;
-
-  line := SP_ConvertLineStatement(CONTLINE, CONTSTATEMENT +1);
-  If Line.Line >= 0 Then Begin
-    SP_AddSourceBreakpoint(True, pLongWord(@SP_Program[line.Line][2])^, Line.St, 0, '');
-    Result := True;
-  End Else
-    Result := False;
-  SP_ClearAllKeys;
-  SP_GetDebugStatus(dbgVariables or dbgWatches);
-
-End;
-
 Procedure SP_FPScrollToLine(Line, Statement: Integer);
 Begin
   EditorHost_ScrollToLine(Line, Statement);
-End;
-
-Procedure SP_ClearBreakPoints;
-Begin
-
-  SP_PrepareBreakPoints(False);
-  SetLength(SP_SourceBreakpointList, 0);
-  SetLength(SP_ConditionalBreakpointList, 0);
-  BPSIGNAL := False;
-  STEPMODE := 0;
-  SP_GetDebugStatus(dbgBreakpoints);
-
-End;
-
-Procedure SP_GetDebugStatus(StatType: Integer);
-Begin
-
-  DEBUGGING := (Length(SP_SourceBreakpointList) > 0) or (Length(SP_ConditionalBreakpointList) > 0) or (STEPMODE > 0);
-  If (StatType = -1) or (FPDebugPanelVisible And (StatType And (1 Shl FPDebugCombo.ItemIndex) <> 0)) Then
-    SP_FillDebugPanel;
-
 End;
 
 Procedure EvaluateHint(Var Result: SP_Hint);

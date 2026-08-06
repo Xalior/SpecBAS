@@ -102,7 +102,9 @@ SP_BASICEditor = Class(SP_Memo)
     fOnExecute:          SP_EditEvent;   // fires on Enter in bemDirect
     fOnNeedHeight:       SP_BaseEvent;   // fires when wrap count changes in bemDirect
 
-    fSearchOptions:      SP_SearchOptions;  // last FindAll options, for FindNext
+    fSearchOptions:      SP_SearchOptions;
+//    fCursorCol: Integer;
+//    fCursorLine: Integer;  // last FindAll options, for FindNext
 
 
     // Marker helpers
@@ -222,9 +224,6 @@ SP_BASICEditor = Class(SP_Memo)
     Function  CountStatementSeps(const s: aString; SkipChars: Integer): Integer;
     Procedure InsertText(s: aString); Override;
 
-    // ZXASCII file format - parse without loading (for SP_IncludeFile etc.)
-    // Returns the program lines; header metadata via Out parameters.
-    Class Function  ParseBASICText(Const RawText: aString; Out AutoStart: Integer; Out ProgName:  aString; Out Changed:   Boolean): TStringList;
     // Load a ZXASCII text block into the editor, firing OnTextReset normally.
     Procedure LoadFromBASICText(Const RawText: aString; Out AutoStart: Integer; Out ProgName:  aString; Out Changed:   Boolean);
 
@@ -280,8 +279,6 @@ Const
   SBMarkerBreak   = 2;   // red (same as error - breakpoints also stand out)
   SBMarkerExec    = 4;   // green
   SBMarkerBookmark= 6;   // yellow
-
-  Procedure AutoExpandCompounds(Var s: aString; Var CCol: Integer);
 
 implementation
 
@@ -418,21 +415,22 @@ End;
 
 Function SP_BASICEditor.MarginColFromX(RawLine, X: Integer): Integer;
 Var
-  bOff, startX, col, numLen: Integer;
+  bOff, startX, col, numLen, cfw: Integer;
 Begin
+  cfW    := Max(1, Round(iFW * iSX));
   numLen := GetLineNumLen(RawLine);
   If numLen = 0 Then Begin Result := 1; Exit; End;
 
   bOff   := GetLeftOffset;
 
   // Calculate exactly where the very first digit of the line number starts rendering
-  startX := bOff + blobZone + (fGutterNumChars - numLen) * 8;
+  startX := bOff + blobZone + (fGutterNumChars - numLen) * cfw;
 
   If X < startX Then
     col := 1
   Else Begin
     // Divide by the fixed 8-pixel width per digit to find the column offset
-    col := 1 + (X - startX) Div 8;
+    col := 1 + (X - startX) Div cfw;
 
     // Clamp it so we don't accidentally return a column inside the code block
     If col > numLen + 1 Then col := numLen + 1;
@@ -718,7 +716,7 @@ End;
 Procedure SP_BASICEditor.DrawLeftMargin(WrapIdx, X, Y, H: Integer);
 Var
   numLen, dSel1, dSel2, gutterSelX1, gutterSelX2: Integer;
-  L1, C1, L2, C2: Integer;
+  L1, C1, L2, C2, cfw: Integer;
   isFirstSeg: Boolean;
   Ch:      aString;
   Fg, Bg:  Integer;
@@ -774,8 +772,9 @@ Begin
       If fWrapped[WrapIdx].RawLine = L1 Then dSel1 := Max(C1, 1);
       If fWrapped[WrapIdx].RawLine = L2 Then dSel2 := Min(C2, numLen + 1);
       If dSel1 < dSel2 Then Begin
-        gutterSelX1 := X + blobZone + (fGutterNumChars - numLen + dSel1 - 1) * 8;
-        gutterSelX2 := X + blobZone + (fGutterNumChars - numLen + dSel2 - 1) * 8;
+        cfW         := Max(1, Round(iFW * iSX));
+        gutterSelX1 := X + blobZone + (fGutterNumChars - numLen + dSel1 - 1) * cfw;
+        gutterSelX2 := X + blobZone + (fGutterNumChars - numLen + dSel2 - 1) * cfw;
       End;
     End;
   End;
@@ -833,7 +832,11 @@ Begin
 End;
 
 Procedure SP_BASICEditor.DrawMarginCursor(RawLine, RawCol, X, Y: Integer);
-Var curChar: aChar; curStr: aString; cx: Integer;
+Var
+  curChar: aChar;
+  curStr:
+  aString;
+  cx, cfw: Integer;
 Begin
   // Cursor is on a line-number digit in the gutter.
   If RawCol <= Length(fLines[RawLine]) Then
@@ -841,7 +844,8 @@ Begin
   Else
     curChar := ' ';
   If curChar < ' ' Then curStr := aChar(#5) + curChar Else curStr := curChar;
-  cx := X + blobZone + (fGutterNumChars - fLineNumLen[RawLine] + (RawCol - 1)) * 8;
+  cfW := Max(1, Round(iFW * iSX));
+  cx := X + blobZone + (fGutterNumChars - fLineNumLen[RawLine] + (RawCol - 1)) * cfw;
   Print(cx, Y, curStr, fCursFg, fCursBg, iSX, iSY, False, False, False, False);
 End;
 
@@ -917,7 +921,7 @@ Var
   s, trimmed, above: aString;
   numLen, i: Integer;
 Begin
-  // Base: carry indent from current line.
+  // Base: carry indent from current line unless we broke on a number.
   s      := fLines[fCursorLine];
   numLen := fLineNumLen[fCursorLine];
   Result := '';
@@ -941,7 +945,7 @@ Begin
        StartsWithWord(above, 'END IF') Then
       If Length(Result) >= fIndentSize Then
         Result := Copy(Result, 1, Length(Result) - fIndentSize);
-  End;
+    End;
 End;
 
 Procedure SP_BASICEditor.AddToHistory(Const s: aString);
@@ -2207,8 +2211,8 @@ Begin
       If digits > maxDigits Then maxDigits := digits;
     End;
   End;
-  fGutterNumChars := maxDigits;
-  fGutterWidth    := blobZone + (maxDigits * 8);
+  fGutterNumChars := maxDigits +1;
+  fGutterWidth    := blobZone + (fGutterNumChars * Max(1, Round(iFW * iSX)));
 End;
 
 Function SP_BASICEditor.CountStatementSeps(const s: aString; SkipChars: Integer): Integer;
@@ -2297,7 +2301,7 @@ Var
   NumStr:        aString;
   ax, ai, aj,
   blobx, bmSlot,
-  slot, cfW,
+  slot, cfW, cfH,
   nx, ny:        Integer;
   aClr,
   BgClr, SelClr, nClr, sClr: Byte;
@@ -2316,6 +2320,7 @@ Begin
   End;
 
   cfW := Max(1, Round(iFW * iSX));
+  cfH := Max(1, Round(iFH * iSY));
 
   // --- PROGLINE Gutter Highlight ---
   inProgLine := False;
@@ -2347,7 +2352,7 @@ Begin
     FillRect(GutterSelX1, Y, GutterSelX2 - 1, Y + H - 1, SelClr);
   End;
 
-  ny := Y + (H - 8) Div 2;
+  ny := Y + (H - cfh) Div 2;
 
   // --- Blob zone (leftmost blobZone pixels) ---
   If IsFirstSeg Then Begin
@@ -2359,7 +2364,7 @@ Begin
     If Not isBreakpoint Then Begin
       If RawLine = fExecLine Then Begin
         // Arrow - green while running, yellow when paused
-        ax := blobX + 8;
+        ax := blobX + cfw;
         If fExecRunning Then aClr := 4 Else aClr := 6;
         For ai := -1 To 1 Do
           For aj := -1 To 1 Do
@@ -2419,7 +2424,7 @@ Begin
   If IsFirstSeg Then Begin
     If (RawLine < Length(fLineNumLen)) And (fLineNumLen[RawLine] > 0) Then Begin
       NumStr   := Copy(fLines[RawLine], 1, fLineNumLen[RawLine]);
-      nx       := GutterX + blobZone + (fGutterNumChars - Length(NumStr)) * 8;
+      nx       := GutterX + blobZone + (fGutterNumChars - Length(NumStr)) * cfw;
       Print(nx, y, NumStr, nClr, -1, iSX, iSY, False, False, False, False);
       fPrevGutterStmt := 1;
     End Else
@@ -2427,7 +2432,7 @@ Begin
          (fStatementIdx[RawLine] > 1) And
          (fStatementIdx[RawLine] <> fPrevGutterStmt) Then Begin
         NumStr := IntToString(fStatementIdx[RawLine]);
-        nx     := GutterX + blobZone + (fGutterNumChars - Length(NumStr)) * 8;
+        nx     := GutterX + blobZone + (fGutterNumChars - Length(NumStr)) * cfw;
         Print(nx, y, NumStr, sClr, -1, iSX, iSY, False, False, False, False);
         fPrevGutterStmt := fStatementIdx[RawLine];
       End;
@@ -2863,101 +2868,6 @@ End;
 // ---------------------------------------------------------------------------
 // ZXASCII load
 // ---------------------------------------------------------------------------
-
-Procedure AutoExpandCompounds(Var s: aString; Var CCol: Integer);
-Const
-  Compounds: Array[0..9, 0..1] of aString =
-    (('DEFPROC', 'DEF PROC'), ('DEFFN', 'DEF FN'), ('DEFSTRUCT', 'DEF STRUCT'),
-     ('ENDPROC', 'END PROC'), ('ENDIF', 'END IF'), ('ENDSTRUCT', 'END STRUCT'),
-     ('EXITPROC', 'EXIT PROC'), ('ENDCASE', 'END CASE'), ('GOTO', 'GO TO'),
-     ('GOSUB', 'GO SUB'));
-Var
-  i, p, k, matchLen: Integer;
-  inStr, isWordStart, isWordEnd: Boolean;
-  uStr: aString;
-Begin
-  uStr := Upper(s);
-  For i := 0 To 9 Do Begin
-    p := 1;
-    matchLen := Length(Compounds[i, 0]);
-    While p <= Length(uStr) - matchLen + 1 Do Begin
-      // Fast check on the first character
-      If uStr[p] = Compounds[i, 0][1] Then Begin
-        If Copy(uStr, p, matchLen) = Compounds[i, 0] Then Begin
-
-          // 1. Ensure we are not inside a string
-          inStr := False;
-          For k := 1 To p - 1 Do
-            If s[k] = '"' Then inStr := Not inStr;
-
-          If Not inStr Then Begin
-            // 2. Ensure it's a whole word (don't expand "MYGOTO")
-            isWordStart := (p = 1) Or Not (uStr[p-1] In['A'..'Z', '0'..'9', '_']);
-            isWordEnd   := (p + matchLen > Length(uStr)) Or Not (uStr[p + matchLen] In['A'..'Z', '0'..'9', '_']);
-
-            If isWordStart And isWordEnd Then Begin
-              // Modify the raw string
-              Delete(s, p, matchLen);
-              System.Insert(Compounds[i, 1], s, p);
-              uStr := Upper(s); // Refresh upper string for subsequent searches
-
-              // Shift the cursor forward if it was sitting after the injected space
-              If CCol > p Then Inc(CCol);
-
-              Inc(p, matchLen + 1);
-              Continue;
-            End;
-          End;
-        End;
-      End;
-      Inc(p);
-    End;
-  End;
-End;
-
-Class Function SP_BASICEditor.ParseBASICText(Const RawText: aString; Out AutoStart: Integer; Out ProgName:  aString; Out Changed:   Boolean): TStringList;
-Var
-  p, i: Integer;
-  Line, Plain: aString;
-Begin
-  Result    := TStringList.Create;
-  AutoStart := -1;
-  ProgName  := '';
-  Changed   := False;
-
-  p := 1;
-  If Copy(RawText, 1, 7) = 'ZXASCII' Then Begin
-    p := 8;
-    While (p <= Length(RawText)) And (RawText[p] < #32) Do Inc(p);
-  End;
-
-  While p <= Length(RawText) Do Begin
-
-    i := p;
-    While (i <= Length(RawText)) And (RawText[i] <> #13) And (RawText[i] <> #10) Do Inc(i);
-
-    Line := Copy(RawText, p, i - p);
-    p := i;
-    If (p <= Length(RawText)) And (RawText[p] = #13) Then Inc(p);
-    If (p <= Length(RawText)) And (RawText[p] = #10) Then Inc(p);
-
-    While (Line <> '') And (Line[Length(Line)] <= ' ') Do
-      SetLength(Line, Length(Line) - 1);
-
-    Plain := StripLeadingSpaces(Line);
-
-    If Lower(Copy(Plain, 1, 4)) = 'auto' Then Begin
-      AutoStart := StrToIntDef(String(StripLeadingSpaces(Copy(Plain, 5, MaxInt))), -1);
-    End Else If Lower(Copy(Plain, 1, 4)) = 'prog' Then Begin
-      ProgName := StripLeadingSpaces(Copy(Plain, 5, MaxInt));
-    End Else If Lower(Copy(Plain, 1, 7)) = 'changed' Then Begin
-      Plain   := StripLeadingSpaces(Copy(Plain, 8, MaxInt));
-      Changed := Lower(Copy(Plain, 1, 4)) = 'true';
-    End Else If Line <> '' Then
-      Result.Add(Line);
-
-  End;
-End;
 
 Procedure SP_BASICEditor.LoadFromBASICText(Const RawText: aString; Out AutoStart: Integer; Out ProgName:  aString; Out Changed:   Boolean);
 Var

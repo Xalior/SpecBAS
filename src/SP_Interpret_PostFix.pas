@@ -27,7 +27,7 @@ interface
 
 Uses SyncObjs, Forms, {$IFNDEF FPC}IOUtils,{$ELSE}FileUtil,{$ENDIF} SP_Util, SP_Graphics, SP_Graphics32, SP_SysVars, SP_Errors, SP_Components, SP_Tokenise, SP_InfixToPostFix, SP_FileIO,
      SP_Input, SP_BankManager, SP_BankFiling, SP_Streams, SP_Sound, SP_Package, Math, Classes, SysUtils, SP_Math, {$IFNDEF FPC}Vcl.ClipBrd{$ELSE}ClipBrd{$ENDIF},
-     {$IFDEF FPC}LclIntf{$ELSE}Windows{$ENDIF}, SP_Strings, SP_Menu, SP_UITools, SP_AnsiStringlist, SP_Variables, SP_PreRun;
+     {$IFDEF FPC}LclIntf{$ELSE}Windows{$ENDIF}, SP_Strings, SP_Menu, SP_Dialogs, SP_AnsiStringlist, SP_Variables, SP_PreRun;
 
 Type
 
@@ -81,22 +81,6 @@ Type
     AllFlag: Boolean;
   End;
 
-  TSP_WatchInfo = Packed Record
-    Expression,
-    Compiled_Expression: aString;
-  End;
-
-  TSP_BreakpointInfo = Packed Record
-    bpType: Integer;
-    PassCount, PassNum: Integer;
-    Condition: aString;
-    Compiled_Condition: aString;
-    CurResult: aString;
-    HasResult: Boolean;
-    Line, Statement: Integer;
-  End;
-  pSP_BreakPointInfo = ^TSP_BreakPointInfo;
-
   TSP_iInfo = Packed Record
     StrPtr:    pByte;
     StrStart:  pByte;
@@ -113,909 +97,27 @@ Type
   TSP_InterpretProc = Procedure(Var Info: pSP_iInfo);
   pSP_InterpretProc = ^TSP_InterpretProc;
 
-Procedure SP_Execute(Line: aString; InitInterpreter: Boolean; Var Error: TSP_ErrorCode);
-Procedure SP_Execute_Compiled(Line: aString; InitInterpreter: Boolean; Var Error: TSP_ErrorCode);
-Procedure SP_Interpreter(Var Tokens: paString; Var Position: Integer; Var Error: TSP_ErrorCode; PreParseErrorCode: Integer; Continue: Boolean = False);
-
-Procedure DoPeriodicalEvents(var Error: TSP_ErrorCode);
-Procedure SP_AddEvery(const Condition: aString; Every, LineNum, Statement, St: Integer; UsesError: Boolean);
 Procedure ClearFlags;
-Procedure SP_CheckONConditions(Var Error: TSP_ErrorCode);
-Procedure SP_CheckEvery(FrameCheck: Boolean; Position: Integer; Var Error: TSP_ErrorCode);
 Procedure SP_ClearEvery;
-Procedure SP_StackToString(NumIndices: Integer; Var StackPtr: pSP_StackItem); inline;
-Procedure SP_SetHandler(Var Token: pToken; Var StrPtr: pByte);
+Procedure SP_AddONEvent(s: aString);
 Procedure SP_AddHandlers(Var Tokens: aString);
-Procedure SP_AddWatch(Index: Integer; Expr: aString);
-Procedure SP_DeleteWatch(Index: Integer);
-Function  SP_BreakPointExists(Line, Statement: Integer): Boolean;
-Procedure SP_AddSourceBreakPoint(Hidden: Boolean; Line, Statement, Passes: Integer; Condition: aString);
-Procedure SP_AddConditionalBreakpoint(BpIndex, Passes: Integer; Condition: aString; IsData: Boolean);
 Procedure SP_MakeListVarOutput(Var List: TAnsiStringlist; UseLiterals: Boolean);
 Function  SP_ConvertToTokens(Const s: aString; Var Error: TSP_ErrorCode): aString;
-Procedure SP_AddONEvent(s: aString);
-Procedure SP_ClearOnEvents;
-Procedure SP_ExecuteONCtrl(Var Error: TSP_ErrorCode);
-Procedure SP_ReplaceAll(Const Host, Find, Rep: aString; var OutStr: aString);
-
+Procedure SP_ExecuteCommand(Line: aString; InitInterpreter: Boolean; Var Error: TSP_ErrorCode);
 Procedure SP_InterpretCONTSafe(Const Tokens: paString; Var nPosition: Integer; Var Error: TSP_ErrorCode);
-Procedure SP_Interpret(Const Tokens: paString; Var nPosition: Integer; Var Error: TSP_ErrorCode);
-
-Procedure SP_Interpret_COMPILE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_UNHANDLED(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_STK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_STKS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_CLIPS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SCREENS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_JOINS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_TEXTURES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MSECS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_NUBMODE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_NUBX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_NUBY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_BTSET(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_BTCLR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ITEM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_GPOINT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_GRGB(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_GHSV(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_WINX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_WINY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_GFXW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_GFXH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_GFXT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_GFXS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_TIME(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_DAYS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MONTHS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_DAY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MONTH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_YEAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_HOUR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MINUTES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SECONDS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MILLISECONDS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_FRAMES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SPFRADDR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SPRITEX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SPRITEY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SPRITEW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SPRITEH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SPVISIBLE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SPFCOUNT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SPROT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SPSCALE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_CALL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_FN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_GETDIR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_BSIZE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SLEN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SPOS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_FONTBANK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_FONTWIDTH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_FONTHEIGHT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_FONTMODE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_FONTTRANSPARENT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LASTK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_RADTODEG(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_DEGTORAD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ERROR_NUM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ERROR_LIN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ERROR_STA(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MOUSEX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MOUSEWHEEL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_DRPOSX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_DRPOSY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MOUSEY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MOUSEDX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MOUSEDY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MOUSEBTN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_RND(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_INKEYS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_INKEY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_KEY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_PI(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_TAU(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_HEADING(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_POINT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_VALS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_UPS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LOWS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LEFTS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_WINOFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MIDS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MID(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_RIGHTS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_REPS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_CODE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_DCODE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_QCODE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_FCODE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_VAL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_IVAL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LEN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SIN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_COS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_TAN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ASN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ACS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ATN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SINH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_COSH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_TANH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ASNH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ACSH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ATNH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LOG(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_EXP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_INT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SQR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SGN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ABS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_IN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_USR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_STRS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_CHRS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_DCHRS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_QCHRS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_FCHRS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_PARAMS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_POWER(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_PEEK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_PEEKS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_DPEEK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_QPEEK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_FPEEK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_NOT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_FRAC(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_CEIL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_FLOOR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MAX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MIN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MAXS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MINS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ROUND(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_CHPOS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ODD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_EVEN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_POS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_POSN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_INSTR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_INSTRN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_TRUNC(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_RED(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_GREEN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_BLUE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_RGB(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_HEXS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_BINS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_WINW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_WINH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SCRW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SCRH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_TXTW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_TXTH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_CWIN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_RGBF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_RGBN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_HSV(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_RGBC(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_iRGBF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_iRGBN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_HUE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SAT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_VALUE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_NOISE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_NOISEOCT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MAP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_RGBtoINT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_HSVtoINT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_RGBToHSV(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_HSVtoRGB(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_TRIMS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LTRIMS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_RTRIMS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_TOKENS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_UDGS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_UDG(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_GETTILE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_POWERTWO(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LOGTWO(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_WORDSWAP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_BYTESWAP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_NYBBLESWAP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_POLAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_CLAMP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_INRANGE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_INSERTS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ITEMS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_BIT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_HIWORD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LOWORD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_HIBYTE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LOBYTE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_POLARDIST(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LPADS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_CPADS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_RPADS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_PROCID(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ERRORS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_POPLINE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_POPST(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_VOL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_GETOPT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_GETOPTS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MENUBOX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MENUBOX_EX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_FEXISTS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_FPATH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_FNAME(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_REVS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_DEXISTS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_PYTH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LOGW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LOGH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ORGX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ORGY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LTOPX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LTOPY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_PTOLX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_PTOLY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_INV(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_POLYTERM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_UNDER(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_COMPSIMPSON(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MUSICPOS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MUSICLEN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_BASES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_DECIMAL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_IIF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SEARCH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SEARCH_NEXT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LCM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_GCD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_DET(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SPFRAME(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SPCOLL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_INZONE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MATCH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_USINGS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LBOUND(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_UBOUND(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_ARSIZE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_DATES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_TIMES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_REPLACES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_REPLACEMATCHS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MIATTR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LASTM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_LASTMI(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_KEYS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SPCLX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SPCLY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_DATADDR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_WINADDR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_STRADDR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MEMRD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_DMEMRD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_QMEMRD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_MEMRDS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_FMEMRD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_CHOOSE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_CHOOSES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_BINV(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_BREV(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_INTERP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_PAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_TRANSLATES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_THREADCOUNT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_URLENCODE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_URLDECODE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_BASE64(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_UNBASE64(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_HTTPGET(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_HTTPPOST(Var Info: pSP_iInfo);
-
-Procedure SP_FlushCentreBuffer(Var Info: pSP_iInfo);
+Procedure SP_Interpreter(Var Tokens: paString; Var Position: Integer; Var Error: TSP_ErrorCode; PreParseErrorCode: Integer; Continue: Boolean = False);
+Procedure SP_ClearOnEvents;
 Procedure SP_FlushOUTBuffer(Var Info: pSP_iInfo);
 
-Procedure SP_Interpret_ERROR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PRINT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_TEXT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_AT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_TAB(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_MOVE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_INK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_PAPER(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_INVERSE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_OVER(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_TRANSPARENT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_CURSOR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_CLIP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_CLIP_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_OUT_VAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_OUT_SCREEN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_OUT_STREAM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_SCALE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_USING(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_STROKE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_INK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PAPER(Var Info: pSP_iInfo);
-Procedure SP_Interpret_INVERSE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_OVER(Var Info: pSP_iInfo);
-Procedure SP_Interpret_TRANSPARENT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SCALE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_STROKE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PROP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_LET(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ENUM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ENUM_BASE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CLS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DIM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_AUTODIM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DIM_SPLIT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_RUN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GOTO(Var Info: pSP_iInfo);
 Procedure SP_Interpret_CONTINUE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GOSUB(Var Info: pSP_iInfo);
-Procedure SP_Interpret_RETURN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_STOP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FOR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_NEXT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_IF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PLOT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FORCE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PARTICLE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PAUSE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DRAW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DRAWTO(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DRAW_CTO(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MULTIDRAW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MULTIDRAW_TO(Var Info: pSP_iInfo);
-Procedure SP_Interpret_AMULTIDRAW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_AMULTIDRAW_TO(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DRAW_FOUR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ADRAW_FOUR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CIRCLE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ELLIPSE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CIRCLEFILL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ELLIPSEFILL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CURVE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CURVE_EX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_RANDOMIZE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SAVE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SAVEASCII(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SCREEN_SAVE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GRAPHIC_SAVE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_LOAD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MERGE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_INC(Var Info: pSP_iInfo);
-Procedure SP_Interpret_INCRANGE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DEC(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DECRANGE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PALETTE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PALETTE_HSV(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PALETTESHIFT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DO(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DO_COUNT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_LOOP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_UNTIL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WHILE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_EXIT(Var Info: pSP_iInfo);
 Procedure SP_Interpret_QUIT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_READ(Var Info: pSP_iInfo);
-Procedure SP_Interpret_READ_LINE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_READ_ASSIGN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_RESTORE(Var Info: pSP_iInfo);
 Procedure SP_Interpret_DO_RESTORE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SCR_LOCK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SCR_UNLOCK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SCR_UPDATE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SCR_FULL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SCR_WIN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SCR_RES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_NEW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_MOVE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_SIZE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_SCROLL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_ROLL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_ERASE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_SHOW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_HIDE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_FRONT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_BACK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WINDOW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WINDOW_GFX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_GRAB(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SCR_GRAB(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_PUT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_PUT_EX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_ALPHA(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_TRANS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_DEPTH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_POKE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DPOKE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_QPOKE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FPOKE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_POKES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_NEW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ON(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MENU_SHOW_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MENU_HIDE_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MENUITEM_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ON_MENU_SHOW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ON_MENU_HIDE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ON_MENUITEM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ON_ERR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ON_COLLIDE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ON_MOUSEDOWN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ON_MOUSEMOVE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ON_MOUSEUP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ON_KEYDOWN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ON_KEYUP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ON_WHEELUP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ON_WHEELDOWN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ON_ERR_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ON_COLLIDE_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MOUSEDOWN_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MOUSEMOVE_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MOUSEUP_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_KEYDOWN_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_KEYUP_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WHEELUP_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WHEELDOWN_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CLEAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CLEAR_VAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CLEAR_ERR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_UNDIM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_YIELD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FILL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FILLTEX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_RECTANGLE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_RECTFILL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_POLYLINE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_POLYFILL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SCRCOPY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DEGREES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_RADIANS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_TURNS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GRADIANS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_RECOVER(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FONT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FONT_NEW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FONT_TRANS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FONT_ERASE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FONT_UPDATE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SAVE_BANK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_LOAD_BANK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_NEW_BANK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WAIT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WAIT_KEY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WAIT_KEY_PRESS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_BANK_NEW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_BANK_SIZE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_BANK_ERASE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_BANK_ERASE_ALL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_BANK_COPY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_STREAM_NEW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_STREAM_READ(Var Info: pSP_iInfo);
-Procedure SP_Interpret_STREAM_READLN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_STREAM_READFILE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_STREAM_WRITE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_STREAM_SEEK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_STREAM_CLOSE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SOCKET_CONNECT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SOCKET_LISTEN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SOCKET_ACCEPT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SOCKET_SEND(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SOCKET_RECV(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SOCKET_RECV_LINE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SOCKET_CLOSE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SOCKET_NOBLOCK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SOCKET_TIMEOUT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SOCKET_UDP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SOCKETSIZE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SOCKETSTATE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SOCKETADDRS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN_SOCKETPORT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SETDIR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PAL_LOAD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PAL_SAVE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PAL_DEFAULT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PAL_EGA(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PAL_CGA(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PAL_APPLELGR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PAL_APPLEHGR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PAL_CPC(Var Info: pSP_iInfo);
-Procedure SP_Interpret_EXECUTE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ROTATE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ROTATETO(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FACE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MOVE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MOVETO(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MOVEXY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DRAWTURTLE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_VOLUME(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SAMPLE_LOAD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SAMPLE_PLAY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SAMPLE_ERASE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SAMPLE_RATE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SAMPLE_DEPTH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SAMPLE_STEREO(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SAMPLE_VOLUME(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SAMPLE_PAN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SAMPLE_NEW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CHANNEL_STOP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CHANNEL_PAUSE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CHANNEL_RESUME(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CHANNEL_SEEK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CHANNEL_RATE_VAL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CHANNEL_RATE_STR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CHANNEL_PAN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CHANNEL_VOLUME(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PLAY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PLAY_STOP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MUSIC_PLAY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MUSIC_STOP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MUSIC_PAUSE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MUSIC_RESUME(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MUSIC_SEEK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MUSIC_VOLUME(Var Info: pSP_iInfo);
-Procedure SP_Interpret_BANK_COPY_EX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ELSE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DEF_PROC(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PROC(Var Info: pSP_iInfo);
-Procedure SP_Interpret_END_PROC(Var Info: pSP_iInfo);
-Procedure SP_Interpret_EXIT_PROC(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GLOBAL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_LOCAL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DEF_FN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_BANK_PROTECT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_BANK_DEPROTECT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CALL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CAT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ERASE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_NEW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_ADDFRAME(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_SHOW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_HIDE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_MOVE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_MOVED(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_MOVE_T(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_MOVED_T(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_MOVE_S(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_MOVED_S(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_MOVE_WIN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_STOP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_ROTATE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_ROTATE_TO(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_ROTATE_T(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_ROTATE_TO_T(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_SCALE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_SCALE_T(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_ERASE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_CLEAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_CLONE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_CLONE_MOVE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_CLONE_ERASE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_NEW_SIZE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_NEW_LOAD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_NEW_GFXS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_LOAD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_GRAB(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_PUT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_PUT_EX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_ROTATE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_SCALE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_SCALE_TO(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_SCALE_XY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_FLIP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_MIRROR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_FLIP_STR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_MIRROR_STR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_ERASE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_TRANSPARENT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_REMAP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_PALETTE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_PAL_DEFAULT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_PAL_HSV(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PAL_COPY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_RENUMBER(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ERASE_LINES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_LIST(Var Info: pSP_iInfo);
-Procedure SP_Interpret_LIST_LINES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_LLIST(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PACKAGE_NEW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ASSIGN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_COPY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MOVE_FILES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MAKEDIR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_RENAME(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PACK_ADD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PACK_CLOSE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PACK_PROTECT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PACK_UNPROTECT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PACKAGE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DATA_SAVE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DATA_LOAD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MERGE_LINES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GRAPHIC_ROLL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GRAPHIC_SCROLL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_TILEMAP_NEW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_TILEMAP_DRAW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_TILEMAP_DRAW_TILE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_TILEMAP_SET(Var Info: pSP_iInfo);
-Procedure SP_Interpret_TILEMAP_GRAPHIC(Var Info: pSP_iInfo);
-Procedure SP_Interpret_TILEMAP_CLEAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SAVE_BANK_DATA(Var Info: pSP_iInfo);
-Procedure SP_Interpret_LIST_BANK(Var Info: pSP_iInfo);
-Procedure SP_Interpret_LIST_WINDOW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_LIST_VAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_LIST_ARRAY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_LIST_ASSIGN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_LIST_BANK_EX(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DEF_STRUCT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_LIST_STRUCT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_STRUCT_ERASE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_INIT_INPUT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_INPUT_NUM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_INPUT_FORMAT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_INPUT_FINAL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_INPUT_ERROR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_INPUT_ERR_RPT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FOR_EACH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MOUSE_SHOW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MOUSE_HIDE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MOUSE_GRAPHIC(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MOUSE_GFXS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MOUSE_DEFAULT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MOUSE_TO(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DEBUG(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FPS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PUSH(Var Info: pSP_iInfo);
-Procedure SP_Interpret_OPTION(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SETNUB(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SETCPU(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MULTIPLOT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PROJECT3D(Var Info: pSP_iInfo);
-Procedure SP_Interpret_RAINBOW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_RAINBOW_HSV(Var Info: pSP_iInfo);
-Procedure SP_Interpret_KEYBOARD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_ORG_FLIP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_ORIGIN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_ORIGIN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_ORG_NO_EXT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_ORG_NO_EXT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_ORG_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_ORG_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CLIP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CLIP_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ORIGIN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ORIGIN_FLIP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ORG_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ORG_NO_EXT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ORG_DIM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_ORG_DIM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_ORG_DIM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_CLIP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_CLIP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_CLIP_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WINDOW_MIRROR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WINDOW_FLIP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GFX_CLIP_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_BEEP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_OUT_VAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_OUT_SCREEN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_OUT_STREAM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FOR_EACH_RANGE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FOR_EACH_STRING(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_MERGE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_MERGEALL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_CASE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WHEN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_OTHERWISE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_END_CASE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_INCLUDE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_HALT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SORT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_KEY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_KEY_CLEAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_KEY_CLEAR_ALL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_DYNAMIC_DIM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MAT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MAT_ZER(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MAT_IDN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MAT_IDN_PARAM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MAT_CON(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MAT_CON_PARAM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MAT_INV(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MAT_TRN(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MAT_ADD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MAT_SUB(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MAT_PROD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MAT_SCALE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MAT_INTERP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_POINT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_SET_ANIM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_ANIM_STOP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_FRAME(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_MIRROR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_FLIP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_PUT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SPRITE_OVER(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ENDIF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ZONE_NEW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ZONE_NEW_B(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ZONE_MOVE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ZONE_MOVETO(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ZONE_UPDATE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ZONE_UPDATE_B(Var Info: pSP_iInfo);
-Procedure SP_Interpret_ZONE_ERASE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_RECTANGLE2(Var Info: pSP_iInfo);
-Procedure SP_Interpret_RECTFILL2(Var Info: pSP_iInfo);
-Procedure SP_Interpret_PR_CENTRE_OFF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FILTER_STR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FILTER_NUM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_FILTER_NUM_R(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GOTOC(Var Info: pSP_iInfo);
-Procedure SP_Interpret_GOSUBC(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MENU_NEW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MENU_ADD_ITEM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MENU_INSITEM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MENU_DELITEM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MENU_ADDSUB(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MENU_DELSUB(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MENU_SHOW(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MENU_HIDE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MENU_ERASE_ALL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MENU_ERASE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MENUITEM_ATTR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MENU_ATTR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_MENU_FONT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_KW_MEMWRITE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_KW_MEMWRITED(Var Info: pSP_iInfo);
-Procedure SP_Interpret_KW_MEMWRITEQ(Var Info: pSP_iInfo);
-Procedure SP_Interpret_KW_MEMWRITEF(Var Info: pSP_iInfo);
-Procedure SP_Interpret_KW_MEMWRITES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_KW_CLS_ALPHA(Var Info: pSP_iInfo);
-Procedure SP_Interpret_KW_SAY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_THREAD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_DECOR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_WIN_CAPTION(Var Info: pSP_iInfo);
-
-Function  SP_SetUpPROC(CALLType: Byte; Var CacheVal: LongWord; Var Error: TSP_ErrorCode): Integer;
-
-Procedure SP_Interpret_SP_KEYWORD(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_STRING(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_FUNCTION_MARKER(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_JZ(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_JNZ(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_NUMVAR(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_STRVAR(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_SYMBOL(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_FUNCTION(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_NUMVAR_EVAL(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_NUMVARSQ(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_STRVAR_EVAL(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_ARRAY(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_NUM_ARRAY_PTR(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_SLICER(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_ARRAY_ASSIGN(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_SLICE_ASSIGN(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_JUMP(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_POINTER(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_SKIP_STATEMENT(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_SKIP_LINE(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_DATA_ITEM(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_LABEL(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_DISPLACEMENT(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_IJMP(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_CAUSEERROR(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_VALUE(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_NUMVAR_LET(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_STRVAR_LET(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_HYBRID_LET(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_STRUCT_MEMBER_N(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_STRUCT_MEMBER_ASS(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_STRUCT_MEMBER_S(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_STRVARPTR(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_NUMVAR_LET_VALID(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_STRVAR_LET_VALID(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_SKIP_DATA(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_RANGE_LESS(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_RANGE_GREATER(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_RANGE_ARRAYSTR(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_RANGE_ARRAYNUM(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_RANGE(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_SPECIAL_SYMBOL(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_NUMCONST(Var iInfo: pSP_iInfo);
-Procedure SP_Interpret_SP_STRCONST(Var iInfo: pSP_iInfo);
-
-Procedure SP_Interpret_SP_INCVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_DECVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_MULVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_DIVVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_POWVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_MODVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_ANDVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_XORVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_ORVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_NOTVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_SHLVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_SHRVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_INT_PLUS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_NUM_PLUS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_STR_PLUS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_BITWISE_NOT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_STRING_NOT(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_MUL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_DIV(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_ADD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_SUB(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_STR_MUL1(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_STR_MUL2(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_NUM_EQU(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_STR_EQU(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_NUM_LES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_STR_LES(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_NUM_LTE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_STR_LTE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_NUM_DNE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_STR_DNE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_NUM_GTE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_STR_GTE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_NUM_GTR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_STR_GTR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_GTE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_LTE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_DNE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_NUM_AND(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_STR_AND(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_AND(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_OR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_EQV(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_IMP(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_MOD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_FMOD(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_XOR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_SHL(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_SHR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_PLUS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_MINUS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_MULTIPLY(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_DIVIDE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_POWER(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_COLON(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_EQUALS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_GREATER(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_LESS(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_BIT_OR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_BIT_AND(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_EXCLAIM(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_TILDE(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_INCVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_DECVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_MULVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_DIVVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_POWVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_MODVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_ANDVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_XORVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_ORVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_NOTVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_SHLVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_CHAR_SHRVAR(Var Info: pSP_iInfo);
-Procedure SP_Interpret_SP_RESTORECOLOURS(Var Info: pSP_iInfo);
+Procedure SP_Interpret_UNHANDLED(Var Info: pSP_iInfo);
 
 Var
 
   SP_ProcsList: Array [0..MAXDEPTH -1] of TSP_ProcItem;
   SP_ProcsListPtr: Integer;
-  SP_SourceBreakpointList,
-  SP_ConditionalBreakPointList: Array of TSP_BreakpointInfo;
-  SP_WatchList: Array of TSP_WatchInfo;
   Il, Nl: LongWord;
   DummyToken: TToken;
   InterpretProcs: Array[0..9999] of pSP_InterpretProc;
@@ -1078,20 +180,10 @@ Const
   OnMenuHide:   Word = 2048;
   OnMenuItem:   Word = 4096;
 
-  SM_None     = 0;
-  SM_NoError  = 1;
-  SM_Single   = 2;
-  SM_StepOver = 3;
-
-  BP_Stop         = 1; // The program will stop if a token has this in its flags member and return to the editor paused.
-  BP_IsHidden     = 2; // When stopped, if this bit is set in the flags member then it won't show up in the editor (used for single step and run-to).
-  BP_Conditional  = 3; // Will trigger when condition is true.
-  BP_Data         = 4; // Will trigger if the stored expression result changes.
-
 implementation
 
-Uses SP_Compiler, SP_Main, SP_Editor, SP_FPEditor, SP_DebugPanel, RunTimeCompiler, SP_Util2, SP_Display, SP_BaseComponentUnit, SP_Graphics32Alpha,
-     SP_Narrator, SP_NarratorTranslator, SP_BASICInterpreter, SP_3DEngineUnit, SP_3DEngineUnit32, SP_Sockets;
+Uses {$IFNDEF RUNTIMEONLY}SP_FPEditor, SP_Compiler, SP_Debugging, SP_DebugPanel, {$ENDIF} SP_Main, SP_Editor, RunTimeCompiler, SP_Util2, SP_Display, SP_BaseComponentUnit, SP_Graphics32Alpha,
+     SP_Narrator, SP_NarratorTranslator, SP_BASICInterpreter, SP_3DEngineUnit, SP_3DEngineUnit32, SP_Sockets, SP_Execute;
 
 Procedure SP_Execute_Compiled(Line: aString; InitInterpreter: Boolean; Var Error: TSP_ErrorCode);
 Var
@@ -1122,7 +214,7 @@ Begin
 
 End;
 
-Procedure SP_Execute(Line: aString; InitInterpreter: Boolean; Var Error: TSP_ErrorCode);
+Procedure SP_ExecuteCommand(Line: aString; InitInterpreter: Boolean; Var Error: TSP_ErrorCode);
 Begin
 
   Error.Line := -1;
@@ -1131,440 +223,6 @@ Begin
   Line := SP_TokeniseLine(Line, False, False) + #255#255#255#255;
   SP_Convert_ToPostFix(Line, Error.Position, Error);
   SP_Execute_Compiled(Line, InitInterpreter, Error);
-
-End;
-
-Procedure SP_Interpreter(Var Tokens: paString; Var Position: Integer; Var Error: TSP_ErrorCode; PreParseErrorCode: Integer; Continue: Boolean);
-Var
-  CurLine, Idx, OldEC: Integer;
-  HasErrors, BreakNow: Boolean;
-  res: aString;
-Begin
-
-  // If there are errors in the listing, or lines that have yet to be compiled, then
-  // flag them up now. Errors will not stop the _command line_ from running, but will
-  // prevent entry to the program.
-
-  HasErrors := False;
-
-  If Not Continue Then Begin
-
-    If PAYLOADPRESENT Then
-      HasErrors := False
-    Else
-      HasErrors := Not SP_CheckProgram;
-    If Assigned(CompilerThread) Then SP_StopCompiler;
-    SP_Interpret(Tokens, Error.Position, Error);
-
-  End;
-
-  If Error.ReturnType >= SP_JUMP Then
-    If PreParseErrorCode <> SP_ERR_OK Then Begin
-      Error.Code := PreParseErrorCode;
-      Error.ReturnType := 0;
-      Exit;
-    End;
-
-  If INCLUDEFROM >= 0 Then Begin
-    If NXTLINE >= INCLUDEFROM Then NXTLINE := -1;
-  End Else
-    If NXTLINE >= SP_Program_Count Then NXTLINE := -1;
-
-  While NXTLINE <> -1 Do Begin
-
-    If NXTLINE = -2 Then Begin
-      CurLine := -1;
-      SYSTEMSTATE := SS_DIRECT;
-      Tokens := @COMMAND_TOKENS;
-      If NXTSTATEMENT = -1 Then Begin Dec(Error.Statement); Exit; End;
-      If Byte(Tokens^[NXTSTATEMENT]) = SP_TERMINAL Then
-        Dec(Error.Statement);
-    End Else Begin
-      If HasErrors Then Begin
-        Error.Code := SP_ERR_EDITOR;
-        Error.Line := NXTLINE;
-        Error.Statement := 1;
-        EDITERROR := True;
-        Exit;
-      End Else Begin
-        CurLine := NXTLINE;
-        SYSTEMSTATE := SS_INTERPRET;
-        Tokens := @SP_Program[CurLine];
-      End;
-    End;
-
-    If NXTSTATEMENT <> -1 Then
-      Error.Position := NXTSTATEMENT
-    Else Begin
-      Error.Statement := 1;
-      Error.Position := SP_FindStatement(Tokens, 1);
-    End;
-
-    NXTSTATEMENT := -1;
-    Inc(NXTLINE);
-    If NXTLINE <> 0 Then Begin
-      Error.Line := CurLine;
-      While NativeUInt(SP_StackPtr) > NativeUInt(SP_StackStart) Do Begin
-        SP_StackPtr^.Str := '';
-        Dec(SP_StackPtr);
-      End;
-      SP_StackPtr := SP_StackStart;
-      Error.Code := PreParseErrorCode;
-      SP_Interpret(Tokens, Error.Position, Error);
-      If DEBUGGING Then Begin
-        If STEPMODE = SM_Single Then
-          Exit;
-
-        If Error.Code = SP_ERR_OK Then
-          For Idx := 0 To Length(SP_ConditionalBreakPointList) -1 Do
-            With SP_ConditionalBreakPointList[Idx] Do Begin
-              OldEC := Error.Code;
-              BreakNow := PassCount = 0;
-              If bpType = BP_Conditional Then
-                BreakNow := (SP_FPExecuteNumericExpression(Compiled_Condition, Error) <> 0) And BreakNow
-              Else Begin
-                res := SP_FPExecuteAnyExpression(Compiled_Condition, Error);
-                BreakNow := ((HasResult And (res <> CurResult)) or (Not HasResult)) and BreakNow and (Error.Code = SP_ERR_OK);
-                If Error.Code = SP_ERR_OK Then Begin
-                  CurResult := res;
-                  HasResult := True;
-                End;
-              End;
-              Error.Code := OldEC;
-              If BreakNow Then Begin
-                CONTLINE := NXTLINE;
-                If NXTSTATEMENT = -1 Then
-                  CONTSTATEMENT := 1
-                Else
-                  CONTSTATEMENT := SP_GetStatementFromOffset(NXTLINE, NXTSTATEMENT);
-                Error.Code := SP_ERR_BREAKPOINT;
-                Error.Line := CONTLINE;
-                Error.Statement := CONTSTATEMENT;
-                Exit;
-              End Else
-                If PassCount > 0 Then
-                  Dec(PassCount);
-            End;
-      End;
-    End;
-
-    If NXTLINE = SP_Program_Count Then NXTLINE := -1;
-
-    If Error.Code <> SP_ERR_OK Then Begin
-      NXTLINE := -1;
-    End Else Begin
-      If NXTLINE <> -1 Then Begin
-        If NXTLINE >= SP_Program_Count Then
-          NXTLINE := -1;
-      End;
-
-    End;
-
-  End;
-
-End;
-
-Procedure SP_Interpret_COMPILE(Var Info: pSP_iInfo);
-var
-  sFilename, dFilename, Dir: String;
-  payLoadData, Caption: aString;
-  payLoad: TPayLoad;
-  Line, NumBanks: Integer;
-  Banks: Array of Integer;
-  {$IFDEF DEBUG}
-  //s: TFileStream;
-  {$ENDIF}
-Begin
-
-  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
-    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
-    Exit;
-  End;
-
-  // Create an executable with the current program as a payload.
-
-  Dir := ExtractFilePath(EXENAME);
-  sFilename := EXENAME;
-  dFilename := String(Info^.StackPtr^.Str);
-  Dec(Info^.StackPtr);
-
-  Caption := Info^.StackPtr^.Str;
-  Dec(Info^.StackPtr);
-
-  Line := Trunc(Info^.StackPtr^.Val);
-  Dec(Info^.StackPtr);
-
-  NumBanks := Trunc(Info^.StackPtr^.Val);
-  SetLength(Banks, NumBanks);
-  Dec(Info^.StackPtr);
-
-  While NumBanks > 0 Do Begin
-    Banks[NumBanks -1] := Trunc(Info^.StackPtr^.Val);
-    Dec(Info^.StackPtr);
-    Dec(NumBanks);
-  End;
-
-  If FileExists(sFilename) Then Begin
-    {$IFNDEF FPC}
-    If FileExists(dFilename) Then
-      TFile.Delete(dFilename);
-    TFile.Copy(sFilename, dFilename);
-    {$ELSE}
-    If FileExists(dFilename) Then
-      DeleteFile(dFilename);
-    CopyFile(sFilename, dFilename);
-    {$ENDIF}
-    payLoadData := MakeDataPayload(Line, Caption, Banks);
-    payLoad := TPayLoad.Create(dFilename);
-    payload.SetPayload(payLoadData[1], Length(PayLoadData));
-    payLoad.Free;
-    {$IFDEF DEBUG}
-{    sFilename := Dir + 'payload.bin';
-    if FileExists(sFilename) then
-      TFile.Delete(sFilename);
-    s := TFileStream.Create(sFilename, fmCreate);
-    s.Write(payLoadData[1], Length(payLoadData));
-    s.Free; }
-    {$ENDIF}
-  End;
-
-End;
-
-Procedure SP_AddONEvent(s: aString);
-Begin
-
-  ONCtrlLock.Enter;
-
-  If SP_ONCtrlListPtr < MAXDEPTH Then Begin
-    Inc(SP_ONCtrlListPtr);
-    SP_ONCtrlList[SP_ONCtrlListPtr] := s;
-  End;
-
-  ONCtrlLock.Leave;
-
-End;
-
-Procedure SP_ClearOnEvents;
-Begin
-
-  ONCtrlLock.Enter;
-  SP_ONCtrlListPtr := -1;
-  ONCtrlLock.Leave;
-
-End;
-
-Procedure SP_ExecuteONCtrl(Var Error: TSP_ErrorCode);
-Var
-  s: aString;
-  nPos: Integer;
-  nError: TSP_ErrorCode;
-Begin
-
-  ONCtrlLock.Enter;
-
-  If Not DoingOnCtrl And (SP_ONCtrlListPtr >= 0) Then Begin
-
-    nError := Error;
-    DoingONCtrl := True;
-    nPos := Error.Position;
-    s := SP_ONCtrlList[SP_ONCtrlListPtr];
-    Dec(SP_ONCtrlListPtr);
-    DoingONCtrl := False;
-    ONCtrlLock.Leave;
-    SP_StackLine(NXTLINE, NXTSTATEMENT, nError.Statement, SP_KW_GOSUB, Error);
-    nError.Line := -1;
-    SP_Execute_Compiled(s, False, nError);
-    If Error.Code = SP_ERR_OK Then
-      Error.Position := nPos;
-
-    NXTLINE := SP_GOSUB_Stack[SP_GOSUB_STACKPTR - 1].Line;
-    NXTSTATEMENT := SP_GOSUB_Stack[SP_GOSUB_STACKPTR - 1].Statement;
-    Error.Statement := SP_GOSUB_Stack[SP_GOSUB_STACKPTR - 1].St;
-    If SP_GOSUB_Stack[Length(SP_GOSUB_Stack) -1].Source = SP_KW_ERROR Then IGNORE_ON_ERROR := False;
-    Dec(SP_GOSUB_STACKPTR);
-
-  End Else
-
-    ONCtrlLock.Leave;
-
-End;
-
-Procedure SP_AddWatch(Index: Integer; Expr: aString);
-Var
-  s: aString;
-  l: Integer;
-  Error: TSP_ErrorCode;
-  change: Boolean;
-Begin
-
-  // Add a new watch (if Index is -1) or replace an existing watch.
-
-  l := Length(SP_WatchList);
-  If Index = -1 Then Begin
-    SetLength(SP_WatchList, l+1);
-    Index := l;
-  End;
-
-  With SP_WatchList[Index] Do Begin
-    Expression := Expr;
-    Error.Position := 1;
-    Error.Code := SP_ERR_OK;
-    s := SP_TokeniseLine(Expression, True, False) + #255;
-    s := SP_Convert_Expr(s, Error.Position, Error, -1) + #255;
-    SP_RemoveBlocks(s);
-    SP_TestConsts(s, 1, Error, False, change);
-    SP_AddHandlers(s);
-    Compiled_Expression := #$F + s;
-  End;
-
-End;
-
-Procedure SP_DeleteWatch(Index: Integer);
-Var
-  i, l: Integer;
-Begin
-
-  l := Length(SP_WatchList);
-  For i := Index To l -2 Do
-    SP_WatchList[i] := SP_WatchList[i +1];
-  SetLength(SP_WatchList, l -1);
-
-End;
-
-Function  SP_BreakPointExists(Line, Statement: Integer): Boolean;
-Var
-  l, i: Integer;
-Begin
-  Result := False;
-  l := Length(SP_SourceBreakPointList);
-  For i := 0 To l -1 Do
-    If (SP_SourceBreakPointList[i].Line = Line) And (SP_SourceBreakPointList[i].Statement = Statement) Then Begin
-      Result := True;
-      Break;
-    End;
-End;
-
-Procedure SP_AddSourceBreakPoint(Hidden: Boolean; Line, Statement, Passes: Integer; Condition: aString);
-Var
-  s: aString;
-  i, l: Integer;
-  Error: TSP_ErrorCode;
-  Found, isHidden, change: Boolean;
-Begin
-
-  // Toggles a breakpoint in the internal list used during pre-parsing.
-  // If not in the list, it's added.
-  // If it's in the list and the Hidden property is different, then the hidden property is flipped.
-  // Otherwise, it's removed.
-
-  Found := False;
-  l := Length(SP_SourceBreakPointList);
-  For i := 0 To l -1 Do
-    If (SP_SourceBreakPointList[i].Line = Line) And (SP_SourceBreakPointList[i].Statement = Statement) Then Begin
-      Found := True;
-      Break;
-    End;
-
-  If not Found Then Begin
-    SetLength(SP_SourceBreakPointList, l +1);
-    SP_SourceBreakPointList[l].bpType := Ord(Hidden) +1;
-    SP_SourceBreakPointList[l].Line := Line;
-    SP_SourceBreakPointList[l].Statement := Statement;
-    i := l;
-  End Else Begin
-    If Not Hidden Then Begin
-      // User breakpoint. If there's a hidden BP here, make it Shown, otherwise delete it.
-      isHidden := SP_SourceBreakPointList[i].bpType = BP_IsHidden;
-      If isHidden Then
-        SP_SourceBreakPointList[i].bpType := BP_Stop
-      Else Begin
-        For i := i To l -2 Do
-          SP_SourceBreakPointList[i] := SP_SourceBreakPointList[i +1];
-        SetLength(SP_SourceBreakPointList, l -1);
-        SP_GetDebugStatus(dbgBreakpoints);
-        Exit;
-      End;
-    End; // A breakpoint here should remain, so do nothing.
-  End;
-
-  // If we get here, the breakpoint is active. Set up the condition evaluation.
-
-  Error.Position := 1;
-  Error.Code := SP_ERR_OK;
-  s := SP_TokeniseLine(Condition, True, False) + #255;
-  s := SP_Convert_Expr(s, Error.Position, Error, -1) + #255;
-  SP_RemoveBlocks(s);
-  SP_TestConsts(s, 1, Error, False, change);
-  SP_AddHandlers(s);
-
-  SP_SourceBreakPointList[i].PassNum := Passes;
-  SP_SourceBreakPointList[i].Condition := Condition;
-  SP_SourceBreakPointList[i].Compiled_Condition := #$F + s;
-
-  SP_GetDebugStatus(dbgBreakpoints);
-
-End;
-
-Procedure SP_AddConditionalBreakpoint(BpIndex, Passes: Integer; Condition: aString; IsData: Boolean);
-Var
-  l: Integer;
-  s: aString;
-  Error: TSP_ErrorCode;
-  change: Boolean;
-Begin
-
-  // Adds a conditional breakpoint to the current list of breakpoints.
-  // No line or statement associated with this breakpoint, it's evaluated after every
-  // statement.
-
-  // VERY SLOW, use sparingly!
-
-  If BpIndex = -1 Then Begin
-    // New breakpoint, add to the list
-    l := Length(SP_ConditionalBreakpointList);
-    SetLength(SP_ConditionalBreakpointList, l +1);
-  End Else Begin
-    // Edit an existing breakpoint
-    l := BPIndex;
-  End;
-
-  Error.Position := 1;
-  Error.Code := SP_ERR_OK;
-  s := SP_TokeniseLine(Condition, True, False) + #255;
-  s := SP_Convert_Expr(s, Error.Position, Error, -1) + #255;
-  SP_RemoveBlocks(s);
-  SP_TestConsts(s, 1, Error, False, change);
-  SP_AddHandlers(s);
-
-  If IsData Then
-    SP_ConditionalBreakPointList[l].bpType := BP_Data
-  Else
-    SP_ConditionalBreakPointList[l].bpType := BP_Conditional;
-  SP_ConditionalBreakPointList[l].Condition := Condition;
-  SP_ConditionalBreakPointList[l].PassNum := Passes;
-  SP_ConditionalBreakPointList[l].Compiled_Condition := #$F + s;
-  SP_ConditionalBreakPointList[l].CurResult := '';
-  SP_ConditionalBreakPointList[l].HasResult := False;
-
-  SP_GetDebugStatus(dbgBreakpoints);
-
-End;
-
-Procedure SP_AddEvery(const Condition: aString; Every, LineNum, Statement, St: Integer; UsesError: Boolean);
-Begin
-
-  SetLength(SP_EveryItems, SP_EveryCount + 1);
-  With SP_EveryItems[SP_EveryCount] Do Begin
-    HasCondition := Cond <> '';
-    Cond := Condition + SP_TERMINAL_CHAR;
-    FrameStart := Every;
-    FrameCounter := Every;
-    JumpStatement := Statement;
-    JumpLine := LineNum;
-    JumpSt := St;
-  End;
-  Inc(SP_EveryCount);
-  OnActive := OnActive or OnEvery;
 
 End;
 
@@ -1632,6 +290,822 @@ Begin
   End;
 
   SP_StackPtr := Sp;
+
+End;
+
+Procedure SP_CheckONConditions(Var Error: TSP_ErrorCode);
+Var
+  LineItem: TSP_GOSUB_Item;
+Begin
+
+  If Error.Code = SP_ERR_OK Then Begin
+
+    If Not IgnoreEvery Then Begin
+      If SP_EveryCount > 0 Then
+        If EveryEnabled Then Begin
+          SP_CheckEvery(False, Error.Position, Error);
+        End Else
+          If ReEnableEvery Then Begin
+            EveryEnabled := True;
+            ReEnableEvery := False;
+          End;
+    End Else
+      IgnoreEvery := False;
+
+  End;
+
+  If MENUSHOW_LineNum <> -1 Then Begin
+    If MENU_SHOWFLAG Then Begin
+      If Error.ReturnType >= SP_JUMP Then Begin
+        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
+      End Else Begin
+        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
+        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
+      End;
+      MENU_SHOWFLAG := False;
+      NXTLINE := MENUSHOW_LineNum;
+      NXTSTATEMENT := MENUSHOW_Statement;
+      Error.Statement := MENUSHOW_St;
+      Error.ReturnType := SP_JUMP;
+    End;
+  End;
+
+  If MENUHIDE_LineNum <> -1 Then Begin
+    If MENU_HIDEFLAG Then Begin
+      If Error.ReturnType >= SP_JUMP Then Begin
+        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
+      End Else Begin
+        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
+        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
+      End;
+      MENU_HIDEFLAG := False;
+      NXTLINE := MENUHIDE_LineNum;
+      NXTSTATEMENT := MENUHIDE_Statement;
+      Error.Statement := MENUHIDE_St;
+      Error.ReturnType := SP_JUMP;
+    End;
+  End;
+
+  If MENUITEM_LineNum <> -1 Then Begin
+    If MENU_HIGHLIGHTFLAG Then Begin
+      If Error.ReturnType >= SP_JUMP Then Begin
+        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
+      End Else Begin
+        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
+        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
+      End;
+      MENU_HIGHLIGHTFLAG := False;
+      NXTLINE := MENUITEM_LineNum;
+      NXTSTATEMENT := MENUITEM_Statement;
+      Error.Statement := MENUITEM_St;
+      Error.ReturnType := SP_JUMP;
+    End;
+  End;
+
+  If COLLIDE_LineNum <> -1 Then Begin
+    If COLLIDE_FLAG Then Begin
+      If Error.ReturnType >= SP_JUMP Then Begin
+        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
+      End Else Begin
+        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
+        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_ERROR, Error);
+      End;
+      COLLIDE_FLAG := False;
+      NXTLINE := COLLIDE_LineNum;
+      NXTSTATEMENT := COLLIDE_Statement;
+      Error.Statement := COLLIDE_St;
+      Error.ReturnType := SP_JUMP;
+    End;
+  End;
+
+  If MOUSEMOVE_LineNum <> -1 Then Begin
+    If M_MOVEFLAG Then Begin
+      If Error.ReturnType >= SP_JUMP Then Begin
+        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
+      End Else Begin
+        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
+        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
+      End;
+      M_MOVEFLAG := False;
+      NXTLINE := MOUSEMOVE_LineNum;
+      NXTSTATEMENT := MOUSEMOVE_Statement;
+      Error.Statement := MOUSEMOVE_St;
+      Error.ReturnType := SP_JUMP;
+    End;
+  End;
+
+  If MOUSEDOWN_LineNum <> -1 Then Begin
+    If M_DOWNFLAG Then Begin
+      If Error.ReturnType >= SP_JUMP Then Begin
+        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
+      End Else Begin
+        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
+        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
+      End;
+      M_DOWNFLAG := False;
+      NXTLINE := MOUSEDOWN_LineNum;
+      NXTSTATEMENT := MOUSEDOWN_Statement;
+      Error.Statement := MOUSEDOWN_St;
+      Error.ReturnType := SP_JUMP;
+    End;
+  End;
+
+  If MOUSEUP_LineNum <> -1 Then Begin
+    If M_UPFLAG Then Begin
+      If Error.ReturnType >= SP_JUMP Then Begin
+        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
+      End Else Begin
+        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
+        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
+      End;
+      M_UPFLAG := False;
+      NXTLINE := MOUSEUP_LineNum;
+      NXTSTATEMENT := MOUSEUP_Statement;
+      Error.Statement := MOUSEUP_St;
+      Error.ReturnType := SP_JUMP;
+    End;
+  End;
+
+  If WHEELUP_LineNum <> -1 Then Begin
+    If M_WHEELUPFLAG Then Begin
+      If Error.ReturnType >= SP_JUMP Then Begin
+        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
+      End Else Begin
+        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
+        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
+      End;
+      M_WHEELUPFLAG := False;
+      NXTLINE := WHEELUP_LineNum;
+      NXTSTATEMENT := WHEELUP_Statement;
+      Error.Statement := WHEELUP_St;
+      Error.ReturnType := SP_JUMP;
+    End;
+  End;
+
+  If WHEELDOWN_LineNum <> -1 Then Begin
+    If M_WHEELDNFLAG Then Begin
+      If Error.ReturnType >= SP_JUMP Then Begin
+        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
+      End Else Begin
+        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
+        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
+      End;
+      M_WHEELDNFLAG := False;
+      NXTLINE := WHEELDOWN_LineNum;
+      NXTSTATEMENT := WHEELDOWN_Statement;
+      Error.Statement := WHEELDOWN_St;
+      Error.ReturnType := SP_JUMP;
+    End;
+  End;
+
+  If KEYDOWN_LineNum <> -1 Then Begin
+    If K_DOWNFLAG Then Begin
+      If Error.ReturnType >= SP_JUMP Then Begin
+        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
+      End Else Begin
+        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
+        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
+      End;
+      K_DOWNFLAG := False;
+      NXTLINE := KEYDOWN_LineNum;
+      NXTSTATEMENT := KEYDOWN_Statement;
+      Error.Statement := KEYDOWN_St;
+      Error.ReturnType := SP_JUMP;
+    End;
+  End;
+
+  If KEYUP_LineNum <> -1 Then Begin
+    If K_UPFLAG Then Begin
+      If Error.ReturnType >= SP_JUMP Then Begin
+        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
+      End Else Begin
+        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
+        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
+      End;
+      K_UPFLAG := False;
+      NXTLINE := KEYUP_LineNum;
+      NXTSTATEMENT := KEYUP_Statement;
+      Error.Statement := KEYUP_St;
+      Error.ReturnType := SP_JUMP;
+    End;
+  End;
+
+End;
+
+Procedure SP_ExecuteONCtrl(Var Error: TSP_ErrorCode);
+Var
+  s: aString;
+  nPos: Integer;
+  nError: TSP_ErrorCode;
+Begin
+
+  ONCtrlLock.Enter;
+
+  If Not DoingOnCtrl And (SP_ONCtrlListPtr >= 0) Then Begin
+
+    nError := Error;
+    DoingONCtrl := True;
+    nPos := Error.Position;
+    s := SP_ONCtrlList[SP_ONCtrlListPtr];
+    Dec(SP_ONCtrlListPtr);
+    DoingONCtrl := False;
+    ONCtrlLock.Leave;
+    SP_StackLine(NXTLINE, NXTSTATEMENT, nError.Statement, SP_KW_GOSUB, Error);
+    nError.Line := -1;
+    SP_Execute_Compiled(s, False, nError);
+    If Error.Code = SP_ERR_OK Then
+      Error.Position := nPos;
+
+    NXTLINE := SP_GOSUB_Stack[SP_GOSUB_STACKPTR - 1].Line;
+    NXTSTATEMENT := SP_GOSUB_Stack[SP_GOSUB_STACKPTR - 1].Statement;
+    Error.Statement := SP_GOSUB_Stack[SP_GOSUB_STACKPTR - 1].St;
+    If SP_GOSUB_Stack[Length(SP_GOSUB_Stack) -1].Source = SP_KW_ERROR Then IGNORE_ON_ERROR := False;
+    Dec(SP_GOSUB_STACKPTR);
+
+  End Else
+
+    ONCtrlLock.Leave;
+
+End;
+
+Procedure DoPeriodicalEvents(var Error: TSP_ErrorCode);
+Var
+  Idx: Integer;
+Begin
+
+  If PROGSTATE = SP_PR_RUN Then Begin
+
+    If SP_WindowResizeFlag >= 0 Then Begin
+      Idx := SCREENBANK;
+      SCREENBANK := -1;
+      SP_SetDrawingWindow(Idx);
+      SP_WindowResizeFlag := -1;
+    End;
+
+    PROGSTATE := SP_PR_EVENT;
+    If OnActive > 0 Then SP_CheckONConditions(Error);
+    If ControlsAreInUse Then DoTimerEvents;
+    SP_ExecuteONCtrl(Error);
+    PROGSTATE := SP_PR_RUN;
+  End;
+
+End;
+
+Function CheckForONERROR(Var Error: TSP_ERRORCODE): Boolean;
+Var
+  LineItem: TSP_GOSUB_Item;
+Begin
+  Result := False;
+  If ERROR_LineNum >= 0 Then Begin
+    If (Error.Code <> SP_ERR_OK) And Not IGNORE_ON_ERROR Then Begin
+      Error.Code := SP_ERR_OK;
+      If Error.ReturnType >= SP_JUMP Then Begin
+        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_ERROR, Error);
+      End Else Begin
+        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
+        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_ERROR, Error);
+      End;
+      NXTLINE := ERROR_LineNum;
+      NXTSTATEMENT := ERROR_Statement;
+      Error.Statement := ERROR_St;
+      Error.ReturnType := SP_JUMP;
+      IGNORE_ON_ERROR := True;
+      Result := True;
+    End;
+  End;
+End;
+
+Procedure SP_Interpret(Const Tokens: paString; Var nPosition: Integer; Var Error: TSP_ErrorCode);
+Var
+  {$IFNDEF RUNTIMEONLY}
+  BreakNow: Boolean;
+  Idx, CurST, OldST, OldEC: Integer;
+  res: aString;
+  {$ENDIF}
+  ppError: Integer;
+  Info: TSP_iInfo;
+  pInfo: pSP_iInfo;
+  LocalQuit: Boolean;
+  Ls: TSP_GOSUB_Item;
+Label
+  Next_Statement;
+Begin
+
+  If Error.Code <> SP_ERR_OK Then Begin
+    ppError := Error.Code;
+    Error.Code := SP_ERR_OK;
+  End Else
+    ppError := SP_ERR_OK;
+
+  pInfo := @Info;
+
+  Info.StackPtr   := SP_StackPtr;
+  Info.StackStart := SP_StackStart;
+
+  Info.Tokens := Tokens;
+  Info.Error := @Error;
+  Info.Error^.ReturnType := 0;
+  Info.StrStart := pByte(Pointer(Tokens^));
+  Info.StrPtr := Info.StrStart + nPosition - 1;
+  Info.SavePos := NativeUInt(Info.StrPtr);
+  Info.Position := nPosition;
+
+  If Info.StrPtr^ = SP_LINE_NUM Then
+    Inc(Info.StrPtr^, 1 + SizeOf(LongWord));
+
+  If Info.StrPtr^ = SP_STATEMENTS Then
+    Inc(Info.StrPtr, 1 + ((1 + pLongWord(Info.StrPtr + 1)^) * SizeOf(LongWord)));
+
+  LocalQuit := QUITMSG;
+  {$IFNDEF RUNTIMEONLY}
+  OldSt := Info.Error^.Statement;
+  {$ENDIF}
+
+  With Info Do Begin
+
+    While Not LocalQuit Do Begin
+
+      Next_Statement:
+
+      // Pick up the first token, then address the content of that token.
+
+      Token := pToken(StrPtr);
+
+      If Token^.Token <> SP_TERMINAL Then Begin
+
+        // Test for debugging - a source breakpoint triggered here is pre-execution so leave CONTINUE point as-is
+        {$IFNDEF RUNTIMEONLY}
+        If DEBUGGING Then Begin
+
+          If Token^.BPIndex >= 0 Then
+            With SP_SourceBreakPointList[Token^.BPIndex] Do Begin
+              BreakNow := PassCount = 0;
+              If Condition <> '' Then
+                BreakNow := (SP_FPExecuteNumericExpression(Compiled_Condition, Info.Error^) <> 0) And BreakNow;
+              If BreakNow Then Begin
+                BPSIGNAL := True;
+                Break;
+              End Else
+                If PassCount > 0 Then
+                  Dec(PassCount);
+            End;
+
+          If (OldSt <> Error^.Statement) Then Begin
+            // Test for single step
+            If STEPMODE = SM_Single Then Begin
+              CurST := SP_GetStatementFromOffset(Error^.Line, (NativeUInt(StrPtr) - NativeUInt(StrStart)) +1);
+              If CurST <> CONTSTATEMENT Then Begin
+                BPSIGNAL := True;
+                Break;
+              End;
+            End;
+            // Test conditional and data breakpoints - this is post execution so alter CONTINUE.
+            For Idx := 0 To Length(SP_ConditionalBreakPointList) -1 Do
+              With SP_ConditionalBreakPointList[Idx] Do Begin
+                OldEC := Info.Error^.Code;
+                BreakNow := PassCount = 0;
+                If bpType = BP_Conditional Then
+                  BreakNow := (SP_FPExecuteNumericExpression(Compiled_Condition, Info.Error^) <> 0) And BreakNow
+                Else Begin
+                  res := SP_FPExecuteAnyExpression(Compiled_Condition, Info.Error^);
+                  BreakNow := ((HasResult And (res <> CurResult)) or (Not HasResult)) and BreakNow and (Info.Error^.Code = SP_ERR_OK);
+                  If Info.Error^.Code = SP_ERR_OK Then Begin
+                    CurResult := res;
+                    HasResult := True;
+                  End;
+                End;
+                Info.Error^.Code := OldEC;
+                If BreakNow Then Begin
+                  BPSIGNAL := True;
+                  BREAKSIGNAL := True;
+                  CONTLINE := Info.Error^.Line;
+                  CONTSTATEMENT := SP_GetStatementFromOffset(Info.Error^.Line, (NativeUInt(StrPtr) - NativeUInt(StrStart)) +1) +1;
+                  Info.Error^.Code := SP_ERR_BREAKPOINT;
+                  Info.Error^.Line := CONTLINE;
+                  Info.Error^.Statement := CONTSTATEMENT;
+                  SP_StackPtr := Info.StackPtr;
+                  Exit;
+                End Else
+                  If PassCount > 0 Then
+                    Dec(PassCount);
+              End;
+          End;
+
+        End;
+        {$ENDIF}
+
+        If BREAKSIGNAL Then
+          Break;
+
+        // Continue with execution
+
+        Inc(StrPtr, SizeOf(TToken));
+        pInfo^.StrPtr := StrPtr;
+
+        If Token^.Token = SP_KEYWORD Then Begin
+          Error^.Position := Token^.TokenLen + 1 + (NativeUInt(StrPtr) - NativeUInt(StrStart));
+          Error^.Statement := Token^.TokenPos; // TokenPos is STATEMENT NUMBER! IMPORTANT!
+          INPUTERROR := False;
+        End;
+
+        TSP_InterpretProc(Token^.Handler)(pInfo);
+        Inc(StrPtr, Token^.TokenLen);
+
+        If (Error.ReturnType >= SP_JUMP) or (Error.Code <> SP_ERR_OK) Then Begin
+          // A jump or an error (or a user BREAK event) has occurred.
+          If Not CheckForONERROR(Error^) Then
+            If (Error.ReturnType < SP_JUMP) and ((Error.Code = SP_ERR_STOP) or (Error.Code = SP_ERR_BREAK)) and (Error.Line >= 0) Then Begin
+              Ls := SP_ConvertLineStatement(Error.Line, Error.Statement + 1);
+              CONTLINE := Ls.Line;
+              If CONTLINE >= 0 Then
+                CONTSTATEMENT := SP_GetStatementFromOffset(CONTLINE, Ls.Statement);
+            End;
+          Break;
+        End;
+
+      End Else Begin
+
+        // Terminal char - EOL!
+
+        If NXTLINE < 0 Then Begin
+          CONTLINE := Error.Line +1;
+          CONTSTATEMENT := 1;
+        End Else Begin
+          CONTLINE := NXTLINE;
+          If NXTSTATEMENT = -1 Then
+            CONTSTATEMENT := 1
+          Else
+            CONTSTATEMENT := SP_GetStatementFromOffset(NXTLINE, NXTSTATEMENT);
+        End;
+        nPosition := NativeUInt(StrPtr) - NativeUInt(StrStart) + 1 + SizeOf(TToken);
+        SP_StackPtr := Info.StackPtr;
+        Exit;
+
+      End;
+
+    End;
+
+    If Error.Code < 0 Then Begin // SP_EXIT or SP_NEW
+      If NXTLINE < 0 Then Begin
+        CONTLINE := Error.Line +1;
+        CONTSTATEMENT := 1;
+      End Else Begin
+        CONTLINE := NXTLINE;
+        CONTSTATEMENT := NXTST;
+      End;
+      nPosition := Info.Position;
+      If Error.Code = SP_EXIT then
+        Error.Code := ppError;
+      SP_StackPtr := Info.StackPtr;
+      Exit;
+    End;
+
+    // Test for BREAK
+
+    {$IFNDEF RUNTIMEONLY}
+    If (STEPMODE = SM_Single) And (Error^.Code = SP_ERR_OK) And (Error^.ReturnType >= SP_JUMP) Then
+      BPSIGNAL := True;
+    {$ENDIF}
+
+    If Error^.Code = SP_ERR_OK Then Begin
+      If (KEYSTATE[K_ESCAPE] = 1) or BREAKSIGNAL or BPSIGNAL Then Begin
+        If (Token^.BPIndex >= 0) {$IFNDEF RUNTIMEONLY} or (STEPMODE = SM_Single) or BPSIGNAL {$ENDIF} Then Begin
+          If Error.ReturnType >= SP_JUMP Then Begin
+            If NXTLINE = -1 Then Begin
+              CONTLINE := Error.Line +1;
+              CONTSTATEMENT := 1;
+            End Else
+              If NXTSTATEMENT = -1 Then Begin
+                CONTSTATEMENT := 1;
+                CONTLINE := NXTLINE;
+              End Else Begin
+                CONTSTATEMENT := SP_GetStatementFromOffset(NXTLINE, NXTSTATEMENT);
+                CONTLINE := NXTLINE;
+              End;
+          End Else Begin
+            CONTSTATEMENT := SP_GetStatementFromOffset(Error^.Line, (NativeUInt(StrPtr) - NativeUInt(StrStart)) +1);
+            CONTLINE := Error^.Line;
+          End;
+          Error^.Code := SP_ERR_BREAKPOINT;
+          NXTLINE := -1;
+          BREAKSIGNAL := False;
+          BPSIGNAL := False;
+          SP_StackPtr := Info.StackPtr;
+          Exit;
+        End Else Begin
+          CONTSTATEMENT := Error^.Statement +1;
+          CONTLINE := Error^.Line;
+          Error^.Code := SP_ERR_BREAK;
+        End;
+        NXTLINE := -1;
+        BREAKSIGNAL := False;
+        BPSIGNAL := False;
+      End;
+    End;
+
+    // Store error information in the sysvars for later - if an ON..ERROR..GO TO is used,
+    // then we need to prevent the error handler from detecting it to give the user's code a chance to run.
+
+    With Error^ Do Begin
+      LASTERROR := Code;
+      LASTERRORLINE := Line;
+      LASTERRORSTATEMENT := Statement;
+    End;
+
+    If INPUTERROR Then Begin
+      // If an error in INPUT occured, then we do not want the error handler (or the ON ERROR) handler to get to it.
+      INPUTERROR := False;
+      Error^.Code := SP_ERR_OK;
+      Goto Next_Statement;
+    End;
+
+    Error^.Position := 1 + (NativeUInt(StrPtr) - NativeUInt(StrStart));
+    If QUITMSG Then Begin SP_StackPtr := Info.StackPtr; Exit; End;
+
+    If (Error^.Code <> SP_ERR_OK) or (Error^.ReturnType >= SP_JUMP) or TerminateInterpreter Then Begin
+      // If we're jumping to a place in the same line as we're already executing (e.g, FOR..NEXT on the same line)
+      // Then don't exit, just set up the jump. NOT FOR AFTER "RUN"
+      LocalQuit := QUITMSG;
+      If (Error^.ReturnType = SP_JUMP) And (NXTLINE = Error^.Line) And (NXTLINE <> -1) Then Begin
+        If NXTSTATEMENT <> -1 Then
+          Error.Position := NXTSTATEMENT
+        Else Begin
+          Error.Statement := 1;
+          Error.Position := SP_FindStatement(Tokens, 1);
+        End;
+        Info.StrPtr := Info.StrStart + Error.Position -1;
+        Error^.ReturnType := 0;
+        Inc(NXTLINE);
+        NXTSTATEMENT := -1;
+        DoPeriodicalEvents(Error^);
+        Goto Next_Statement;
+      End;
+      If Error^.Code = SP_ERR_OK Then
+        Error^.ReturnType := 0
+      Else
+        If Not ErrorEnabled[Error^.Code] Then Begin
+          Error.Code := SP_ERR_OK;
+          Goto Next_Statement;
+        End;
+      SP_StackPtr := Info.StackPtr;
+      Exit;
+    End Else Begin
+      DoPeriodicalEvents(Error^);
+      Goto Next_Statement;
+    End;
+
+  End;
+
+  SP_StackPtr := Info.StackPtr;
+
+End;
+
+Procedure SP_Interpreter(Var Tokens: paString; Var Position: Integer; Var Error: TSP_ErrorCode; PreParseErrorCode: Integer; Continue: Boolean);
+Var
+  CurLine: Integer;
+  {$IFNDEF RUNTIMEONLY}
+  Idx, OldEC: Integer;
+  BreakNow: Boolean;
+  res: aString;
+  {$ENDIF}
+  HasErrors: Boolean;
+Begin
+
+  // If there are errors in the listing, or lines that have yet to be compiled, then
+  // flag them up now. Errors will not stop the _command line_ from running, but will
+  // prevent entry to the program.
+
+  HasErrors := False;
+
+  If Not Continue Then Begin
+
+    {$IFNDEF RUNTIMEONLY}
+    If PAYLOADPRESENT Then
+      HasErrors := False
+    Else
+      HasErrors := Not SP_CheckProgram;
+    {$ELSE}
+      HasErrors := False;
+    {$ENDIF}
+    {$IFNDEF RUNTIMEONLY}
+    If Assigned(CompilerThread) Then SP_StopCompiler;
+    {$ENDIF}
+    SP_Interpret(Tokens, Error.Position, Error);
+
+  End;
+
+  If Error.ReturnType >= SP_JUMP Then
+    If PreParseErrorCode <> SP_ERR_OK Then Begin
+      Error.Code := PreParseErrorCode;
+      Error.ReturnType := 0;
+      Exit;
+    End;
+
+  If INCLUDEFROM >= 0 Then Begin
+    If NXTLINE >= INCLUDEFROM Then NXTLINE := -1;
+  End Else
+    If NXTLINE >= SP_Program_Count Then NXTLINE := -1;
+
+  While NXTLINE <> -1 Do Begin
+
+    If NXTLINE = -2 Then Begin
+      CurLine := -1;
+      SYSTEMSTATE := SS_DIRECT;
+      Tokens := @COMMAND_TOKENS;
+      If NXTSTATEMENT = -1 Then Begin Dec(Error.Statement); Exit; End;
+      If Byte(Tokens^[NXTSTATEMENT]) = SP_TERMINAL Then
+        Dec(Error.Statement);
+    End Else Begin
+      If HasErrors Then Begin
+        Error.Code := SP_ERR_EDITOR;
+        Error.Line := NXTLINE;
+        Error.Statement := 1;
+        EDITERROR := True;
+        Exit;
+      End Else Begin
+        CurLine := NXTLINE;
+        SYSTEMSTATE := SS_INTERPRET;
+        Tokens := @SP_Program[CurLine];
+      End;
+    End;
+
+    If NXTSTATEMENT <> -1 Then
+      Error.Position := NXTSTATEMENT
+    Else Begin
+      Error.Statement := 1;
+      Error.Position := SP_FindStatement(Tokens, 1);
+    End;
+
+    NXTSTATEMENT := -1;
+    Inc(NXTLINE);
+    If NXTLINE <> 0 Then Begin
+      Error.Line := CurLine;
+      While NativeUInt(SP_StackPtr) > NativeUInt(SP_StackStart) Do Begin
+        SP_StackPtr^.Str := '';
+        Dec(SP_StackPtr);
+      End;
+      SP_StackPtr := SP_StackStart;
+      Error.Code := PreParseErrorCode;
+      SP_Interpret(Tokens, Error.Position, Error);
+      {$IFNDEF RUNTIMEONLY}
+      If DEBUGGING Then Begin
+        If STEPMODE = SM_Single Then
+          Exit;
+
+        If Error.Code = SP_ERR_OK Then
+          For Idx := 0 To Length(SP_ConditionalBreakPointList) -1 Do
+            With SP_ConditionalBreakPointList[Idx] Do Begin
+              OldEC := Error.Code;
+              BreakNow := PassCount = 0;
+              If bpType = BP_Conditional Then
+                BreakNow := (SP_FPExecuteNumericExpression(Compiled_Condition, Error) <> 0) And BreakNow
+              Else Begin
+                res := SP_FPExecuteAnyExpression(Compiled_Condition, Error);
+                BreakNow := ((HasResult And (res <> CurResult)) or (Not HasResult)) and BreakNow and (Error.Code = SP_ERR_OK);
+                If Error.Code = SP_ERR_OK Then Begin
+                  CurResult := res;
+                  HasResult := True;
+                End;
+              End;
+              Error.Code := OldEC;
+              If BreakNow Then Begin
+                CONTLINE := NXTLINE;
+                If NXTSTATEMENT = -1 Then
+                  CONTSTATEMENT := 1
+                Else
+                  CONTSTATEMENT := SP_GetStatementFromOffset(NXTLINE, NXTSTATEMENT);
+                Error.Code := SP_ERR_BREAKPOINT;
+                Error.Line := CONTLINE;
+                Error.Statement := CONTSTATEMENT;
+                Exit;
+              End Else
+                If PassCount > 0 Then
+                  Dec(PassCount);
+            End;
+      End;
+      {$ENDIF}
+    End;
+
+    If NXTLINE = SP_Program_Count Then NXTLINE := -1;
+
+    If Error.Code <> SP_ERR_OK Then Begin
+      NXTLINE := -1;
+    End Else Begin
+      If NXTLINE <> -1 Then Begin
+        If NXTLINE >= SP_Program_Count Then
+          NXTLINE := -1;
+      End;
+
+    End;
+
+  End;
+
+End;
+
+Procedure SP_Interpret_COMPILE(Var Info: pSP_iInfo);
+var
+  sFilename, dFilename, Dir: String;
+  payLoadData, Caption: aString;
+  payLoad: TPayLoad;
+  Line, NumBanks: Integer;
+  Banks: Array of Integer;
+  {$IFDEF DEBUGPAYLOAD}
+  s: TFileStream;
+  {$ENDIF}
+Begin
+
+  If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
+    Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
+    Exit;
+  End;
+
+  // Create an executable with the current program as a payload.
+
+  Dir := ExtractFilePath(EXENAME);
+  sFilename := Dir + 'rt';
+  dFilename := String(Info^.StackPtr^.Str);
+  Dec(Info^.StackPtr);
+
+  Caption := Info^.StackPtr^.Str;
+  Dec(Info^.StackPtr);
+
+  Line := Trunc(Info^.StackPtr^.Val);
+  Dec(Info^.StackPtr);
+
+  NumBanks := Trunc(Info^.StackPtr^.Val);
+  SetLength(Banks, NumBanks);
+  Dec(Info^.StackPtr);
+
+  While NumBanks > 0 Do Begin
+    Banks[NumBanks -1] := Trunc(Info^.StackPtr^.Val);
+    Dec(Info^.StackPtr);
+    Dec(NumBanks);
+  End;
+
+  If FileExists(sFilename) Then Begin
+    {$IFNDEF FPC}
+    If FileExists(dFilename) Then
+      TFile.Delete(dFilename);
+    TFile.Copy(sFilename, dFilename);
+    {$ELSE}
+    If FileExists(dFilename) Then
+      DeleteFile(dFilename);
+    CopyFile(sFilename, dFilename);
+    {$ENDIF}
+    payLoadData := MakeDataPayload(Line, Caption, Banks);
+    payLoad := TPayLoad.Create(dFilename);
+    payload.SetPayload(payLoadData[1], Length(PayLoadData));
+    payLoad.Free;
+    {$IFDEF DEBUGPAYLOAD}
+    sFilename := Dir + 'payload.bin';
+    if FileExists(sFilename) then
+      TFile.Delete(sFilename);
+    s := TFileStream.Create(sFilename, fmCreate);
+    s.Write(payLoadData[1], Length(payLoadData));
+    s.Free;
+    {$ENDIF}
+  End;
+
+End;
+
+Procedure SP_AddONEvent(s: aString);
+Begin
+
+  ONCtrlLock.Enter;
+
+  If SP_ONCtrlListPtr < MAXDEPTH Then Begin
+    Inc(SP_ONCtrlListPtr);
+    SP_ONCtrlList[SP_ONCtrlListPtr] := s;
+  End;
+
+  ONCtrlLock.Leave;
+
+End;
+
+Procedure SP_ClearOnEvents;
+Begin
+
+  ONCtrlLock.Enter;
+  SP_ONCtrlListPtr := -1;
+  ONCtrlLock.Leave;
+
+End;
+
+Procedure SP_AddEvery(const Condition: aString; Every, LineNum, Statement, St: Integer; UsesError: Boolean);
+Begin
+
+  SetLength(SP_EveryItems, SP_EveryCount + 1);
+  With SP_EveryItems[SP_EveryCount] Do Begin
+    HasCondition := Cond <> '';
+    Cond := Condition + SP_TERMINAL_CHAR;
+    FrameStart := Every;
+    FrameCounter := Every;
+    JumpStatement := Statement;
+    JumpLine := LineNum;
+    JumpSt := St;
+  End;
+  Inc(SP_EveryCount);
+  OnActive := OnActive or OnEvery;
 
 End;
 
@@ -2180,6 +1654,45 @@ Begin
       OpType := SP_STRING;
       Str := StrVars[Idx].ContentPtr^.Value;
     End;
+  End;
+
+End;
+
+Procedure SP_StackToString(NumIndices: Integer; Var StackPtr: pSP_StackItem); inline;
+Var
+  TokenStart: pByte;
+Begin
+
+  // If the indices count is zero then the array is being accessed via
+  // a key-string. Otherwise, it's a regular index lookup.
+
+  If NumIndices > 0 Then Begin
+
+    gbKey := '';
+    Nl := NumIndices * SizeOf(LongWord);
+    If Nl <> Il Then Begin
+      SetLength(gbIndices, Nl);
+      Il := Nl;
+    End;
+
+    Dec(StackPtr);
+//    TokenStart := pByte(pLongWord(@gbIndices)^ + (Nl - SizeOf(LongWord)));
+    TokenStart := @gbIndices[Nl - (SizeOf(LongWord) -1)];
+    While NumIndices > 0 Do Begin
+      pInteger(TokenStart)^ := Round(StackPtr^.Val);
+      Dec(TokenStart, SizeOf(LongWord));
+      Dec(NumIndices);
+      Dec(StackPtr);
+    End;
+
+  End Else Begin
+
+    Dec(StackPtr);
+    gbKey := StackPtr^.Str;
+    gbIndices := '';
+    Il := 0;
+    Dec(StackPtr);
+
   End;
 
 End;
@@ -3755,7 +3268,6 @@ End;
 Procedure SP_Interpret_SP_CHAR_COLON(Var Info: pSP_iInfo);
 Begin
   Inc(Info^.Error^.Statement);
-  //Info^.StackPtr := Info^.StackStart;
   DoPeriodicalEvents(Info^.Error^);
 End;
 
@@ -4361,6 +3873,42 @@ Begin
 
 End;
 
+Procedure SP_AddHandlersInBlock(Var Tokens: aString; DataStart, DataLen: Integer);
+// Re-sets handlers for all tokens embedded in an IJMP data block.
+// DataStart is the 1-based index of the first byte of the IJMP's data (past the TToken header).
+// DataLen is Token^.TokenLen.
+Var
+  Idx: Integer;
+  StrPtr: pByte;
+  Tkn: pToken;
+  Count: LongWord;
+Begin
+  If DataLen <= Integer(2 * SizeOf(LongWord)) Then Exit;
+
+  Idx := DataStart;
+  // Skip Count and ElseSkip LongWords
+  Count := pLongWord(@Tokens[Idx])^;
+  Inc(Idx, 2 * SizeOf(LongWord));
+  // Skip the jump table (Count entries)
+  Inc(Idx, Count * SizeOf(LongWord));
+
+  // Now walk the sub-expression token streams to the end of the data block
+  While Idx < DataStart + DataLen Do Begin
+    Tkn := @Tokens[Idx];
+    Inc(Idx, SizeOf(TToken));
+    If Tkn^.Token = SP_TERMINAL Then Continue; // not a break - expressions can follow
+    If Idx <= Length(Tokens) Then
+      StrPtr := @Tokens[Idx]
+    Else
+      StrPtr := nil;
+    SP_SetHandler(Tkn, StrPtr);
+    // Recurse for nested IJMP (e.g. CHOOSE inside a CHOOSE branch)
+    If Tkn^.Token = SP_IJMP Then
+      SP_AddHandlersInBlock(Tokens, Idx, Tkn^.TokenLen);
+    Inc(Idx, Tkn^.TokenLen);
+  End;
+End;
+
 Procedure SP_AddHandlers(Var Tokens: aString);
 Var
   Idx: Integer;
@@ -4388,58 +3936,13 @@ Begin
         Else
           StrPtr := nil;
         SP_SetHandler(Tkn, StrPtr);
+        If Tkn^.Token = SP_IJMP Then
+          SP_AddHandlersInBlock(Tokens, Idx, Tkn^.TokenLen);
         Inc(Idx, Tkn^.TokenLen);
       End;
 
     End;
 
-  End;
-End;
-
-Procedure DoPeriodicalEvents(var Error: TSP_ErrorCode);
-Var
-  Idx: Integer;
-Begin
-
-  If PROGSTATE = SP_PR_RUN Then Begin
-
-    If SP_WindowResizeFlag >= 0 Then Begin
-      Idx := SCREENBANK;
-      SCREENBANK := -1;
-      SP_SetDrawingWindow(Idx);
-      SP_WindowResizeFlag := -1;
-    End;
-
-    PROGSTATE := SP_PR_EVENT;
-    If OnActive > 0 Then SP_CheckONConditions(Error);
-    If ControlsAreInUse Then DoTimerEvents;
-    SP_ExecuteONCtrl(Error);
-    PROGSTATE := SP_PR_RUN;
-  End;
-
-End;
-
-Function CheckForONERROR(Var Error: TSP_ERRORCODE): Boolean;
-Var
-  LineItem: TSP_GOSUB_Item;
-Begin
-  Result := False;
-  If ERROR_LineNum >= 0 Then Begin
-    If (Error.Code <> SP_ERR_OK) And Not IGNORE_ON_ERROR Then Begin
-      Error.Code := SP_ERR_OK;
-      If Error.ReturnType >= SP_JUMP Then Begin
-        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_ERROR, Error);
-      End Else Begin
-        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
-        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_ERROR, Error);
-      End;
-      NXTLINE := ERROR_LineNum;
-      NXTSTATEMENT := ERROR_Statement;
-      Error.Statement := ERROR_St;
-      Error.ReturnType := SP_JUMP;
-      IGNORE_ON_ERROR := True;
-      Result := True;
-    End;
   End;
 End;
 
@@ -4462,281 +3965,6 @@ Begin
   Dec(INPROC);
 End;
 
-Procedure SP_Interpret(Const Tokens: paString; Var nPosition: Integer; Var Error: TSP_ErrorCode);
-Var
-  Idx, CurST, OldST, OldEC, ppError: Integer;
-  Info: TSP_iInfo;
-  pInfo: pSP_iInfo;
-  BreakNow, LocalQuit: Boolean;
-  Ls: TSP_GOSUB_Item;
-  res: aString;
-Label
-  Next_Statement;
-Begin
-
-  If Error.Code <> SP_ERR_OK Then Begin
-    ppError := Error.Code;
-    Error.Code := SP_ERR_OK;
-  End Else
-    ppError := SP_ERR_OK;
-
-  pInfo := @Info;
-
-  Info.StackPtr   := SP_StackPtr;
-  Info.StackStart := SP_StackStart;
-
-  Info.Tokens := Tokens;
-  Info.Error := @Error;
-  Info.Error^.ReturnType := 0;
-  Info.StrStart := pByte(Pointer(Tokens^));
-  Info.StrPtr := Info.StrStart + nPosition - 1;
-  Info.SavePos := NativeUInt(Info.StrPtr);
-  Info.Position := nPosition;
-
-  If Info.StrPtr^ = SP_LINE_NUM Then
-    Inc(Info.StrPtr^, 1 + SizeOf(LongWord));
-
-  If Info.StrPtr^ = SP_STATEMENTS Then
-    Inc(Info.StrPtr, 1 + ((1 + pLongWord(Info.StrPtr + 1)^) * SizeOf(LongWord)));
-
-  LocalQuit := QUITMSG;
-  OldSt := Info.Error^.Statement;
-
-  With Info Do Begin
-
-    While Not LocalQuit Do Begin
-
-      Next_Statement:
-
-      // Pick up the first token, then address the content of that token.
-
-      Token := pToken(StrPtr);
-
-      If Token^.Token <> SP_TERMINAL Then Begin
-
-        // Test for debugging - a source breakpoint triggered here is pre-execution so leave CONTINUE point as-is
-        If DEBUGGING Then Begin
-
-          If Token^.BPIndex >= 0 Then
-            With SP_SourceBreakPointList[Token^.BPIndex] Do Begin
-              BreakNow := PassCount = 0;
-              If Condition <> '' Then
-                BreakNow := (SP_FPExecuteNumericExpression(Compiled_Condition, Info.Error^) <> 0) And BreakNow;
-              If BreakNow Then Begin
-                BPSIGNAL := True;
-                Break;
-              End Else
-                If PassCount > 0 Then
-                  Dec(PassCount);
-            End;
-
-          If (OldSt <> Error^.Statement) Then Begin
-            // Test for single step
-            If STEPMODE = SM_Single Then Begin
-              CurST := SP_GetStatementFromOffset(Error^.Line, (NativeUInt(StrPtr) - NativeUInt(StrStart)) +1);
-              If CurST <> CONTSTATEMENT Then Begin
-                BPSIGNAL := True;
-                Break;
-              End;
-            End;
-            // Test conditional and data breakpoints - this is post execution so alter CONTINUE.
-            For Idx := 0 To Length(SP_ConditionalBreakPointList) -1 Do
-              With SP_ConditionalBreakPointList[Idx] Do Begin
-                OldEC := Info.Error^.Code;
-                BreakNow := PassCount = 0;
-                If bpType = BP_Conditional Then
-                  BreakNow := (SP_FPExecuteNumericExpression(Compiled_Condition, Info.Error^) <> 0) And BreakNow
-                Else Begin
-                  res := SP_FPExecuteAnyExpression(Compiled_Condition, Info.Error^);
-                  BreakNow := ((HasResult And (res <> CurResult)) or (Not HasResult)) and BreakNow and (Info.Error^.Code = SP_ERR_OK);
-                  If Info.Error^.Code = SP_ERR_OK Then Begin
-                    CurResult := res;
-                    HasResult := True;
-                  End;
-                End;
-                Info.Error^.Code := OldEC;
-                If BreakNow Then Begin
-                  BPSIGNAL := True;
-                  BREAKSIGNAL := True;
-                  CONTLINE := Info.Error^.Line;
-                  CONTSTATEMENT := SP_GetStatementFromOffset(Info.Error^.Line, (NativeUInt(StrPtr) - NativeUInt(StrStart)) +1) +1;
-                  Info.Error^.Code := SP_ERR_BREAKPOINT;
-                  Info.Error^.Line := CONTLINE;
-                  Info.Error^.Statement := CONTSTATEMENT;
-                  SP_StackPtr := Info.StackPtr;
-                  Exit;
-                End Else
-                  If PassCount > 0 Then
-                    Dec(PassCount);
-              End;
-          End;
-
-        End;
-
-        If BREAKSIGNAL Then
-          Break;
-
-        // Continue with execution
-
-        Inc(StrPtr, SizeOf(TToken));
-        pInfo^.StrPtr := StrPtr;
-
-        If Token^.Token = SP_KEYWORD Then Begin
-          Error^.Position := Token^.TokenLen + 1 + (NativeUInt(StrPtr) - NativeUInt(StrStart));
-          Error^.Statement := Token^.TokenPos; // TokenPos is STATEMENT NUMBER! IMPORTANT!
-          INPUTERROR := False;
-        End;
-
-        TSP_InterpretProc(Token^.Handler)(pInfo);
-        Inc(StrPtr, Token^.TokenLen);
-
-        If (Error.ReturnType >= SP_JUMP) or (Error.Code <> SP_ERR_OK) Then Begin
-          // A jump or an error (or a user BREAK event) has occurred.
-          If Not CheckForONERROR(Error^) Then
-            If (Error.ReturnType < SP_JUMP) and ((Error.Code = SP_ERR_STOP) or (Error.Code = SP_ERR_BREAK)) and (Error.Line >= 0) Then Begin
-              Ls := SP_ConvertLineStatement(Error.Line, Error.Statement + 1);
-              CONTLINE := Ls.Line;
-              If CONTLINE >= 0 Then
-                CONTSTATEMENT := SP_GetStatementFromOffset(CONTLINE, Ls.Statement);
-            End;
-          Break;
-        End;
-
-      End Else Begin
-
-        // Terminal char - EOL!
-
-        If NXTLINE < 0 Then Begin
-          CONTLINE := Error.Line +1;
-          CONTSTATEMENT := 1;
-        End Else Begin
-          CONTLINE := NXTLINE;
-          If NXTSTATEMENT = -1 Then
-            CONTSTATEMENT := 1
-          Else
-            CONTSTATEMENT := SP_GetStatementFromOffset(NXTLINE, NXTSTATEMENT);
-        End;
-        nPosition := NativeUInt(StrPtr) - NativeUInt(StrStart) + 1 + SizeOf(TToken);
-        SP_StackPtr := Info.StackPtr;
-        Exit;
-
-      End;
-
-    End;
-
-    If Error.Code < 0 Then Begin // SP_EXIT or SP_NEW
-      If NXTLINE < 0 Then Begin
-        CONTLINE := Error.Line +1;
-        CONTSTATEMENT := 1;
-      End Else Begin
-        CONTLINE := NXTLINE;
-        CONTSTATEMENT := NXTST;
-      End;
-      nPosition := Info.Position;
-      If Error.Code = SP_EXIT then
-        Error.Code := ppError;
-      SP_StackPtr := Info.StackPtr;
-      Exit;
-    End;
-
-    // Test for BREAK
-
-    If (STEPMODE = SM_Single) And (Error^.Code = SP_ERR_OK) And (Error^.ReturnType >= SP_JUMP) Then
-      BPSIGNAL := True;
-
-    If Error^.Code = SP_ERR_OK Then Begin
-      If (KEYSTATE[K_ESCAPE] = 1) or BREAKSIGNAL or BPSIGNAL Then Begin
-        If (Token^.BPIndex >= 0) or (STEPMODE = SM_Single) or BPSIGNAL Then Begin
-          If Error.ReturnType >= SP_JUMP Then Begin
-            If NXTLINE = -1 Then Begin
-              CONTLINE := Error.Line +1;
-              CONTSTATEMENT := 1;
-            End Else
-              If NXTSTATEMENT = -1 Then Begin
-                CONTSTATEMENT := 1;
-                CONTLINE := NXTLINE;
-              End Else Begin
-                CONTSTATEMENT := SP_GetStatementFromOffset(NXTLINE, NXTSTATEMENT);
-                CONTLINE := NXTLINE;
-              End;
-          End Else Begin
-            CONTSTATEMENT := SP_GetStatementFromOffset(Error^.Line, (NativeUInt(StrPtr) - NativeUInt(StrStart)) +1);
-            CONTLINE := Error^.Line;
-          End;
-          Error^.Code := SP_ERR_BREAKPOINT;
-          NXTLINE := -1;
-          BREAKSIGNAL := False;
-          BPSIGNAL := False;
-          SP_StackPtr := Info.StackPtr;
-          Exit;
-        End Else Begin
-          CONTSTATEMENT := Error^.Statement +1;
-          CONTLINE := Error^.Line;
-          Error^.Code := SP_ERR_BREAK;
-        End;
-        NXTLINE := -1;
-        BREAKSIGNAL := False;
-        BPSIGNAL := False;
-      End;
-    End;
-
-    // Store error information in the sysvars for later - if an ON..ERROR..GO TO is used,
-    // then we need to prevent the error handler from detecting it to give the user's code a chance to run.
-
-    With Error^ Do Begin
-      LASTERROR := Code;
-      LASTERRORLINE := Line;
-      LASTERRORSTATEMENT := Statement;
-    End;
-
-    If INPUTERROR Then Begin
-      // If an error in INPUT occured, then we do not want the error handler (or the ON ERROR) handler to get to it.
-      INPUTERROR := False;
-      Error^.Code := SP_ERR_OK;
-      Goto Next_Statement;
-    End;
-
-    Error^.Position := 1 + (NativeUInt(StrPtr) - NativeUInt(StrStart));
-    If QUITMSG Then Begin SP_StackPtr := Info.StackPtr; Exit; End;
-
-    If (Error^.Code <> SP_ERR_OK) or (Error^.ReturnType >= SP_JUMP) or TerminateInterpreter Then Begin
-      // If we're jumping to a place in the same line as we're already executing (e.g, FOR..NEXT on the same line)
-      // Then don't exit, just set up the jump. NOT FOR AFTER "RUN"
-      LocalQuit := QUITMSG;
-      If (Error^.ReturnType = SP_JUMP) And (NXTLINE = Error^.Line) And (NXTLINE <> -1) Then Begin
-        If NXTSTATEMENT <> -1 Then
-          Error.Position := NXTSTATEMENT
-        Else Begin
-          Error.Statement := 1;
-          Error.Position := SP_FindStatement(Tokens, 1);
-        End;
-        Info.StrPtr := Info.StrStart + Error.Position -1;
-        Error^.ReturnType := 0;
-        Inc(NXTLINE);
-        NXTSTATEMENT := -1;
-        DoPeriodicalEvents(Error^);
-        Goto Next_Statement;
-      End;
-      If Error^.Code = SP_ERR_OK Then
-        Error^.ReturnType := 0
-      Else
-        If Not ErrorEnabled[Error^.Code] Then Begin
-          Error.Code := SP_ERR_OK;
-          Goto Next_Statement;
-        End;
-      SP_StackPtr := Info.StackPtr;
-      Exit;
-    End Else Begin
-      DoPeriodicalEvents(Error^);
-      Goto Next_Statement;
-    End;
-
-  End;
-
-  SP_StackPtr := Info.StackPtr;
-
-End;
-
 Procedure ClearFlags;
 Begin
 
@@ -4750,205 +3978,6 @@ Begin
   MENU_HIDEFLAG := False;
   MENU_HIGHLIGHTFLAG := False;
   IGNORE_ON_ERROR := False;
-
-End;
-
-Procedure SP_CheckONConditions(Var Error: TSP_ErrorCode);
-Var
-  LineItem: TSP_GOSUB_Item;
-Begin
-
-  If Error.Code = SP_ERR_OK Then Begin
-
-    If Not IgnoreEvery Then Begin
-      If SP_EveryCount > 0 Then
-        If EveryEnabled Then Begin
-          SP_CheckEvery(False, Error.Position, Error);
-        End Else
-          If ReEnableEvery Then Begin
-            EveryEnabled := True;
-            ReEnableEvery := False;
-          End;
-    End Else
-      IgnoreEvery := False;
-
-  End;
-
-  If MENUSHOW_LineNum <> -1 Then Begin
-    If MENU_SHOWFLAG Then Begin
-      If Error.ReturnType >= SP_JUMP Then Begin
-        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
-      End Else Begin
-        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
-        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
-      End;
-      MENU_SHOWFLAG := False;
-      NXTLINE := MENUSHOW_LineNum;
-      NXTSTATEMENT := MENUSHOW_Statement;
-      Error.Statement := MENUSHOW_St;
-      Error.ReturnType := SP_JUMP;
-    End;
-  End;
-
-  If MENUHIDE_LineNum <> -1 Then Begin
-    If MENU_HIDEFLAG Then Begin
-      If Error.ReturnType >= SP_JUMP Then Begin
-        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
-      End Else Begin
-        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
-        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
-      End;
-      MENU_HIDEFLAG := False;
-      NXTLINE := MENUHIDE_LineNum;
-      NXTSTATEMENT := MENUHIDE_Statement;
-      Error.Statement := MENUHIDE_St;
-      Error.ReturnType := SP_JUMP;
-    End;
-  End;
-
-  If MENUITEM_LineNum <> -1 Then Begin
-    If MENU_HIGHLIGHTFLAG Then Begin
-      If Error.ReturnType >= SP_JUMP Then Begin
-        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
-      End Else Begin
-        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
-        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
-      End;
-      MENU_HIGHLIGHTFLAG := False;
-      NXTLINE := MENUITEM_LineNum;
-      NXTSTATEMENT := MENUITEM_Statement;
-      Error.Statement := MENUITEM_St;
-      Error.ReturnType := SP_JUMP;
-    End;
-  End;
-
-  If COLLIDE_LineNum <> -1 Then Begin
-    If COLLIDE_FLAG Then Begin
-      If Error.ReturnType >= SP_JUMP Then Begin
-        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
-      End Else Begin
-        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
-        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_ERROR, Error);
-      End;
-      COLLIDE_FLAG := False;
-      NXTLINE := COLLIDE_LineNum;
-      NXTSTATEMENT := COLLIDE_Statement;
-      Error.Statement := COLLIDE_St;
-      Error.ReturnType := SP_JUMP;
-    End;
-  End;
-
-  If MOUSEMOVE_LineNum <> -1 Then Begin
-    If M_MOVEFLAG Then Begin
-      If Error.ReturnType >= SP_JUMP Then Begin
-        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
-      End Else Begin
-        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
-        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
-      End;
-      M_MOVEFLAG := False;
-      NXTLINE := MOUSEMOVE_LineNum;
-      NXTSTATEMENT := MOUSEMOVE_Statement;
-      Error.Statement := MOUSEMOVE_St;
-      Error.ReturnType := SP_JUMP;
-    End;
-  End;
-
-  If MOUSEDOWN_LineNum <> -1 Then Begin
-    If M_DOWNFLAG Then Begin
-      If Error.ReturnType >= SP_JUMP Then Begin
-        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
-      End Else Begin
-        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
-        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
-      End;
-      M_DOWNFLAG := False;
-      NXTLINE := MOUSEDOWN_LineNum;
-      NXTSTATEMENT := MOUSEDOWN_Statement;
-      Error.Statement := MOUSEDOWN_St;
-      Error.ReturnType := SP_JUMP;
-    End;
-  End;
-
-  If MOUSEUP_LineNum <> -1 Then Begin
-    If M_UPFLAG Then Begin
-      If Error.ReturnType >= SP_JUMP Then Begin
-        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
-      End Else Begin
-        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
-        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
-      End;
-      M_UPFLAG := False;
-      NXTLINE := MOUSEUP_LineNum;
-      NXTSTATEMENT := MOUSEUP_Statement;
-      Error.Statement := MOUSEUP_St;
-      Error.ReturnType := SP_JUMP;
-    End;
-  End;
-
-  If WHEELUP_LineNum <> -1 Then Begin
-    If M_WHEELUPFLAG Then Begin
-      If Error.ReturnType >= SP_JUMP Then Begin
-        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
-      End Else Begin
-        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
-        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
-      End;
-      M_WHEELUPFLAG := False;
-      NXTLINE := WHEELUP_LineNum;
-      NXTSTATEMENT := WHEELUP_Statement;
-      Error.Statement := WHEELUP_St;
-      Error.ReturnType := SP_JUMP;
-    End;
-  End;
-
-  If WHEELDOWN_LineNum <> -1 Then Begin
-    If M_WHEELDNFLAG Then Begin
-      If Error.ReturnType >= SP_JUMP Then Begin
-        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
-      End Else Begin
-        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
-        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
-      End;
-      M_WHEELDNFLAG := False;
-      NXTLINE := WHEELDOWN_LineNum;
-      NXTSTATEMENT := WHEELDOWN_Statement;
-      Error.Statement := WHEELDOWN_St;
-      Error.ReturnType := SP_JUMP;
-    End;
-  End;
-
-  If KEYDOWN_LineNum <> -1 Then Begin
-    If K_DOWNFLAG Then Begin
-      If Error.ReturnType >= SP_JUMP Then Begin
-        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
-      End Else Begin
-        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
-        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
-      End;
-      K_DOWNFLAG := False;
-      NXTLINE := KEYDOWN_LineNum;
-      NXTSTATEMENT := KEYDOWN_Statement;
-      Error.Statement := KEYDOWN_St;
-      Error.ReturnType := SP_JUMP;
-    End;
-  End;
-
-  If KEYUP_LineNum <> -1 Then Begin
-    If K_UPFLAG Then Begin
-      If Error.ReturnType >= SP_JUMP Then Begin
-        SP_StackLine(NXTLINE, NXTSTATEMENT, Error.Statement, SP_KW_EVERY, Error);
-      End Else Begin
-        LineItem := SP_ConvertLineStatement(Error.Line, Error.Statement +1);
-        SP_StackLine(LineItem.Line, LineItem.Statement, LineItem.St, SP_KW_EVERY, Error);
-      End;
-      K_UPFLAG := False;
-      NXTLINE := KEYUP_LineNum;
-      NXTSTATEMENT := KEYUP_Statement;
-      Error.Statement := KEYUP_St;
-      Error.ReturnType := SP_JUMP;
-    End;
-  End;
 
 End;
 
@@ -4995,7 +4024,7 @@ Procedure SP_Interpret_FN_STRADDR(Var Info: pSP_iInfo);
 Begin
 
   Info^.StackPtr^.OpType := SP_VALUE;
-  Info^.StackPtr^.Val := NativeUInt(@pSP_StrVarContent(Sp_StackPtr^.Ptr)^.Value[1]);
+  Info^.StackPtr^.Val := NativeUInt(@pSP_StrVarContent(Info^.StackPtr^.Ptr)^.Value[1]);
 
 End;
 
@@ -5220,57 +4249,6 @@ Begin
   End;
 
 End;
-
-Procedure SP_ReplaceAll(Const Host, Find, Rep: aString; var OutStr: aString);
-var
-  hLen, rLen, fLen, cnt: Integer;
-  src, dst, {$IFDEF FPC}t, {$ENDIF}dStart, rPtr, fPtr1, fPtr2, hostEnd: pByte;
-begin
-
-  hLen := Length(Host);
-  rLen := Length(Rep);
-  fLen := Length(Find);
-  SetLength(OutStr, Max(hLen * rLen, hLen));
-  dst := pByte(pNativeUInt(@OutStr)^);
-  src := pByte(pNativeUInt(@Host)^);
-  dStart := dst;
-  rPtr := pByte(pNativeUint(@Rep)^);
-  fPtr1 := pByte(pNativeUInt(@Find)^);
-  fPtr2 := fPtr1;
-  hostEnd := pByte(NativeUInt(src) + hLen);
-  cnt := 0;
-
-  While src < hostEnd do Begin
-    dst^ := src^;
-    If src^ = fPtr2^ Then Begin
-      Inc(src);
-      Inc(dst);
-      Inc(cnt);
-      Inc(fPtr2);
-      if cnt = fLen then Begin
-        {$IFNDEF FPC}
-        MoveMemory(pByte(NativeUInt(dst) - cnt), rPtr, rLen);
-        {$ELSE}
-        t := pByte(NativeUInt(dst) - cnt);
-        Move(rPtr, t, rLen);
-        {$ENDIF}
-        Inc(dst, rLen - fLen);
-        cnt := 0;
-        fPtr2 := fPtr1;
-      End Else
-        If src^ <> fPtr2^ then Begin
-          cnt := 0;
-          fPtr2 := fPtr1;
-        End;
-    End Else Begin
-      Inc(src);
-      Inc(dst);
-    End;
-  End;
-
-  SetLength(OutStr, NativeUInt(dst) - NativeUint(dStart));
-
-end;
 
 Procedure SP_Interpret_FN_REPLACES(Var Info: pSP_iInfo);
 Var
@@ -6303,6 +5281,7 @@ Var
   CheckVal: aFloat;
   CheckStr: aString;
   Spn: pSP_StackItem;
+  InResult: Boolean;
 Begin
 
   CheckVal := 0;
@@ -6320,11 +5299,11 @@ Begin
       CheckStr := Str;
   End;
 
-  If SP_TestRanges(CheckVal, CheckStr, IsValue, Info^.Error^) Then
-    Info^.StackPtr^.Val := 1
-  Else
-    Info^.StackPtr^.Val := 0;
+  SP_StackPtr := info^.StackPtr;
+  InResult := SP_TestRanges(CheckVal, CheckStr, IsValue, Info^.Error^);
+  info^.StackPtr := SP_StackPtr;
 
+  Info^.StackPtr^.Val := Byte(InResult);
   Info^.StackPtr^.OpType := SP_VALUE;
 
 End;
@@ -6417,41 +5396,6 @@ Begin
 
   Info^.StackPtr^.Str := src;
 
-End;
-
-Procedure SP_Interpret_FN_ITEM(Var Info: pSP_iInfo);
-Var
-  TempData_Line: TSP_GOSUB_Item;
-  TempData_Tokens: paString;
-Begin
-  TempData_Line.Line := SP_Data_Line.Line;
-  TempData_Line.Statement := SP_Data_Line.Statement;
-  TempData_Line.St := SP_Data_Line.St;
-  TempData_Line.Source := SP_Data_Line.Source;
-  TempData_Tokens := SP_Data_Tokens;
-  SP_Interpret_READ(Info);
-  If Info^.Error^.Code = SP_ERR_OK Then Begin
-    If Info^.StackPtr^.OpType = SP_VALUE Then
-      Info^.StackPtr^.Val := 1
-    Else
-      If Info^.StackPtr^.OpType = SP_STRING Then Begin
-        Info^.StackPtr^.OpType := SP_VALUE;
-        Info^.StackPtr^.Val := 2;
-      End;
-  End Else
-    If Info^.Error^.Code <> SP_ERR_OUT_OF_DATA Then Begin
-      Exit;
-    End Else Begin
-      Inc(Info^.StackPtr);
-      Info^.StackPtr^.OpType := SP_VALUE;
-      Info^.StackPtr^.Val := 0;
-      Info^.Error^.Code := SP_ERR_OK;
-    End;
-  SP_Data_Line.Line := TempData_Line.Line;
-  SP_Data_Line.Statement := TempData_Line.Statement;
-  SP_Data_Line.St := TempData_Line.St;
-  SP_Data_Line.Source := TempData_Line.Source;
-  SP_Data_Tokens := TempData_Tokens;
 End;
 
 Procedure SP_Interpret_FN_GPOINT(Var Info: pSP_iInfo);
@@ -7347,12 +6291,569 @@ Begin
   End;
 End;
 
+Function SP_SetUpPROC(CALLType: Byte; Var CacheVal: LongWord; Var Error: TSP_ErrorCode): Integer;
+Type
+  TProcVar = Packed Record
+    ID: Byte;
+    Len: LongWord;
+  End;
+  pProcVar = ^TProcVar;
+Var
+  ProcName, VarList, VarName: aString;
+  Idx, Idx2, Idx3, vIdx, VarOffsetN, VarOffsetS, ParamCount,
+  VarOffsetNA, VarOffsetSA, NumParams, NumIndices: Integer;
+  TempLine: TSP_GOSUB_Item;
+  SliceFlags: Byte;
+  SliceFrom, SliceTo: Integer;
+  nVar: pProcVar;
+  Reference: Boolean;
+  nPtr: pSP_NumVarContent;
+  sPtr: pSP_StrVarContent;
+Label
+  FoundIt;
+Begin
+
+  Result := -1;
+
+  // Get the parameter count and the procedure name
+
+  NumParams := Round(SP_StackPtr^.Val);
+  Dec(SP_StackPtr);
+
+  // If we've visited this PROC before, then get the cached index, set up the stack
+  // and jump forward to skip the proc name search
+
+  If CacheVal > 0 Then Begin
+    Idx := CacheVal -1;
+    If SP_StackPtr^.Str = '' Then
+      Dec(SP_StackPtr);
+    If CALLType <> 0 Then
+      CALLType := SP_StackPtr^.OpType;
+    Dec(SP_StackPtr);
+    Goto FoundIt;
+  End;
+
+  ProcName := Lower(SP_StackPtr^.Str);
+  If ProcName <> '' Then Begin
+    If SP_StackPtr^.OpType in [SP_STRVAR, SP_STRING] Then
+      ProcName := ProcName + '$';
+  End;
+  If CALLType <> 0 Then
+    CALLType := SP_StackPtr^.OpType;
+  Dec(SP_StackPtr);
+
+  If ProcName = '' Then Begin
+    // This was a PROCID or PROCID$ call - so get the index from the first parameter, which
+    // is the current stack item!
+    Dec(NumParams);
+    Idx := Round(SP_StackPtr^.Val);
+    CacheVal := Idx +1;
+    Dec(SP_StackPtr);
+    Goto FoundIt;
+  End;
+
+  // Find the procedure.
+
+  Idx := 0;
+  While Idx <= SP_ProcsListPtr Do Begin
+    If SP_ProcsList[Idx].Name = ProcName Then Begin
+      CacheVal := Idx +1;
+      Break;
+    End Else
+      Inc(Idx);
+  End;
+
+FoundIt:
+
+  If Idx <= SP_ProcsListPtr Then Begin
+
+    // Check the parameter count
+
+    If SP_ProcsList[Idx].NumVars <> NumParams Then Begin
+      Error.Code := SP_ERR_PROC_PARAM_COUNT;
+    End Else Begin
+
+      // Now pick up the parameters from the proclist entry
+      // and create vars with values from the stack.
+
+      Idx2 := 1;
+      ParamCount := 0;
+      VarList := SP_ProcsList[Idx].VarList;
+      VarOffsetN := NumNV;
+      VarOffsetS := NumSV;
+      VarOffsetNA := Length(NumArrays);
+      VarOffsetSA := Length(StrArrays);
+      While Idx2 < Length(VarList) Do Begin
+        Inc(ParamCount);
+        nVar := @VarList[Idx2];
+        Inc(Idx2, SizeOf(TProcVar));
+        VarName := Copy(VarList, Idx2, nVar.Len);
+        Reference := SP_ProcsList[Idx].VarTypes[ParamCount] = '!';
+        Inc(Idx2, nVar.Len);
+        If nVar.ID = 0 Then Begin
+          Case SP_StackPtr^.OpType of
+            SP_VALUE:
+              Begin
+                // User passed a value as an expression result
+                If Not Reference Then Begin
+                  Idx3 := SP_NewNumVar;
+                  NumVars[Idx3]^.Content.VarType := SP_SIMPLE;
+                  NumVars[Idx3]^.Name := Lower(VarName);
+                  NumVars[Idx3]^.ProcVar := True;
+                  NumVars[Idx3]^.Content.Value := SP_StackPtr^.Val;
+                  NumVars[Idx3]^.ContentPtr := @NumVars[Idx3].Content;
+                  Dec(SP_StackPtr);
+                End Else Begin
+                  Error.Code := SP_ERR_PARAMETER_ERROR;
+                  Exit;
+                End;
+              End;
+            SP_ARRAY_ASSIGN:
+              Begin
+                // User passed a numeric array element by reference
+                SP_StackToString(Round(SP_StackPtr^.Val), SP_StackPtr);
+                With SP_StackPtr^ Do
+                  nPtr := SP_GetNumArrayPtr(Round(Val), Str, gbIndices, gbKey, Error);
+                If Error.Code = SP_ERR_OK Then Begin
+                  Idx3 := SP_NewNumVar;
+                  NumVars[Idx3]^.Name := Lower(VarName);
+                  NumVars[Idx3]^.ProcVar := True;
+                  NumVars[Idx3]^.ContentPtr := nPtr;
+                End;
+                Dec(SP_StackPtr);
+              End;
+            SP_NUMVAR:
+              Begin
+                // User passed a numeric variable by reference
+                vIdx := Round(SP_StackPtr^.Val);
+                If vIdx = 0 Then Begin
+                  vIdx := SP_FindNumVar(SP_StackPtr^.Str);
+                  If vIdx = -1 Then Begin
+                    Error.Code := SP_ERR_MISSING_VAR;
+                    SP_ResizeNumVars(VarOffsetN);
+                    SP_ResizeStrVars(VarOffsetS);
+                    Exit;
+                  End;
+                End Else
+                  Dec(vIdx);
+                Idx3 := SP_NewNumVar;
+                NumVars[Idx3]^.Name := Lower(VarName);
+                NumVars[Idx3]^.ProcVar := True;
+                NumVars[Idx3].ContentPtr := NumVars[vIdx].ContentPtr;
+                Dec(SP_StackPtr);
+              End;
+          Else
+            Error.Code := SP_ERR_PARAMETER_ERROR;
+            Exit;
+          End;
+        End Else
+          Case SP_StackPtr^.OpType of
+            SP_STRING:
+              Begin
+                If Not Reference Then Begin
+                  Idx3 := SP_NewStrVar;
+                  StrVars[Idx3]^.Name := Lower(VarName);
+                  StrVars[Idx3]^.Content.Value := SP_StackPtr^.Str;
+                  StrVars[Idx3]^.ProcVar := True;
+                  StrVars[Idx3]^.ContentPtr := @StrVars[Idx3]^.Content;
+                  StrVars[Idx3]^.Content.DLen := 0;
+                  Dec(SP_StackPtr);
+                End Else Begin
+                  Error.Code := SP_ERR_PARAMETER_ERROR;
+                  Exit;
+                End;
+              End;
+            SP_SLICE_ASSIGN:
+              With SP_StackPtr^ Do Begin
+                SliceFlags := Byte(Str[1]);
+                NumIndices := Round(Val);
+                Dec(SP_StackPtr);
+                If SliceFlags And 1 = 1 Then Begin
+                  SliceTo := Round(SP_StackPtr^.Val);
+                  Dec(SP_StackPtr);
+                End Else
+                  SliceTo := -1;
+                If SliceFlags And 2 = 2 Then Begin
+                  If SP_StackPtr^.OpType = SP_VALUE Then Begin
+                    SliceFrom := Round(SP_StackPtr^.Val);
+                    Dec(SP_StackPtr);
+                  End Else
+                    SliceFrom := SliceTo;
+                End Else
+                  SliceFrom := -1;
+                With SP_StackPtr^ Do
+                  If OpType = SP_VALUE Then Begin
+                    Inc(SP_StackPtr);
+                    SP_StackToString(NumIndices, SP_StackPtr);
+                  End Else Begin
+                    gbIndices := LongWordToString(SliceTo);
+                    Il := SizeOf(LongWord);
+                    SliceFrom := -1;
+                    SliceTo := -1;
+                  End;
+                If SP_FindStrArray(SP_StackPtr^.Str) = -1 Then Begin
+                  Idx3 := SP_FindStrVar(SP_StackPtr^.Str);
+                  If Idx3 > -1 Then Begin
+                    If (SliceTo < 1) or (SliceTo > Length(StrVars[Idx3].ContentPtr^.Value)) Then Begin
+                      ERRStr := SP_StackPtr^.Str;
+                      Error.Code := SP_ERR_SUBSCRIPT_WRONG;
+                      Exit;
+                    End Else Begin
+                      vIdx := SP_NewStrVar;
+                      StrVars[vIdx]^.Name := Lower(VarName);
+                      StrVars[vIdx]^.ProcVar := True;
+                      StrVars[vIdx]^.Content.SliceFrom := SliceFrom;
+                      StrVars[vIdx]^.Content.SliceTo := SliceTo;
+                      StrVars[vIdx]^.ContentPtr := StrVars[Idx3]^.ContentPtr;
+                    End;
+                  End Else
+                    Error.Code := SP_ERR_MISSING_VAR;
+                End Else Begin
+                  With SP_StackPtr^ Do               // fix me
+                    sPtr := SP_GetStrArrayPtr(Round(Val), Str, gbIndices, gbKey, Error);
+                  If Error.Code = SP_ERR_OK Then Begin
+                    vIdx := SP_NewStrVar;
+                    StrVars[vIdx]^.Name := Lower(VarName);
+                    StrVars[vIdx]^.ProcVar := True;
+                    StrVars[vIdx]^.Content.SliceFrom := SliceFrom;
+                    StrVars[vIdx]^.Content.SliceTo := SliceTo;
+                    StrVars[vIdx]^.ContentPtr := sPtr;
+                  End;
+                  Dec(SP_StackPtr);
+                End;
+              End;
+            SP_STRVAR:
+              Begin
+                // User passed a string variable by reference
+                vIdx := Round(SP_StackPtr^.Val);
+                If vIdx = 0 Then Begin
+                  vIdx := SP_FindStrVar(SP_StackPtr^.Str);
+                  If vIdx = -1 Then Begin
+                    Error.Code := SP_ERR_MISSING_VAR;
+                    SP_ResizeNumVars(VarOffsetN);
+                    SP_ResizeStrVars(VarOffsetS);
+                    Exit;
+                  End;
+                End Else
+                  Dec(vIdx);
+                Idx3 := SP_NewStrVar;
+                StrVars[Idx3].Name := Lower(VarName);
+                StrVars[Idx3].ProcVar := True;
+                StrVars[Idx3].ContentPtr := StrVars[vIdx].ContentPtr;
+                Dec(SP_StackPtr);
+              End;
+          Else
+            Error.Code := SP_ERR_PARAMETER_ERROR;
+            Exit;
+          End;
+      End;
+
+      // Finally, having got correct parameters, we set up a procstack entry for this
+      // procedure
+
+      If SP_ProcStackPtr < MAXDEPTH Then Begin
+
+        Inc(SP_ProcStackPtr);
+        With SP_ProcStack[SP_ProcStackPtr] Do Begin
+          ProcIndex := Idx;
+          NumVars := NumParams;
+          VarPosN := VarOffsetN;
+          VarPosS := VarOffsetS;
+          VarPosNA := VarOffsetNA;
+          VarPosSA := VarOffsetSA;
+          StackPtr := SP_StackPtr;
+        End;
+
+        // Push the return address
+
+        If CallType = 0 Then Begin
+          If Error.Line <> -2 Then
+            TempLine := SP_ConvertLineStatement(Error.Line, Error.Statement + 1)
+          Else Begin
+            TempLine.Line := -2;
+            TempLine.Statement := SP_FindStatement(@COMMAND_TOKENS, Error.Statement + 1);
+            TempLine.St := Error.Statement + 1;
+          End;
+        End Else Begin
+          TempLine.Line := Error.Line;
+          TempLine.Statement := Error.Statement;
+          TempLine.St := Error.Position;
+        End;
+        SP_StackLine(TempLine.Line, TempLine.Statement, TempLine.St, SP_KW_PROC, Error);
+
+        // If this was a CALL, then add the appropriate result var (RESULT or RESULT$)
+
+        If CALLType = SP_NUMVAR Then Begin
+          Idx3 := SP_NewNumVar;
+          NumVars[Idx3]^.Content.VarType := SP_SIMPLE;
+          NumVars[Idx3]^.Name := 'result';
+          NumVars[Idx3]^.ProcVar := True;
+          NumVars[Idx3]^.Content.Value := 0;
+          NumVars[Idx3]^.ContentPtr := @NumVars[Idx3]^.Content;
+          Result := Idx3;
+        End Else
+          If CALLType = SP_STRVAR Then Begin
+            Idx3 := SP_NewStrVar;
+            StrVars[Idx3]^.Name := 'result';
+            StrVars[Idx3]^.Content.Value := '';
+            StrVars[Idx3]^.ContentPtr := @StrVars[Idx3]^.Content;
+            StrVars[Idx3]^.Content.DLen := 0;
+            StrVars[Idx3]^.ProcVar := True;
+            Result := Idx3;
+          End;
+        SP_ProcStack[SP_ProcStackPtr].CALLType := CALLType;
+
+        // Now jump to the statement after the procedure declaration
+
+        TempLine := SP_ConvertLineStatement(SP_ProcsList[Idx].Line, SP_ProcsList[Idx].St + 1);
+        NXTLINE := TempLine.Line;
+        NXTSTATEMENT := TempLine.Statement;
+        NXTST := TempLine.St;
+        If CALLType <> 0 Then Begin
+          Error.Line := NXTLINE;
+          Error.Statement := NXTST;
+        End;
+        Error.ReturnType := SP_JUMP;
+        Inc(INPROC);
+        If INPROC >= MAXDEPTH Then
+          Error.Code := SP_ERR_OUT_OF_MEMORY;
+
+      End Else
+
+        Error.Code := SP_ERR_OUT_OF_MEMORY;
+
+    End;
+
+  End Else
+
+    Error.Code := SP_ERR_PROC_NOT_FOUND;
+
+End;
+
+Procedure SP_Interpret_CALL(Var Info: pSP_iInfo);
+Var
+  OldError: TSP_ErrorCode;
+  pTokens: paString;
+  Tkns: aString;
+  oldStrPtr: Pointer;
+  OldSp: pSP_StackItem;
+  TempLine: TSP_Gosub_Item;
+  ResultIdx, ResultType: Integer;
+  CurLine, OldErrorStatement, OldNxtStatement, OldNxtLine, OldProcStack: Integer;
+Label
+  NextStatement, BailOut;
+Begin
+
+  With Info^ Do Begin
+
+    OldStrPtr := StrPtr;
+    CopyMem(@OldError.Line, @Error^.Line, SizeOf(TSP_ErrorCode));
+    OldNxtLine := NXTLINE;
+    OldNxtStatement := NXTSTATEMENT;
+    OldErrorStatement := Error^.Statement;
+
+    SP_StackPtr := info^.StackPtr;
+    OldProcStack := SP_ProcStackPtr;
+    ResultIdx := SP_SetUpPROC(1, Token^.Cache, Error^);
+    info^.StackPtr := SP_StackPtr;
+
+    If Error^.Code <> SP_ERR_OK Then Exit;
+
+    CurLine := NXTLINE;
+    Error^.ReturnType := OldError.ReturnType;
+    Tkns := SP_Program[CurLine];
+    Error^.Position := NXTSTATEMENT; //SP_FindStatement(@Tkns, 1);
+
+    TempLine := SP_ConvertLineStatement(NXTLINE, NXTST + 1);
+    NXTLINE := TempLine.Line;
+    NXTSTATEMENT := TempLine.Statement;
+    ResultType := SP_ProcStack[SP_ProcStackPtr].CALLType;
+    OldSp := Info^.StackPtr;
+
+  NextStatement:
+
+    pTokens := @Tkns;
+    SP_Interpret(pTokens, Error^.Position, Error^);
+
+    // If the code caused an error, then bail now and remove the return address from the stack
+
+    If SP_ProcStackPtr = OldProcStack Then Begin
+      If Error^.Code = SP_ERR_UNBALANCED_STACK Then
+        If NativeUInt(Info^.StackPtr) = NativeUInt(Info^.StackStart) + SizeOf(SP_StackItem) Then
+          Error^.Code := SP_ERR_OK;
+      Goto BailOut;
+    End;
+
+    If (Error^.Code <> SP_ERR_OK) or (NXTLINE >= SP_Program_Count) Then Begin
+
+      Dec(SP_GOSUB_STACKPTR);
+      If Error^.Code = SP_ERR_OK Then
+        Error^.ReturnType := SP_JUMP;
+      Exit;
+
+    End Else Begin
+
+      // Otherwise, follow the jump if necessary
+      // Check if the procedure stack has shrunk back to what it was before we started
+
+      If NXTLINE <> -1 Then Begin
+
+        If NXTLINE = -2 Then Begin CurLine := -1;
+          Tkns := COMMAND_TOKENS;
+          If NXTSTATEMENT = -1 Then
+            Goto BailOut;
+          Error^.Position := NXTSTATEMENT;
+        End Else Begin
+          CurLine := NXTLINE;
+          Tkns := SP_Program[CurLine];
+          If NXTSTATEMENT <> -1 Then
+            Error^.Position := NXTSTATEMENT
+          Else Begin
+            Error^.Statement := 1;
+            Error^.Position := SP_FindStatement(@Tkns, 1);
+          End;
+        End;
+
+        NXTSTATEMENT := -1;
+        Inc(NXTLINE);
+        If NXTLINE <> 0 Then Begin
+          Error^.Line := CurLine;
+          Goto NextStatement;
+        End;
+
+      End;
+
+    End;
+
+  BailOut :
+
+    StrPtr := OldStrPtr;
+    Info^.StackPtr := OldSP;
+    If ResultType = SP_NUMVAR Then Begin
+      Inc(Info^.StackPtr);
+      Info^.StackPtr^.OpType := SP_VALUE;
+      Info^.StackPtr^.Val := NumVars[ResultIdx]^.ContentPtr^.Value;
+    End Else
+      If ResultType = SP_STRVAR Then Begin
+        Inc(Info^.StackPtr);
+        Info^.StackPtr^.OpType := SP_STRING;
+        Info^.StackPtr^.Str := StrVars[ResultIdx]^.ContentPtr^.Value;
+      End;
+
+    NXTLINE := OldNxtLine;
+    NXTSTATEMENT := OldNxtStatement;
+    Error^.Statement := OldErrorStatement;
+    CopyMem(@Error^.Line, @OldError.Line, SizeOf(TSP_ErrorCode));
+
+  End;
+
+End;
+
 Procedure SP_Interpret_FN_CALL(Var Info: pSP_iInfo);
 Begin
   If SYSTEMSTATE = SS_EVALUATE Then
     Info^.Error^.Code := SP_ERR_PARAMETER_ERROR
   Else
     SP_Interpret_CALL(Info);
+End;
+
+Procedure SP_Interpret_FN(Var Info: pSP_iInfo);
+Var
+  NumParams: LongWord;
+  FnName, VarList, VarName: aString;
+  Idx, Idx2, Idx3, VarOffsetN, VarOffsetS, ValPosition, fnID: Integer;
+  nVar: pFnVar; ValTkn: paString;
+Begin
+
+  // Get the parameter count and the procedure name
+
+  NumParams := Round(Info^.StackPtr^.Val);
+  Dec(Info^.StackPtr);
+  FnName := Lower(Info^.StackPtr^.Str);
+  FnID := Info^.Token^.Cache;
+  Dec(Info^.StackPtr);
+
+  // Find the procedure.
+
+  If FnID <= 0 Then Begin
+    Idx := 0;
+    While Idx < Length(SP_FnList) Do Begin
+      If SP_FnList[Idx].Name = FnName Then Begin
+        Info^.Token^.Cache := Idx +1;
+        Break;
+      End Else
+        Inc(Idx);
+    End;
+  End Else
+    Idx := FnID -1;
+
+  If Idx < Length(SP_FnList) Then Begin
+
+    // Check the parameter count
+
+    If SP_FnList[Idx].ParamCount <> integer(NumParams) Then Begin
+      Info^.Error^.Code := SP_ERR_PROC_PARAM_COUNT;
+    End Else Begin
+
+      // Now pick up the parameters from the fnlist entry
+      // and create vars with values from the stack.
+
+      Idx2 := 1;
+      VarList := SP_FnList[Idx].ParamList;
+      VarOffsetN := NumNV;
+      VarOffsetS := NumSV;
+      While Idx2 < Length(VarList) Do Begin
+        nVar := @VarList[Idx2];
+        Inc(Idx2, SizeOf(TFnVar));
+        VarName := Copy(VarList, Idx2, nVar.Len);
+        Inc(Idx2, nVar.Len);
+        If nVar.ID = 0 Then Begin
+          If Info^.StackPtr^.OpType = SP_VALUE Then Begin
+            Idx3 := SP_NewNumVar;
+            NumVars[Idx3]^.Content.VarType := SP_SIMPLE;
+            NumVars[Idx3]^.Name := Lower(VarName);
+            NumVars[Idx3]^.ProcVar := True;
+            NumVars[Idx3]^.Content.Value := Info^.StackPtr^.Val;
+            NumVars[Idx3]^.ContentPtr := @NumVars[Idx3]^.Content;
+            Dec(Info^.StackPtr);
+          End Else
+            Info^.Error^.Code := SP_ERR_PARAMETER_ERROR;
+        End Else
+          If Info^.StackPtr^.OpType = SP_STRING Then Begin
+            Idx3 := SP_NewStrVar;
+            StrVars[Idx3]^.Name := Lower(VarName);
+            StrVars[Idx3]^.Content.Value := Info^.StackPtr^.Str;
+            StrVars[Idx3]^.Content.DLen := 0;
+            StrVars[Idx3]^.ContentPtr := @StrVars[Idx3]^.Content;
+            StrVars[Idx3]^.ProcVar := True;
+            Dec(Info^.StackPtr);
+          End Else
+            Info^.Error^.Code := SP_ERR_PARAMETER_ERROR;
+      End;
+
+      ValPosition := 1;
+      ValTkn := @SP_FnList[Idx].Expr;
+      Inc(FN_Recursion_Count);
+      If FN_Recursion_Count >= MAXDEPTH Then
+        Info^.Error^.Code := SP_ERR_OUT_OF_MEMORY
+      Else Begin
+        SP_StackPtr := Info^.StackPtr;
+        SP_InterpretCONTSafe(ValTkn, ValPosition, Info^.Error^);
+        Info^.StackPtr := SP_StackPtr;
+      End;
+      Dec(FN_Recursion_Count);
+
+      // Now remove the variables
+
+      SP_ResizeNumVars(VarOffsetN);
+      SP_ResizeStrVars(VarOffsetS);
+
+    End;
+
+  End Else
+
+    Info^.Error^.Code := SP_ERR_FN_NOT_FOUND;
+
 End;
 
 Procedure SP_Interpret_FN_FN(Var Info: pSP_iInfo);
@@ -8647,7 +8148,10 @@ Begin
   y := Info^.StackPtr^.Val;
   Dec(Info^.StackPtr);
   x := Info^.StackPtr^.Val;
-  Info^.StackPtr^.Val := Perlin(x, y, z);
+  If (Abs(x) > MAXINT) or (Abs(y) > MAXINT) or (Abs(z) > MAXINT) Then
+    Info^.Error.Code := SP_ERR_INTEGER_OUT_OF_RANGE
+  Else
+    Info^.StackPtr^.Val := Perlin(x, y, z);
 End;
 
 Procedure SP_Interpret_FN_NOISEOCT(Var Info: pSP_iInfo);
@@ -8663,7 +8167,10 @@ Begin
   y := Info^.StackPtr^.Val;
   Dec(Info^.StackPtr);
   x := Info^.StackPtr^.Val;
-  Info^.StackPtr^.Val := OctavePerlin(x, y, z, Round(o), p);
+  If (Abs(x) > MAXINT) or (Abs(y) > MAXINT) or (Abs(z) > MAXINT) Then
+    Info^.Error.Code := SP_ERR_INTEGER_OUT_OF_RANGE
+  Else
+    Info^.StackPtr^.Val := OctavePerlin(x, y, z, Round(o), p);
 End;
 
 Procedure SP_Interpret_FN_MAP(Var Info: pSP_iInfo);
@@ -8792,73 +8299,62 @@ End;
 
 Function SP_ConvertToTokens(Const s: aString; Var Error: TSP_ErrorCode): aString;
 Var
-  info: TSP_iInfo;
-  iInfo: pSP_iInfo;
+  KeyWordID: Integer;
+  change: Boolean;
 Begin
-  Inc(SP_StackPtr);
-  SP_StackPtr^.Str := s;
-  iInfo := @info;
-  Info.Error := @Error;
-  SP_Interpret_FN_TOKENS(iInfo);
-  Error.Code := Info.Error.Code;
-  If Error.Code = SP_ERR_OK Then
-    Result := SP_StackPtr^.Str
-  Else
-    Result := '';
-  Dec(SP_StackPtr);
+  Error.Position := 1;
+  Error.Code := SP_ERR_OK;
+  If s <> '' Then Begin
+    Result := SP_TokeniseLine(s, False, False) + SP_TERMINAL_SEQUENCE;
+    KeyWordID := 0;
+    If Ord(Result[Error.Position]) in [SP_NUMVAR, SP_STRVAR] Then
+      KeyWordID := SP_KW_IMPLICIT_LET
+    Else
+      If (Ord(Result[Error.Position]) = SP_SYMBOL) And (Result[Error.Position +1] = '?') Then Begin
+        Result[Error.Position] := aChar(SP_KEYWORD);
+        Result := Copy(Result, 1, Error.Position) + LongWordToString(SP_KW_PRINT) + Copy(Result, Error.Position + 2);
+      End;
+    If (KeyWordID <> 0) or (Ord(Result[Error.Position]) = SP_KEYWORD) Then Begin
+      SP_Convert_ToPostFix(Result, Error.Position, Error);
+      If (Error.Code = SP_ERR_INVALID_KEYWORD) And (KeyWordID = SP_KW_IMPLICIT_LET) Then Begin
+        Error.Position := 1;
+        Error.Code := SP_ERR_OK;
+        Result := SP_Convert_Expr(Result, Error.Position, Error, -1) + #255;
+        SP_RemoveBlocks(Result);
+        SP_TestConsts(Result, 1, Error, False, change);
+        If Change Then SP_FoldConstExprs(Result, 1, Error);
+        SP_AddHandlers(Result);
+        Result := #$F + Result;
+      End Else If Error.Code = SP_ERR_OK Then Begin
+        SP_TestConsts(Result, 1, Error, False, change);
+        If Change Then SP_FoldConstExprs(Result, 1, Error);
+        SP_AddHandlers(Result);
+      End Else
+        Error.Code := Error.Code;
+    End Else Begin
+      Result := SP_Convert_Expr(Result, Error.Position, Error, -1) + #255;
+      SP_RemoveBlocks(Result);
+      SP_TestConsts(Result, 1, Error, False, change);
+      If Change Then SP_FoldConstExprs(Result, 1, Error);
+      SP_AddHandlers(Result);
+      Result := #$F + Result;
+    End;
+    If (Result[2] = #255) or (Error.Code <> SP_ERR_OK) Then Begin
+      If Error.Code = SP_ERR_OK Then Error.Code := SP_ERR_SYNTAX_ERROR Else Error.Code := Error.Code;
+    End;
+  End Else
+    Result := ''
 End;
 
 Procedure SP_Interpret_FN_TOKENS(Var Info: pSP_iInfo);
 Var
-  KeyWordID: Integer;
   nError: TSP_ErrorCode;
-  change: Boolean;
 Begin
   With Info^ Do Begin
     With Info^.StackPtr^ Do Begin
       nError.Position := 1;
       nError.Code := SP_ERR_OK;
-      If Str <> '' Then Begin
-        Str := SP_TokeniseLine(Str, False, False) + SP_TERMINAL_SEQUENCE;
-        KeyWordID := 0;
-        If Ord(Str[nError.Position]) in [SP_NUMVAR, SP_STRVAR] Then
-          KeyWordID := SP_KW_IMPLICIT_LET
-        Else
-          If (Ord(Str[nError.Position]) = SP_SYMBOL) And (Str[nError.Position +1] = '?') Then Begin
-            Str[nError.Position] := aChar(SP_KEYWORD);
-            Str := Copy(Str, 1, nError.Position) + LongWordToString(SP_KW_PRINT) + Copy(Str, nError.Position + 2);
-          End;
-        If (KeyWordID <> 0) or (Ord(Str[nError.Position]) = SP_KEYWORD) Then Begin
-          SP_Convert_ToPostFix(Str, nError.Position, nError);
-          If (nError.Code = SP_ERR_INVALID_KEYWORD) And (KeyWordID = SP_KW_IMPLICIT_LET) Then Begin
-            nError.Position := 1;
-            nError.Code := SP_ERR_OK;
-            Str := SP_Convert_Expr(Str, nError.Position, nError, -1) + #255;
-            SP_RemoveBlocks(Str);
-            SP_TestConsts(Str, 1, Info^.Error^, False, change);
-            If Change Then SP_FoldConstExprs(Str, 1, Info^.Error^);
-            SP_AddHandlers(Str);
-            Str := #$F + Str;
-          End Else If nError.Code = SP_ERR_OK Then Begin
-            SP_TestConsts(Str, 1, Info^.Error^, False, change);
-            If Change Then SP_FoldConstExprs(Str, 1, Info^.Error^);
-            SP_AddHandlers(Str);
-          End Else
-            Error^.Code := nError.Code;
-        End Else Begin
-          Str := SP_Convert_Expr(Str, nError.Position, nError, -1) + #255;
-          SP_RemoveBlocks(Str);
-          SP_TestConsts(Str, 1, Info^.Error^, False, change);
-          If Change Then SP_FoldConstExprs(Str, 1, Info^.Error^);
-          SP_AddHandlers(Str);
-          Str := #$F + Str;
-        End;
-        If (Str[2] = #255) or (nError.Code <> SP_ERR_OK) Then Begin
-          //Info^.StackPtr := Info^.StackStart;
-          If nError.Code = SP_ERR_OK Then Error^.Code := SP_ERR_SYNTAX_ERROR Else Error^.Code := nError.Code;
-        End;
-      End Else
-        Str := ''
+      Str := SP_ConvertToTokens(Str, nError);
     End;
   End;
 End;
@@ -9111,6 +8607,122 @@ Begin
   SP_SetSysVar(Info^.StackPtr^.Str, sPt^.Val, sPt^.Str, Info^.Error^);
   Info^.StackPtr := sPt;
   Dec(Info^.StackPtr);
+
+End;
+
+Procedure SP_FlushCentreBuffer(Var Info: pSP_iInfo);
+Var
+  pIdx, lIdx: pByte;
+  cCount: Integer;
+Begin
+
+  // If Centremode is closing (due to a position move) then PRINT the current buffer.
+
+  If T_CENTRETEXT <> '' Then Begin
+
+    PRPOSY := 0;
+    SP_ConvertToOrigin_d_y(PRPOSY);
+    PRPOSY := PRPOSY + T_CENTRE_Y * FONTHEIGHT;
+
+    pIdx := pByte(@T_CENTRETEXT[1]);
+    lIdx := pIdx + Length(T_CENTRETEXT) -1;
+    cCount := 0;
+    If pIdx <> Nil Then
+      cCount := 0;
+      While not (pIdx^ in [6..11, 13]) and (pIdx <= lIdx) Do Begin
+        Case pIdx^ Of
+          16..20, 26, 27:
+            Begin
+              Inc(pIdx, SizeOf(LongWord));
+            End;
+          21..22:
+            Begin
+              Inc(pIdx, 2 * SizeOf(Integer));
+            End;
+          23..24:
+            Begin
+              Inc(pIdx, SizeOf(Integer));
+            End;
+          25:
+            Begin
+              Inc(pIdx, SizeOf(aFloat) * 2);
+            End;
+          32..255:
+            Begin
+              Inc(cCount);
+            End;
+        End;
+        Inc(pIdx);
+      End;
+    PRPOSX := (SCREENWIDTH - Round(cCount * FONTWIDTH * T_SCALEX)) Div 2;
+
+    If SP_TextOut(-1, Round(PRPOSX), Round(PRPOSY), T_CENTRETEXT, T_INK, T_PAPER, False) = SP_ERR_PRINT_ABANDONED Then
+      Info^.Error^.Code := SP_ERR_BREAK;
+
+  End;
+
+  T_CENTRE := False;
+  T_CENTRETEXT := '';
+
+End;
+
+Procedure SP_FlushOUTBuffer(Var Info: pSP_iInfo);
+Var
+  Tokens: paString;
+  cCount, StreamIdx: Integer;
+Begin
+
+  If OUTBUFFER <> '' Then Begin
+
+    Case T_OUTMODE Of
+      1:
+        Begin
+          If T_OUTEXPR <> '' Then Begin
+            // Execute the stored expression, after having prepended the current string.
+            OUTWORKSP := CreateToken(SP_STRING, 0, Length(OUTBUFFER)) + OUTBUFFER + T_OUTEXPR + #255;
+            SP_AddHandlers(OUTWORKSP);
+            Tokens := @OUTWORKSP;
+            cCount := 1;
+            SP_StackPtr := Info^.StackPtr;
+            SP_InterpretCONTSafe(Tokens, cCount, Info^.Error^);
+            Info^.StackPtr := SP_StackPtr;
+            If Info^.Error^.Code = SP_ERR_MISSING_VAR Then Begin
+              Info^.Error^.Code := SP_ERR_OK;
+              OUTWORKSP := CreateToken(SP_STRING, 0, 0) + '' + T_OUTASSIGN + #255;
+              SP_AddHandlers(OUTWORKSP);
+              Tokens := @OUTWORKSP;
+              cCount := 1;
+              SP_StackPtr := Info^.StackPtr;
+              SP_InterpretCONTSafe(Tokens, cCount, Info^.Error^);
+              Info^.StackPtr := SP_StackPtr;
+              If Info^.Error^.Code = SP_ERR_OK Then Begin
+                OUTWORKSP := CreateToken(SP_STRING, 0, Length(OUTBUFFER)) + OUTBUFFER + T_OUTEXPR + #255;
+                SP_AddHandlers(OUTWORKSP);
+                Tokens := @OUTWORKSP;
+                cCount := 1;
+                SP_StackPtr := Info^.StackPtr;
+                SP_InterpretCONTSafe(Tokens, cCount, Info^.Error^);
+                Info^.StackPtr := SP_StackPtr;
+              End Else
+                Exit;
+            End;
+          End;
+        End;
+      2:
+        Begin
+          StreamIdx := SP_FindStreamID(T_OUTSTRM, Info^.Error^);
+          If StreamIdx > -1 Then
+            SP_StreamWrite(StreamIdx, @OUTBUFFER[1], Length(OUTBUFFER), Info^.Error^)
+          Else Begin
+            Info^.Error^.Code := SP_ERR_INVALID_STREAM_ID;
+            Exit;
+          End;
+        End;
+    End;
+
+    OUTBUFFER := '';
+
+  End;
 
 End;
 
@@ -9387,122 +8999,6 @@ Procedure SP_Interpret_PR_CENTRE_OFF(Var Info: pSP_iInfo);
 Begin
 
   If T_CENTRE Then SP_FlushCentreBuffer(Info);
-
-End;
-
-Procedure SP_FlushCentreBuffer(Var Info: pSP_iInfo);
-Var
-  pIdx, lIdx: pByte;
-  cCount: Integer;
-Begin
-
-  // If Centremode is closing (due to a position move) then PRINT the current buffer.
-
-  If T_CENTRETEXT <> '' Then Begin
-
-    PRPOSY := 0;
-    SP_ConvertToOrigin_d_y(PRPOSY);
-    PRPOSY := PRPOSY + T_CENTRE_Y * FONTHEIGHT;
-
-    pIdx := pByte(@T_CENTRETEXT[1]);
-    lIdx := pIdx + Length(T_CENTRETEXT) -1;
-    cCount := 0;
-    If pIdx <> Nil Then
-      cCount := 0;
-      While not (pIdx^ in [6..11, 13]) and (pIdx <= lIdx) Do Begin
-        Case pIdx^ Of
-          16..20, 26, 27:
-            Begin
-              Inc(pIdx, SizeOf(LongWord));
-            End;
-          21..22:
-            Begin
-              Inc(pIdx, 2 * SizeOf(Integer));
-            End;
-          23..24:
-            Begin
-              Inc(pIdx, SizeOf(Integer));
-            End;
-          25:
-            Begin
-              Inc(pIdx, SizeOf(aFloat) * 2);
-            End;
-          32..255:
-            Begin
-              Inc(cCount);
-            End;
-        End;
-        Inc(pIdx);
-      End;
-    PRPOSX := (SCREENWIDTH - Round(cCount * FONTWIDTH * T_SCALEX)) Div 2;
-
-    If SP_TextOut(-1, Round(PRPOSX), Round(PRPOSY), T_CENTRETEXT, T_INK, T_PAPER, False) = SP_ERR_PRINT_ABANDONED Then
-      Info^.Error^.Code := SP_ERR_BREAK;
-
-  End;
-
-  T_CENTRE := False;
-  T_CENTRETEXT := '';
-
-End;
-
-Procedure SP_FlushOUTBuffer(Var Info: pSP_iInfo);
-Var
-  Tokens: paString;
-  cCount, StreamIdx: Integer;
-Begin
-
-  If OUTBUFFER <> '' Then Begin
-
-    Case T_OUTMODE Of
-      1:
-        Begin
-          If T_OUTEXPR <> '' Then Begin
-            // Execute the stored expression, after having prepended the current string.
-            OUTWORKSP := CreateToken(SP_STRING, 0, Length(OUTBUFFER)) + OUTBUFFER + T_OUTEXPR + #255;
-            SP_AddHandlers(OUTWORKSP);
-            Tokens := @OUTWORKSP;
-            cCount := 1;
-            SP_StackPtr := Info^.StackPtr;
-            SP_InterpretCONTSafe(Tokens, cCount, Info^.Error^);
-            Info^.StackPtr := SP_StackPtr;
-            If Info^.Error^.Code = SP_ERR_MISSING_VAR Then Begin
-              Info^.Error^.Code := SP_ERR_OK;
-              OUTWORKSP := CreateToken(SP_STRING, 0, 0) + '' + T_OUTASSIGN + #255;
-              SP_AddHandlers(OUTWORKSP);
-              Tokens := @OUTWORKSP;
-              cCount := 1;
-              SP_StackPtr := Info^.StackPtr;
-              SP_InterpretCONTSafe(Tokens, cCount, Info^.Error^);
-              Info^.StackPtr := SP_StackPtr;
-              If Info^.Error^.Code = SP_ERR_OK Then Begin
-                OUTWORKSP := CreateToken(SP_STRING, 0, Length(OUTBUFFER)) + OUTBUFFER + T_OUTEXPR + #255;
-                SP_AddHandlers(OUTWORKSP);
-                Tokens := @OUTWORKSP;
-                cCount := 1;
-                SP_StackPtr := Info^.StackPtr;
-                SP_InterpretCONTSafe(Tokens, cCount, Info^.Error^);
-                Info^.StackPtr := SP_StackPtr;
-              End Else
-                Exit;
-            End;
-          End;
-        End;
-      2:
-        Begin
-          StreamIdx := SP_FindStreamID(T_OUTSTRM, Info^.Error^);
-          If StreamIdx > -1 Then
-            SP_StreamWrite(StreamIdx, @OUTBUFFER[1], Length(OUTBUFFER), Info^.Error^)
-          Else Begin
-            Info^.Error^.Code := SP_ERR_INVALID_STREAM_ID;
-            Exit;
-          End;
-        End;
-    End;
-
-    OUTBUFFER := '';
-
-  End;
 
 End;
 
@@ -10141,45 +9637,6 @@ Begin
 
 End;
 
-Procedure SP_StackToString(NumIndices: Integer; Var StackPtr: pSP_StackItem); inline;
-Var
-  TokenStart: pByte;
-Begin
-
-  // If the indices count is zero then the array is being accessed via
-  // a key-string. Otherwise, it's a regular index lookup.
-
-  If NumIndices > 0 Then Begin
-
-    gbKey := '';
-    Nl := NumIndices * SizeOf(LongWord);
-    If Nl <> Il Then Begin
-      SetLength(gbIndices, Nl);
-      Il := Nl;
-    End;
-
-    Dec(StackPtr);
-//    TokenStart := pByte(pLongWord(@gbIndices)^ + (Nl - SizeOf(LongWord)));
-    TokenStart := @gbIndices[Nl - (SizeOf(LongWord) -1)];
-    While NumIndices > 0 Do Begin
-      pInteger(TokenStart)^ := Round(StackPtr^.Val);
-      Dec(TokenStart, SizeOf(LongWord));
-      Dec(NumIndices);
-      Dec(StackPtr);
-    End;
-
-  End Else Begin
-
-    Dec(StackPtr);
-    gbKey := StackPtr^.Str;
-    gbIndices := '';
-    Il := 0;
-    Dec(StackPtr);
-
-  End;
-
-End;
-
 Procedure SP_Interpret_LET(Var Info: pSP_iInfo);
 Var
   SliceFlags: Byte;
@@ -10803,10 +10260,12 @@ Begin
   End;
 
   OnActive := 0;
+  {$IFNDEF RUNTIMEONLY}
   If Not SP_CheckProgram(True) Then Begin
     Info^.Error^.Code := SP_ERR_SYNTAX_ERROR;
     Exit;
   End;
+  {$ENDIF}
 
   If Info^.StackPtr <> Info^.StackStart Then Begin
     If Info^.StackPtr^.OpType = SP_LABEL Then Begin
@@ -10857,13 +10316,17 @@ RunIt :
   Info^.Error^.ReturnType := SP_NEW;
   BREAKSIGNAL := False;
   BPSIGNAL := False;
+  {$IFNDEF RUNTIMEONLY}
   If STEPMODE > 0 Then Begin
     SP_CloseEditorWindows;
     STEPMODE := 0;
   End;
+  {$ENDIF}
   tStr := '';
   SP_PreParse(True, True, Info^.Error^, tStr);
+  {$IFNDEF RUNTIMEONLY}
   SP_GetDebugStatus(dbgVariables or dbgWatches);
+  {$ENDIF}
   Info^.Error^.Code := SP_EXIT; // Preparse forces a compile, which will invalidate pointers to compiled code in the info^ record, so cause a bailout in the calling proc.
 
 End;
@@ -10946,8 +10409,10 @@ Begin
 End;
 
 Procedure SP_Interpret_CONTINUE(Var Info: pSP_iInfo);
+{$IFNDEF RUNTIMEONLY}
 Var
   Token: pToken;
+{$ENDIF}
 Begin
 
 If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
@@ -10968,9 +10433,11 @@ If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
         Exit;
       End;
     End Else Begin
+      {$IFNDEF RUNTIMEONLY}
       Token := pToken(@SP_Program[NXTLINE][NXTSTATEMENT]);
       If Token^.BPIndex >= 0 Then
         Inc(SP_SourceBreakPointList[Token^.BPIndex].PassCount);
+      {$ENDIF}
     End;
     Info^.Error^.Statement := CONTSTATEMENT;
     Info^.Error^.ReturnType := SP_JUMP;
@@ -11795,7 +11262,7 @@ Begin
     Dec(Info^.StackPtr);
     SP_ConvertToOrigin_d(dX, dY);
     If WINFLIPPED Then dY := (SCREENHEIGHT - 1) - dy;
-    xPos := Round(dX); yPos := Round(dY);
+    xPos := SafeRound(dX); yPos := SafeRound(dY);
     If SCREENBPP = 8 Then
       SP_SetPixel(dX, dY)
     Else
@@ -11992,10 +11459,12 @@ Begin
     Delay := FRAMES + Delay;
     Repeat
       CB_YIELD(FRAME_MS);
+      DoPeriodicalEvents(Info^.Error^);
     Until (FRAMES >= Delay) or (Length(ActiveKeys) <> 0) or QUITMSG or BREAKSIGNAL;
   End Else
     Repeat
       CB_YIELD(FRAME_MS);
+      DoPeriodicalEvents(Info^.Error^);
     Until (Length(ActiveKeys) <> 0) or QUITMSG or BREAKSIGNAL;
 
   If KEYSTATE[K_ESCAPE] = 1 Then BreakSignal := True;
@@ -13052,6 +12521,25 @@ Begin
 
 End;
 
+Procedure SP_Interpret_PAL_DEFAULT(Var Info: pSP_iInfo);
+Var
+  Idx: Integer;
+  Palette: Array[0..255] of TP_Colour;
+Begin
+
+  For Idx := 0 To 223 Do
+    Palette[Idx] := DefaultPalette[Idx];
+  Idx := 224;
+  While Idx < 256 Do Begin
+    Palette[Idx].R := (Idx - 224)*8;
+    Palette[Idx].G := (Idx - 224)*8;
+    Palette[Idx].B := (Idx - 224)*8;
+    Inc(Idx);
+  End;
+  SP_SetPalette(0, Palette);
+
+End;
+
 Procedure SP_Interpret_LOAD(Var Info: pSP_iInfo);
 Var
   Filename: aString;
@@ -13082,10 +12570,12 @@ Begin
     SP_Reset_Temp_Colours;
     If Filename <> 's:autosave' Then
       SP_CLS(CPAPER);
+    {$IFNDEF RUNTIMEONLY}
     If EDITORREADY Then Begin
       Listing.FPCLine := 0;
       Listing.FPCPos := 1;
     End;
+    {$ENDIF}
   End Else
     LASTFILENAME := '';
 
@@ -13907,6 +13397,100 @@ Begin
 
 End;
 
+Procedure SP_Interpret_DO_RESTORE(Var Info: pSP_iInfo);
+Var
+  Line, LineNum, Position: Integer;
+  nLabel: TSP_Label;
+  Tokens: aString;
+  Token: pToken;
+Begin
+
+  // There may be a line number on the stack - so go get it. We also might be called
+  // by the READ function, so check for that too!
+
+  If (Info^.Error^.Code = SP_ERR_OK) And (Info^.StackPtr <> Info^.StackStart) Then Begin
+
+    If Info^.StackPtr^.OpType = SP_LABEL Then Begin
+      nLabel := SP_FindLabel(Info^.StackPtr^.Str, Info^.Error^);
+      Dec(Info^.StackPtr);
+      If nLabel.Line <> -1 Then Begin
+        SP_DATA_Line.Line := nLabel.Line;
+        SP_DATA_Line.Statement := nLabel.Statement;
+        SP_DATA_Line.St := nLabel.St;
+      End Else Begin
+        ERRStr := nLabel.Name;
+        Info^.Error^.Code := SP_ERR_LABEL_NOT_FOUND;
+        Exit;
+      End;
+    End Else Begin
+      LineNum := SP_FindLine(Round(Info^.StackPtr^.Val), False);
+      If (LineNum > INCLUDEFROM) And (Info^.Error^.Line < INCLUDEFROM) Then LineNum := -1;
+      If LineNum = -1 Then Begin
+        SP_DATA_Line.Line := -1;
+        SP_DATA_Line.Statement := -1;
+        SP_DATA_Line.St := -1;
+        Exit;
+      End;
+      SP_DATA_Line := SP_ConvertLineStatement(LineNum, 1);
+      Dec(Info^.StackPtr);
+    End;
+
+  End Else Begin
+
+    If SP_DATA_Line.Line = -1 Then Begin
+      SP_DATA_Line.Line := 0;
+      SP_DATA_Line.Statement := 1;
+      SP_DATA_Line.St := 1;
+    End;
+    SP_DATA_Line := SP_ConvertLineStatement(SP_DATA_Line.Line, SP_DATA_Line.St + 1);
+
+  End;
+
+  If Info^.Error^.Code = SP_ERR_NO_ERROR Then
+    Info^.Error^.Code := SP_ERR_OK;
+
+  // Now find the first instance of SP_SKIP_DATA, as the only thing that uses it
+  // is DATA.
+
+  If SP_DATA_Line.Line > -1 Then Begin
+
+    Line := SP_DATA_Line.Line;
+    Tokens := SP_Program[SP_DATA_Line.Line];
+
+    While SP_DATA_Line.Line < SP_Program_Count Do Begin
+      Position := SP_DATA_Line.Statement;
+      While Position <= Length(Tokens) Do Begin
+        Token := @Tokens[Position];
+        If Token^.Token = SP_TERMINAL Then Break;
+        Inc(Position, SizeOf(TToken));
+        If Token^.Token = SP_SKIP_DATA Then Begin
+          Inc(Position, Token^.TokenLen);
+          SP_DATA_Line.Statement := Position;
+          SP_DATA_Tokens := @SP_Program[SP_DATA_Line.Line];
+          Exit;
+        End;
+        If Token^.Token = SP_SYMBOL Then
+          If (Tokens[Position] = ':') or (Tokens[Position] = SP_CHAR_SEMICOLON) or (Tokens[Position] = ';') Then
+            Inc(SP_DATA_Line.St);
+        Inc(Position, Token^.TokenLen);
+      End;
+      Inc(Line);
+      If Line < SP_Program_Count Then Begin
+        SP_DATA_Line := SP_ConvertLineStatement(Line, 1);
+        Tokens := SP_Program[SP_DATA_Line.Line];
+      End Else
+        SP_DATA_Line.Line := SP_Program_Count;
+    End;
+  End;
+
+  // No more DATA :(
+
+  SP_DATA_Line.Line := -1;
+  SP_DATA_Line.Statement := -1;
+  SP_DATA_Line.St := -1;
+
+End;
+
 Procedure SP_Interpret_READ(Var Info: pSP_iInfo);
 Begin
 
@@ -14112,98 +13696,39 @@ Begin
 
 End;
 
-Procedure SP_Interpret_DO_RESTORE(Var Info: pSP_iInfo);
+Procedure SP_Interpret_FN_ITEM(Var Info: pSP_iInfo);
 Var
-  Line, LineNum, Position: Integer;
-  nLabel: TSP_Label;
-  Tokens: aString;
-  Token: pToken;
+  TempData_Line: TSP_GOSUB_Item;
+  TempData_Tokens: paString;
 Begin
-
-  // There may be a line number on the stack - so go get it. We also might be called
-  // by the READ function, so check for that too!
-
-  If (Info^.Error^.Code = SP_ERR_OK) And (Info^.StackPtr <> Info^.StackStart) Then Begin
-
-    If Info^.StackPtr^.OpType = SP_LABEL Then Begin
-      nLabel := SP_FindLabel(Info^.StackPtr^.Str, Info^.Error^);
-      Dec(Info^.StackPtr);
-      If nLabel.Line <> -1 Then Begin
-        SP_DATA_Line.Line := nLabel.Line;
-        SP_DATA_Line.Statement := nLabel.Statement;
-        SP_DATA_Line.St := nLabel.St;
-      End Else Begin
-        ERRStr := nLabel.Name;
-        Info^.Error^.Code := SP_ERR_LABEL_NOT_FOUND;
-        Exit;
+  TempData_Line.Line := SP_Data_Line.Line;
+  TempData_Line.Statement := SP_Data_Line.Statement;
+  TempData_Line.St := SP_Data_Line.St;
+  TempData_Line.Source := SP_Data_Line.Source;
+  TempData_Tokens := SP_Data_Tokens;
+  SP_Interpret_READ(Info);
+  If Info^.Error^.Code = SP_ERR_OK Then Begin
+    If Info^.StackPtr^.OpType = SP_VALUE Then
+      Info^.StackPtr^.Val := 1
+    Else
+      If Info^.StackPtr^.OpType = SP_STRING Then Begin
+        Info^.StackPtr^.OpType := SP_VALUE;
+        Info^.StackPtr^.Val := 2;
       End;
+  End Else
+    If Info^.Error^.Code <> SP_ERR_OUT_OF_DATA Then Begin
+      Exit;
     End Else Begin
-      LineNum := SP_FindLine(Round(Info^.StackPtr^.Val), False);
-      If (LineNum > INCLUDEFROM) And (Info^.Error^.Line < INCLUDEFROM) Then LineNum := -1;
-      If LineNum = -1 Then Begin
-        SP_DATA_Line.Line := -1;
-        SP_DATA_Line.Statement := -1;
-        SP_DATA_Line.St := -1;
-        Exit;
-      End;
-      SP_DATA_Line := SP_ConvertLineStatement(LineNum, 1);
-      Dec(Info^.StackPtr);
+      Inc(Info^.StackPtr);
+      Info^.StackPtr^.OpType := SP_VALUE;
+      Info^.StackPtr^.Val := 0;
+      Info^.Error^.Code := SP_ERR_OK;
     End;
-
-  End Else Begin
-
-    If SP_DATA_Line.Line = -1 Then Begin
-      SP_DATA_Line.Line := 0;
-      SP_DATA_Line.Statement := 1;
-      SP_DATA_Line.St := 1;
-    End;
-    SP_DATA_Line := SP_ConvertLineStatement(SP_DATA_Line.Line, SP_DATA_Line.St + 1);
-
-  End;
-
-  If Info^.Error^.Code = SP_ERR_NO_ERROR Then
-    Info^.Error^.Code := SP_ERR_OK;
-
-  // Now find the first instance of SP_SKIP_DATA, as the only thing that uses it
-  // is DATA.
-
-  If SP_DATA_Line.Line > -1 Then Begin
-
-    Line := SP_DATA_Line.Line;
-    Tokens := SP_Program[SP_DATA_Line.Line];
-
-    While SP_DATA_Line.Line < SP_Program_Count Do Begin
-      Position := SP_DATA_Line.Statement;
-      While Position <= Length(Tokens) Do Begin
-        Token := @Tokens[Position];
-        If Token^.Token = SP_TERMINAL Then Break;
-        Inc(Position, SizeOf(TToken));
-        If Token^.Token = SP_SKIP_DATA Then Begin
-          Inc(Position, Token^.TokenLen);
-          SP_DATA_Line.Statement := Position;
-          SP_DATA_Tokens := @SP_Program[SP_DATA_Line.Line];
-          Exit;
-        End;
-        If Token^.Token = SP_SYMBOL Then
-          If (Tokens[Position] = ':') or (Tokens[Position] = SP_CHAR_SEMICOLON) or (Tokens[Position] = ';') Then
-            Inc(SP_DATA_Line.St);
-        Inc(Position, Token^.TokenLen);
-      End;
-      Inc(Line);
-      If Line < SP_Program_Count Then Begin
-        SP_DATA_Line := SP_ConvertLineStatement(Line, 1);
-        Tokens := SP_Program[SP_DATA_Line.Line];
-      End Else
-        SP_DATA_Line.Line := SP_Program_Count;
-    End;
-  End;
-
-  // No more DATA :(
-
-  SP_DATA_Line.Line := -1;
-  SP_DATA_Line.Statement := -1;
-  SP_DATA_Line.St := -1;
-
+  SP_Data_Line.Line := TempData_Line.Line;
+  SP_Data_Line.Statement := TempData_Line.Statement;
+  SP_Data_Line.St := TempData_Line.St;
+  SP_Data_Line.Source := TempData_Line.Source;
+  SP_Data_Tokens := TempData_Tokens;
 End;
 
 Procedure SP_Interpret_SCR_LOCK(Var Info: pSP_iInfo);
@@ -14232,6 +13757,31 @@ Begin
   CauseUpdate := True;
   UPDATENOW := True;
   SP_NeedDisplayUpdate := False;
+
+End;
+
+Procedure SP_Interpret_SCR_RES(Var Info: pSP_iInfo);
+Var
+  Height, Width, sWidth, sHeight, Full: Integer;
+Begin
+
+  sHeight := Round(Info^.StackPtr^.Val);
+  Dec(Info^.StackPtr);
+  sWidth := Round(Info^.StackPtr^.Val);
+  Dec(Info^.StackPtr);
+  Height := Round(Info^.StackPtr^.Val);
+  Dec(Info^.StackPtr);
+  Width := Round(Info^.StackPtr^.Val);
+  Dec(Info^.StackPtr);
+  Full := Round(Info^.StackPtr^.Val);
+  Dec(Info^.StackPtr);
+
+  If sWidth = -1 Then sWidth := Width;
+  If sHeight = -1 Then sHeight := Height;
+
+  SP_ChangeRes(sWidth, sHeight, Width, Height, Full = 1, Info^.Error^);
+  LISTWINDOW := -1;
+  SP_NeedDisplayUpdate := True;
 
 End;
 
@@ -14272,31 +13822,6 @@ Begin
   Inc(Info^.StackPtr);
   Info^.StackPtr^.Val := DISPLAYHEIGHT;
   SP_Interpret_SCR_RES(Info);
-
-End;
-
-Procedure SP_Interpret_SCR_RES(Var Info: pSP_iInfo);
-Var
-  Height, Width, sWidth, sHeight, Full: Integer;
-Begin
-
-  sHeight := Round(Info^.StackPtr^.Val);
-  Dec(Info^.StackPtr);
-  sWidth := Round(Info^.StackPtr^.Val);
-  Dec(Info^.StackPtr);
-  Height := Round(Info^.StackPtr^.Val);
-  Dec(Info^.StackPtr);
-  Width := Round(Info^.StackPtr^.Val);
-  Dec(Info^.StackPtr);
-  Full := Round(Info^.StackPtr^.Val);
-  Dec(Info^.StackPtr);
-
-  If sWidth = -1 Then sWidth := Width;
-  If sHeight = -1 Then sHeight := Height;
-
-  SP_ChangeRes(sWidth, sHeight, Width, Height, Full = 1, Info^.Error^);
-  LISTWINDOW := -1;
-  SP_NeedDisplayUpdate := True;
 
 End;
 
@@ -14364,7 +13889,10 @@ Begin
     Window^.Caption      := CaptionText;
     Window^.Resizable    := True;
     Window^.Draggable    := True;
-    Window^.CaptionHeight := Trunc(EDFONTHEIGHT * EDFONTSCALEY) + 2;
+    If SYSTEMSTATE In [SS_EDITOR, SS_DIRECT, SS_NEW, SS_ERROR] Then
+      Window^.CaptionHeight := Trunc(EDFONTHEIGHT * EDFONTSCALEY) + 2
+    Else
+      Window^.CaptionHeight := Round(FONTHEIGHT * T_SCALEY) + 2;
     Window^.DropShadow := True;
     Window^.Paper := SP_UIWindowBack;
     CPAPER := Window^.Paper;
@@ -15190,10 +14718,13 @@ Begin
 End;
 
 Procedure SP_Interpret_NEW(Var Info: pSP_iInfo);
+{$IFNDEF RUNTIMEONLY}
 Var
   Dir: aString;
+{$ENDIF}
 Begin
 
+  {$IFNDEF RUNTIMEONLY}
   If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
     Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
     Exit;
@@ -15225,12 +14756,14 @@ Begin
 
     If SP_FileExists('s:startup-sequence') Then Begin
       Dir := SP_GetCurrentDir;
-      SP_Execute('LOAD "s:startup-sequence": RUN', False, Error^);
+      SP_ExecuteCommand('LOAD "s:startup-sequence": RUN', False, Error^);
       Info^.StackPtr := SP_StackPtr;
       SP_SetCurrentDir(Dir, Error^);
     End;
 
+    {$IFNDEF RUNTIMEONLY}
     SP_FPNewProgram;
+    {$ENDIF}
     SP_Program_Clear;
     CPAPER := 8;
     CINK := 0;
@@ -15258,6 +14791,7 @@ Begin
     Error.Code := SP_EXIT;
 
   End;
+  {$ENDIF}
 
 End;
 
@@ -17403,25 +16937,6 @@ Begin
 
 End;
 
-Procedure SP_Interpret_PAL_DEFAULT(Var Info: pSP_iInfo);
-Var
-  Idx: Integer;
-  Palette: Array[0..255] of TP_Colour;
-Begin
-
-  For Idx := 0 To 223 Do
-    Palette[Idx] := DefaultPalette[Idx];
-  Idx := 224;
-  While Idx < 256 Do Begin
-    Palette[Idx].R := (Idx - 224)*8;
-    Palette[Idx].G := (Idx - 224)*8;
-    Palette[Idx].B := (Idx - 224)*8;
-    Inc(Idx);
-  End;
-  SP_SetPalette(0, Palette);
-
-End;
-
 Procedure SP_Interpret_PAL_EGA(Var Info: pSP_iInfo);
 Var
   Idx: Integer;
@@ -17523,8 +17038,11 @@ Var
   LineItem: TSP_GOSUB_Item;
   pTokens: paString;
   OldCommand, Tkns, Payload: aString;
-  CurLine, oldStepMode: Integer;
+  CurLine: Integer;
   NextStatement, change, IsAsync: Boolean;
+  {$IFNDEF RUNTIMEONLY}
+  oldStepMode: Integer;
+  {$ENDIF}
 Begin
 
   // Stack our current position in the program, so we can return later
@@ -17623,12 +17141,16 @@ Begin
         NextStatement := False;
 
         pTokens := @Tkns;
+        {$IFNDEF RUNTIMEONLY}
         oldStepMode := StepMode;
         StepMode := SM_None;
+        {$ENDIF}
         SP_StackPtr := Info^.StackPtr;
         SP_InterpretCONTSafe(pTokens, NewError.Position, NewError);
         Info^.StackPtr := SP_StackPtr;
+        {$IFNDEF RUNTIMEONLY}
         StepMode := oldStepMode;
+        {$ENDIF}
 
         // If the code caused an Error, then bail now and remove the return address from the stack
 
@@ -18220,346 +17742,9 @@ End;
 Procedure SP_Interpret_PROC(Var Info: pSP_iInfo);
 Begin
 
+  SP_StackPtr := info^.StackPtr;
   SP_SetUpPROC(0, Info^.Token^.Cache, Info^.Error^);
-
-End;
-
-Function SP_SetUpPROC(CALLType: Byte; Var CacheVal: LongWord; Var Error: TSP_ErrorCode): Integer;
-Type
-  TProcVar = Packed Record
-    ID: Byte;
-    Len: LongWord;
-  End;
-  pProcVar = ^TProcVar;
-Var
-  ProcName, VarList, VarName: aString;
-  Idx, Idx2, Idx3, vIdx, VarOffsetN, VarOffsetS, ParamCount,
-  VarOffsetNA, VarOffsetSA, NumParams, NumIndices: Integer;
-  TempLine: TSP_GOSUB_Item;
-  SliceFlags: Byte;
-  SliceFrom, SliceTo: Integer;
-  nVar: pProcVar;
-  Reference: Boolean;
-  nPtr: pSP_NumVarContent;
-  sPtr: pSP_StrVarContent;
-Label
-  FoundIt;
-Begin
-
-  Result := -1;
-
-  // Get the parameter count and the procedure name
-
-  NumParams := Round(SP_StackPtr^.Val);
-  Dec(SP_StackPtr);
-
-  // If we've visited this PROC before, then get the cached index, set up the stack
-  // and jump forward to skip the proc name search
-
-  If CacheVal > 0 Then Begin
-    Idx := CacheVal -1;
-    If SP_StackPtr^.Str = '' Then
-      Dec(SP_StackPtr);
-    If CALLType <> 0 Then
-      CALLType := SP_StackPtr^.OpType;
-    Dec(SP_StackPtr);
-    Goto FoundIt;
-  End;
-
-  ProcName := Lower(SP_StackPtr^.Str);
-  If ProcName <> '' Then Begin
-    If SP_StackPtr^.OpType in [SP_STRVAR, SP_STRING] Then
-      ProcName := ProcName + '$';
-  End;
-  If CALLType <> 0 Then
-    CALLType := SP_StackPtr^.OpType;
-  Dec(SP_StackPtr);
-
-  If ProcName = '' Then Begin
-    // This was a PROCID or PROCID$ call - so get the index from the first parameter, which
-    // is the current stack item!
-    Dec(NumParams);
-    Idx := Round(SP_StackPtr^.Val);
-    CacheVal := Idx +1;
-    Dec(SP_StackPtr);
-    Goto FoundIt;
-  End;
-
-  // Find the procedure.
-
-  Idx := 0;
-  While Idx <= SP_ProcsListPtr Do Begin
-    If SP_ProcsList[Idx].Name = ProcName Then Begin
-      CacheVal := Idx +1;
-      Break;
-    End Else
-      Inc(Idx);
-  End;
-
-FoundIt:
-
-  If Idx <= SP_ProcsListPtr Then Begin
-
-    // Check the parameter count
-
-    If SP_ProcsList[Idx].NumVars <> NumParams Then Begin
-      Error.Code := SP_ERR_PROC_PARAM_COUNT;
-    End Else Begin
-
-      // Now pick up the parameters from the proclist entry
-      // and create vars with values from the stack.
-
-      Idx2 := 1;
-      ParamCount := 0;
-      VarList := SP_ProcsList[Idx].VarList;
-      VarOffsetN := NumNV;
-      VarOffsetS := NumSV;
-      VarOffsetNA := Length(NumArrays);
-      VarOffsetSA := Length(StrArrays);
-      While Idx2 < Length(VarList) Do Begin
-        Inc(ParamCount);
-        nVar := @VarList[Idx2];
-        Inc(Idx2, SizeOf(TProcVar));
-        VarName := Copy(VarList, Idx2, nVar.Len);
-        Reference := SP_ProcsList[Idx].VarTypes[ParamCount] = '!';
-        Inc(Idx2, nVar.Len);
-        If nVar.ID = 0 Then Begin
-          Case SP_StackPtr^.OpType of
-            SP_VALUE:
-              Begin
-                // User passed a value as an expression result
-                If Not Reference Then Begin
-                  Idx3 := SP_NewNumVar;
-                  NumVars[Idx3]^.Content.VarType := SP_SIMPLE;
-                  NumVars[Idx3]^.Name := Lower(VarName);
-                  NumVars[Idx3]^.ProcVar := True;
-                  NumVars[Idx3]^.Content.Value := SP_StackPtr^.Val;
-                  NumVars[Idx3]^.ContentPtr := @NumVars[Idx3].Content;
-                  Dec(SP_StackPtr);
-                End Else Begin
-                  Error.Code := SP_ERR_PARAMETER_ERROR;
-                  Exit;
-                End;
-              End;
-            SP_ARRAY_ASSIGN:
-              Begin
-                // User passed a numeric array element by reference
-                SP_StackToString(Round(SP_StackPtr^.Val), SP_StackPtr);
-                With SP_StackPtr^ Do
-                  nPtr := SP_GetNumArrayPtr(Round(Val), Str, gbIndices, gbKey, Error);
-                If Error.Code = SP_ERR_OK Then Begin
-                  Idx3 := SP_NewNumVar;
-                  NumVars[Idx3]^.Name := Lower(VarName);
-                  NumVars[Idx3]^.ProcVar := True;
-                  NumVars[Idx3]^.ContentPtr := nPtr;
-                End;
-                Dec(SP_StackPtr);
-              End;
-            SP_NUMVAR:
-              Begin
-                // User passed a numeric variable by reference
-                vIdx := Round(SP_StackPtr^.Val);
-                If vIdx = 0 Then Begin
-                  vIdx := SP_FindNumVar(SP_StackPtr^.Str);
-                  If vIdx = -1 Then Begin
-                    Error.Code := SP_ERR_MISSING_VAR;
-                    SP_ResizeNumVars(VarOffsetN);
-                    SP_ResizeStrVars(VarOffsetS);
-                    Exit;
-                  End;
-                End Else
-                  Dec(vIdx);
-                Idx3 := SP_NewNumVar;
-                NumVars[Idx3]^.Name := Lower(VarName);
-                NumVars[Idx3]^.ProcVar := True;
-                NumVars[Idx3].ContentPtr := NumVars[vIdx].ContentPtr;
-                Dec(SP_StackPtr);
-              End;
-          Else
-            Error.Code := SP_ERR_PARAMETER_ERROR;
-            Exit;
-          End;
-        End Else
-          Case SP_StackPtr^.OpType of
-            SP_STRING:
-              Begin
-                If Not Reference Then Begin
-                  Idx3 := SP_NewStrVar;
-                  StrVars[Idx3]^.Name := Lower(VarName);
-                  StrVars[Idx3]^.Content.Value := SP_StackPtr^.Str;
-                  StrVars[Idx3]^.ProcVar := True;
-                  StrVars[Idx3]^.ContentPtr := @StrVars[Idx3]^.Content;
-                  StrVars[Idx3]^.Content.DLen := 0;
-                  Dec(SP_StackPtr);
-                End Else Begin
-                  Error.Code := SP_ERR_PARAMETER_ERROR;
-                  Exit;
-                End;
-              End;
-            SP_SLICE_ASSIGN:
-              With SP_StackPtr^ Do Begin
-                SliceFlags := Byte(Str[1]);
-                NumIndices := Round(Val);
-                Dec(SP_StackPtr);
-                If SliceFlags And 1 = 1 Then Begin
-                  SliceTo := Round(SP_StackPtr^.Val);
-                  Dec(SP_StackPtr);
-                End Else
-                  SliceTo := -1;
-                If SliceFlags And 2 = 2 Then Begin
-                  If SP_StackPtr^.OpType = SP_VALUE Then Begin
-                    SliceFrom := Round(SP_StackPtr^.Val);
-                    Dec(SP_StackPtr);
-                  End Else
-                    SliceFrom := SliceTo;
-                End Else
-                  SliceFrom := -1;
-                With SP_StackPtr^ Do
-                  If OpType = SP_VALUE Then Begin
-                    Inc(SP_StackPtr);
-                    SP_StackToString(NumIndices, SP_StackPtr);
-                  End Else Begin
-                    gbIndices := LongWordToString(SliceTo);
-                    Il := SizeOf(LongWord);
-                    SliceFrom := -1;
-                    SliceTo := -1;
-                  End;
-                If SP_FindStrArray(SP_StackPtr^.Str) = -1 Then Begin
-                  Idx3 := SP_FindStrVar(SP_StackPtr^.Str);
-                  If Idx3 > -1 Then Begin
-                    If (SliceTo < 1) or (SliceTo > Length(StrVars[Idx3].ContentPtr^.Value)) Then Begin
-                      ERRStr := SP_StackPtr^.Str;
-                      Error.Code := SP_ERR_SUBSCRIPT_WRONG;
-                      Exit;
-                    End Else Begin
-                      vIdx := SP_NewStrVar;
-                      StrVars[vIdx]^.Name := Lower(VarName);
-                      StrVars[vIdx]^.ProcVar := True;
-                      StrVars[vIdx]^.Content.SliceFrom := SliceFrom;
-                      StrVars[vIdx]^.Content.SliceTo := SliceTo;
-                      StrVars[vIdx]^.ContentPtr := StrVars[Idx3]^.ContentPtr;
-                    End;
-                  End Else
-                    Error.Code := SP_ERR_MISSING_VAR;
-                End Else Begin
-                  With SP_StackPtr^ Do               // fix me
-                    sPtr := SP_GetStrArrayPtr(Round(Val), Str, gbIndices, gbKey, Error);
-                  If Error.Code = SP_ERR_OK Then Begin
-                    vIdx := SP_NewStrVar;
-                    StrVars[vIdx]^.Name := Lower(VarName);
-                    StrVars[vIdx]^.ProcVar := True;
-                    StrVars[vIdx]^.Content.SliceFrom := SliceFrom;
-                    StrVars[vIdx]^.Content.SliceTo := SliceTo;
-                    StrVars[vIdx]^.ContentPtr := sPtr;
-                  End;
-                  Dec(SP_StackPtr);
-                End;
-              End;
-            SP_STRVAR:
-              Begin
-                // User passed a string variable by reference
-                vIdx := Round(SP_StackPtr^.Val);
-                If vIdx = 0 Then Begin
-                  vIdx := SP_FindStrVar(SP_StackPtr^.Str);
-                  If vIdx = -1 Then Begin
-                    Error.Code := SP_ERR_MISSING_VAR;
-                    SP_ResizeNumVars(VarOffsetN);
-                    SP_ResizeStrVars(VarOffsetS);
-                    Exit;
-                  End;
-                End Else
-                  Dec(vIdx);
-                Idx3 := SP_NewStrVar;
-                StrVars[Idx3].Name := Lower(VarName);
-                StrVars[Idx3].ProcVar := True;
-                StrVars[Idx3].ContentPtr := StrVars[vIdx].ContentPtr;
-                Dec(SP_StackPtr);
-              End;
-          Else
-            Error.Code := SP_ERR_PARAMETER_ERROR;
-            Exit;
-          End;
-      End;
-
-      // Finally, having got correct parameters, we set up a procstack entry for this
-      // procedure
-
-      If SP_ProcStackPtr < MAXDEPTH Then Begin
-
-        Inc(SP_ProcStackPtr);
-        With SP_ProcStack[SP_ProcStackPtr] Do Begin
-          ProcIndex := Idx;
-          NumVars := NumParams;
-          VarPosN := VarOffsetN;
-          VarPosS := VarOffsetS;
-          VarPosNA := VarOffsetNA;
-          VarPosSA := VarOffsetSA;
-          StackPtr := SP_StackPtr;
-        End;
-
-        // Push the return address
-
-        If CallType = 0 Then Begin
-          If Error.Line <> -2 Then
-            TempLine := SP_ConvertLineStatement(Error.Line, Error.Statement + 1)
-          Else Begin
-            TempLine.Line := -2;
-            TempLine.Statement := SP_FindStatement(@COMMAND_TOKENS, Error.Statement + 1);
-            TempLine.St := Error.Statement + 1;
-          End;
-        End Else Begin
-          TempLine.Line := Error.Line;
-          TempLine.Statement := Error.Statement;
-          TempLine.St := Error.Position;
-        End;
-        SP_StackLine(TempLine.Line, TempLine.Statement, TempLine.St, SP_KW_PROC, Error);
-
-        // If this was a CALL, then add the appropriate result var (RESULT or RESULT$)
-
-        If CALLType = SP_NUMVAR Then Begin
-          Idx3 := SP_NewNumVar;
-          NumVars[Idx3]^.Content.VarType := SP_SIMPLE;
-          NumVars[Idx3]^.Name := 'result';
-          NumVars[Idx3]^.ProcVar := True;
-          NumVars[Idx3]^.Content.Value := 0;
-          NumVars[Idx3]^.ContentPtr := @NumVars[Idx3]^.Content;
-          Result := Idx3;
-        End Else
-          If CALLType = SP_STRVAR Then Begin
-            Idx3 := SP_NewStrVar;
-            StrVars[Idx3]^.Name := 'result';
-            StrVars[Idx3]^.Content.Value := '';
-            StrVars[Idx3]^.ContentPtr := @StrVars[Idx3]^.Content;
-            StrVars[Idx3]^.Content.DLen := 0;
-            StrVars[Idx3]^.ProcVar := True;
-            Result := Idx3;
-          End;
-        SP_ProcStack[SP_ProcStackPtr].CALLType := CALLType;
-
-        // Now jump to the statement after the procedure declaration
-
-        TempLine := SP_ConvertLineStatement(SP_ProcsList[Idx].Line, SP_ProcsList[Idx].St + 1);
-        NXTLINE := TempLine.Line;
-        NXTSTATEMENT := TempLine.Statement;
-        NXTST := TempLine.St;
-        If CALLType <> 0 Then Begin
-          Error.Line := NXTLINE;
-          Error.Statement := NXTST;
-        End;
-        Error.ReturnType := SP_JUMP;
-        Inc(INPROC);
-        If INPROC >= MAXDEPTH Then
-          Error.Code := SP_ERR_OUT_OF_MEMORY;
-
-      End Else
-
-        Error.Code := SP_ERR_OUT_OF_MEMORY;
-
-    End;
-
-  End Else
-
-    Error.Code := SP_ERR_PROC_NOT_FOUND;
+  info^.StackPtr := SP_StackPtr;
 
 End;
 
@@ -18775,105 +17960,6 @@ Begin
 
 End;
 
-Procedure SP_Interpret_FN(Var Info: pSP_iInfo);
-Var
-  NumParams: LongWord;
-  FnName, VarList, VarName: aString;
-  Idx, Idx2, Idx3, VarOffsetN, VarOffsetS, ValPosition, fnID: Integer;
-  nVar: pFnVar; ValTkn: paString;
-Begin
-
-  // Get the parameter count and the procedure name
-
-  NumParams := Round(Info^.StackPtr^.Val);
-  Dec(Info^.StackPtr);
-  FnName := Lower(Info^.StackPtr^.Str);
-  FnID := Info^.Token^.Cache;
-  Dec(Info^.StackPtr);
-
-  // Find the procedure.
-
-  If FnID <= 0 Then Begin
-    Idx := 0;
-    While Idx < Length(SP_FnList) Do Begin
-      If SP_FnList[Idx].Name = FnName Then Begin
-        Info^.Token^.Cache := Idx +1;
-        Break;
-      End Else
-        Inc(Idx);
-    End;
-  End Else
-    Idx := FnID -1;
-
-  If Idx < Length(SP_FnList) Then Begin
-
-    // Check the parameter count
-
-    If SP_FnList[Idx].ParamCount <> integer(NumParams) Then Begin
-      Info^.Error^.Code := SP_ERR_PROC_PARAM_COUNT;
-    End Else Begin
-
-      // Now pick up the parameters from the fnlist entry
-      // and create vars with values from the stack.
-
-      Idx2 := 1;
-      VarList := SP_FnList[Idx].ParamList;
-      VarOffsetN := NumNV;
-      VarOffsetS := NumSV;
-      While Idx2 < Length(VarList) Do Begin
-        nVar := @VarList[Idx2];
-        Inc(Idx2, SizeOf(TFnVar));
-        VarName := Copy(VarList, Idx2, nVar.Len);
-        Inc(Idx2, nVar.Len);
-        If nVar.ID = 0 Then Begin
-          If Info^.StackPtr^.OpType = SP_VALUE Then Begin
-            Idx3 := SP_NewNumVar;
-            NumVars[Idx3]^.Content.VarType := SP_SIMPLE;
-            NumVars[Idx3]^.Name := Lower(VarName);
-            NumVars[Idx3]^.ProcVar := True;
-            NumVars[Idx3]^.Content.Value := Info^.StackPtr^.Val;
-            NumVars[Idx3]^.ContentPtr := @NumVars[Idx3]^.Content;
-            Dec(Info^.StackPtr);
-          End Else
-            Info^.Error^.Code := SP_ERR_PARAMETER_ERROR;
-        End Else
-          If Info^.StackPtr^.OpType = SP_STRING Then Begin
-            Idx3 := SP_NewStrVar;
-            StrVars[Idx3]^.Name := Lower(VarName);
-            StrVars[Idx3]^.Content.Value := Info^.StackPtr^.Str;
-            StrVars[Idx3]^.Content.DLen := 0;
-            StrVars[Idx3]^.ContentPtr := @StrVars[Idx3]^.Content;
-            StrVars[Idx3]^.ProcVar := True;
-            Dec(Info^.StackPtr);
-          End Else
-            Info^.Error^.Code := SP_ERR_PARAMETER_ERROR;
-      End;
-
-      ValPosition := 1;
-      ValTkn := @SP_FnList[Idx].Expr;
-      Inc(FN_Recursion_Count);
-      If FN_Recursion_Count >= MAXDEPTH Then
-        Info^.Error^.Code := SP_ERR_OUT_OF_MEMORY
-      Else Begin
-        SP_StackPtr := Info^.StackPtr;
-        SP_InterpretCONTSafe(ValTkn, ValPosition, Info^.Error^);
-        Info^.StackPtr := SP_StackPtr;
-      End;
-      Dec(FN_Recursion_Count);
-
-      // Now remove the variables
-
-      SP_ResizeNumVars(VarOffsetN);
-      SP_ResizeStrVars(VarOffsetS);
-
-    End;
-
-  End Else
-
-    Info^.Error^.Code := SP_ERR_FN_NOT_FOUND;
-
-End;
-
 Procedure SP_Interpret_BANK_PROTECT(Var Info: pSP_iInfo);
 Var
   BankID: Integer;
@@ -18905,122 +17991,6 @@ Begin
   Dec(Info^.StackPtr);
   If SP_Bank_DeProtect(BankID) < 0 Then
     Info^.Error^.Code := SP_ERR_BANK_NOT_FOUND;
-
-End;
-
-Procedure SP_Interpret_CALL(Var Info: pSP_iInfo);
-Var
-  OldError: TSP_ErrorCode;
-  pTokens: paString;
-  Tkns: aString;
-  oldStrPtr: Pointer;
-  OldSp: pSP_StackItem;
-  TempLine: TSP_Gosub_Item;
-  ResultIdx, ResultType: Integer;
-  CurLine, OldErrorStatement, OldNxtStatement, OldNxtLine, OldProcStack: Integer;
-Label
-  NextStatement, BailOut;
-Begin
-
-  With Info^ Do Begin
-
-    OldStrPtr := StrPtr;
-    CopyMem(@OldError.Line, @Error^.Line, SizeOf(TSP_ErrorCode));
-    OldNxtLine := NXTLINE;
-    OldNxtStatement := NXTSTATEMENT;
-    OldErrorStatement := Error^.Statement;
-
-    OldProcStack := SP_ProcStackPtr;
-    ResultIdx := SP_SetUpPROC(1, Token^.Cache, Error^);
-    If Error^.Code <> SP_ERR_OK Then Exit;
-
-    CurLine := NXTLINE;
-    Error^.ReturnType := OldError.ReturnType;
-    Tkns := SP_Program[CurLine];
-    Error^.Position := NXTSTATEMENT; //SP_FindStatement(@Tkns, 1);
-
-    TempLine := SP_ConvertLineStatement(NXTLINE, NXTST + 1);
-    NXTLINE := TempLine.Line;
-    NXTSTATEMENT := TempLine.Statement;
-    ResultType := SP_ProcStack[SP_ProcStackPtr].CALLType;
-    OldSp := Info^.StackPtr;
-
-  NextStatement:
-
-    pTokens := @Tkns;
-    SP_Interpret(pTokens, Error^.Position, Error^);
-
-    // If the code caused an error, then bail now and remove the return address from the stack
-
-    If SP_ProcStackPtr = OldProcStack Then Begin
-      If Error^.Code = SP_ERR_UNBALANCED_STACK Then
-        If NativeUInt(Info^.StackPtr) = NativeUInt(Info^.StackStart) + SizeOf(SP_StackItem) Then
-          Error^.Code := SP_ERR_OK;
-      Goto BailOut;
-    End;
-
-    If (Error^.Code <> SP_ERR_OK) or (NXTLINE >= SP_Program_Count) Then Begin
-
-      Dec(SP_GOSUB_STACKPTR);
-      If Error^.Code = SP_ERR_OK Then
-        Error^.ReturnType := SP_JUMP;
-      Exit;
-
-    End Else Begin
-
-      // Otherwise, follow the jump if necessary
-      // Check if the procedure stack has shrunk back to what it was before we started
-
-      If NXTLINE <> -1 Then Begin
-
-        If NXTLINE = -2 Then Begin CurLine := -1;
-          Tkns := COMMAND_TOKENS;
-          If NXTSTATEMENT = -1 Then
-            Goto BailOut;
-          Error^.Position := NXTSTATEMENT;
-        End Else Begin
-          CurLine := NXTLINE;
-          Tkns := SP_Program[CurLine];
-          If NXTSTATEMENT <> -1 Then
-            Error^.Position := NXTSTATEMENT
-          Else Begin
-            Error^.Statement := 1;
-            Error^.Position := SP_FindStatement(@Tkns, 1);
-          End;
-        End;
-
-        NXTSTATEMENT := -1;
-        Inc(NXTLINE);
-        If NXTLINE <> 0 Then Begin
-          Error^.Line := CurLine;
-          Goto NextStatement;
-        End;
-
-      End;
-
-    End;
-
-  BailOut :
-
-    StrPtr := OldStrPtr;
-    Info^.StackPtr := OldSP;
-    If ResultType = SP_NUMVAR Then Begin
-      Inc(Info^.StackPtr);
-      Info^.StackPtr^.OpType := SP_VALUE;
-      Info^.StackPtr^.Val := NumVars[ResultIdx]^.ContentPtr^.Value;
-    End Else
-      If ResultType = SP_STRVAR Then Begin
-        Inc(Info^.StackPtr);
-        Info^.StackPtr^.OpType := SP_STRING;
-        Info^.StackPtr^.Str := StrVars[ResultIdx]^.ContentPtr^.Value;
-      End;
-
-    NXTLINE := OldNxtLine;
-    NXTSTATEMENT := OldNxtStatement;
-    Error^.Statement := OldErrorStatement;
-    CopyMem(@Error^.Line, @OldError.Line, SizeOf(TSP_ErrorCode));
-
-  End;
 
 End;
 
@@ -20979,10 +19949,13 @@ Begin
 End;
 
 Procedure SP_Interpret_RENUMBER(Var Info: pSP_iInfo);
+{$IFNDEF RUNTIMEONLY}
 Var
   Start, Finish, Line, Step: Integer;
+{$ENDIF}
 Begin
 
+  {$IFNDEF RUNTIMEONLY}
   If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
     Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
     Exit;
@@ -21003,14 +19976,18 @@ Begin
   DoAutoSave;
 
   SP_FPRenumberListing(Start, Finish, Line, Step, Info^.Error^);
+  {$ENDIF}
 
 End;
 
 Procedure SP_Interpret_ERASE_LINES(Var Info: pSP_iInfo);
+{$IFNDEF RUNTIMEONLY}
 Var
   Start, Finish, ProgLen: Integer;
+  {$ENDIF}
 Begin
 
+  {$IFNDEF RUNTIMEONLY}
   If Assigned(CurrentInterpreter) And (CurrentInterpreter.ID > 0) Then Begin
     Info^.Error^.Code := SP_ERR_NOT_IN_SECONDARY;
     Exit;
@@ -21032,6 +20009,7 @@ Begin
   DoAutoSave;
 
   SP_FPDeleteLines(Start, Finish, Info^.Error^);
+  {$ENDIF}
 
 End;
 
@@ -22143,10 +21121,13 @@ Begin
 End;
 
 Procedure SP_Interpret_MERGE_LINES(Var Info: pSP_iInfo);
+{$IFNDEF RUNTIMEONLY}
 Var
   Start, Finish: Integer;
+{$ENDIF}
 Begin
 
+  {$IFNDEF RUNTIMEONLY}
   Start := Round(Info^.StackPtr^.Val);
   Dec(Info^.StackPtr);
   Finish := Round(Info^.StackPtr^.Val);
@@ -22155,6 +21136,7 @@ Begin
   DoAutoSave;
 
   SP_FPMergeLines(Start, Finish, Info^.Error^);
+  {$ENDIF}
 
 End;
 
@@ -25458,6 +24440,7 @@ Begin
         Dec(Info^.StackPtr);
         nLine := Round(Info^.StackPtr^.Val);
         Dec(Info^.StackPtr);
+        SP_StackPtr := info^.StackPtr;
         If SP_TestRanges(Expression, ExpressionStr, ExpressionType = SP_VALUE, Info^.Error^) Then Begin
           Completed := True;
         End Else Begin
@@ -25465,6 +24448,7 @@ Begin
           NXTLINE := nLine;
           Info^.Error^.ReturnType := SP_JUMP;
         End;
+        info^.StackPtr := SP_StackPtr;
       End;
     End;
   End Else
@@ -29123,7 +28107,7 @@ Begin
           TexBank := Round(Info^.StackPtr^.Val);
           Dec(Info^.StackPtr);
           For i := 0 To (nV * 2) -1 Do Begin
-            Uvs[i] := SP_StacKPtr^.Val;
+            Uvs[i] := Info^.StacKPtr^.Val;
             Dec(Info^.StackPtr);
           End;
         End;

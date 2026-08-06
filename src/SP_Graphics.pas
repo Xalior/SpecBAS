@@ -626,7 +626,8 @@ Const
 
 implementation
 
-Uses SP_Main, SP_Display, SP_Interpret_PostFix, SP_Tokenise, SP_InfixToPostFix, SP_Input, SP_Graphics32, SP_Components, SP_ToolTipWindow, SP_Variables;
+Uses SP_Main, SP_Display, SP_Interpret_PostFix, SP_Tokenise, SP_InfixToPostFix, SP_Input,
+     SP_Graphics32, SP_Components{$IFNDEF RUNTIMEONLY}, SP_ToolTipWindow{$ENDIF}, SP_Variables;
 
 class operator TSP_Point.Add(const a, b: TSP_Point): TSP_Point;
 begin
@@ -1550,8 +1551,10 @@ Begin
         SCREENBANK := -1;
         SP_SetDrawingWindow(0);
       end;
+      {$IFNDEF RUNTIMEONLY}
       If TipWindowID = WindowID Then
         TipWindowID := -1;
+      {$ENDIF}
 
       If WindowID = MODALWINDOW Then
         MODALWINDOW := -1;
@@ -1571,6 +1574,11 @@ Begin
         Window^.SpriteCount := 0;
 
         SP_InvalidateWindow(WindowID, Error);
+
+        // Caption is an aString embedded inside Bank^.Info (a raw byte array).
+        // The compiler's reference counting never sees it, so we must release it
+        // explicitly before SP_DeleteBank frees the raw memory, or it leaks.
+        Window^.Caption := '';
 
         Dec(NUMWINDOWS);
         SP_DeleteBank(BankIdx, Error);

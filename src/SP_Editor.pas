@@ -42,7 +42,8 @@ Var
 
 implementation
 
-Uses SP_Compiler, SP_Main, SP_Menu, SP_FPEditor, SP_PreRun, SP_Display, SP_EditorTabsUnit;
+Uses SP_Main, SP_Menu, SP_PreRun, SP_Display
+     {$IFNDEF RUNTIMEONLY}, SP_Compiler, SP_FPEditor, SP_EditorTabsUnit{$ENDIF};
 
 Procedure SP_DrawStripe(Dst: pByte; Width, StripeWidth, StripeHeight: Integer);
 Var
@@ -67,22 +68,24 @@ End;
 
 Procedure SP_EditLoop(Var Error: TSP_ErrorCode);
 Var
+  {$IFNDEF RUNTIMEONLY}
   aSave: Boolean;
+  tStr: aString;
+  TabFileID, TabCount, ActiveIdx, ti, p: Integer;
+  // Multi-tab restore temporaries
+  TabLine, TabFilename, dn: aString;
+  DisplayNames: Array of aString;
+  {$ENDIF}
   CurLine: Integer;
   pInfo: pSP_iInfo;
   Info: TSP_iInfo;
-  tStr: aString;
   s: aString;
   i: Integer;
-  // Multi-tab restore temporaries
-  TabFileID, TabCount, ActiveIdx, ti, p: Integer;
-  TabLine, TabFilename, dn: aString;
-  DisplayNames: Array of aString;
-//  {$IFDEF DEBUG}
-//  fs: TFileStream;
-//  {$ELSE}
+  {$IFDEF DEBUGPAYLOAD}
+  fs: TFileStream;
+  {$ELSE}
   ps: Integer;
-//  {$ENDIF}
+  {$ENDIF}
 Label
   RunTimeExit;
 Begin
@@ -90,11 +93,12 @@ Begin
   Info.Error := @Error;
   pInfo := @Info;
 
-//  {$IFDEF DEBUG}
-//  PAYLOADPRESENT := FileExists(ExtractFilePath(EXENAME) + 'payload.bin');
-//  {$ENDIF}
+  {$IFDEF DEBUGPAYLOAD}
+  PAYLOADPRESENT := FileExists(ExtractFilePath(EXENAME) + 'payload.bin');
+  {$ENDIF}
   If Not PAYLOADPRESENT Then begin
 
+    {$IFNDEF RUNTIMEONLY}
     SP_InitFPEditor;
 
     {$IFDEF PANDORA}
@@ -115,12 +119,12 @@ Begin
     AUTOSAVE := False;
     MaxCompileLines := -1;
     If SP_FileExists('s:startup-sequence') Then Begin
-      SP_Execute('LOAD "s:startup-sequence": RUN', False, Error);
+      SP_ExecuteCommand('LOAD "s:startup-sequence": RUN', False, Error);
       // Clear any errors, as we just ignore them.
       Error.Code := SP_ERR_OK;
     End Else
       If SP_FileExists('startup-sequence') Then Begin
-        SP_Execute('LOAD "startup-sequence": RUN', False, Error);
+        SP_ExecuteCommand('LOAD "startup-sequence": RUN', False, Error);
         // Clear any errors, as we just ignore them.
         Error.Code := SP_ERR_OK;
       End;
@@ -145,7 +149,7 @@ Begin
         SP_StartCompiler;
         SetExceptionMask([exInvalidOp, exDenormalized, exZeroDivide, exOverflow, exUnderflow, exPrecision]);
         SP_Interpreter_Ready := True;
-        SP_Execute('RUN '+IntToString(CurLine), True, Error);
+        SP_ExecuteCommand('RUN '+IntToString(CurLine), True, Error);
       End;
       SP_Interpret_QUIT(pInfo);
       Exit;
@@ -243,24 +247,26 @@ Begin
     LASTERRORSTATEMENT := -1;
 
     SP_FPEditorLoop;
+    {$ENDIF} // RUNTIMEONLY
 
   End Else Begin
 
     // run the payload
 
-//    {$IFDEF DEBUG}
-//    s := aString(ExtractFilePath(EXENAME) + 'payload.bin');
-//    If FileExists(String(s)) Then Begin
-//      fs := TFileStream.Create(String(s), fmOpenRead);
-//      SetLength(s, fs.size);
-//      fs.read(s[1], fs.Size);
-//      fs.Free;
-//    End;
-//    {$ELSE}
+    {$IFDEF DEBUGPAYLOAD}
+    s := aString(ExtractFilePath(EXENAME) + 'payload.bin');
+    If FileExists(String(s)) Then Begin
+      fs := TFileStream.Create(String(s), fmOpenRead);
+      SetLength(s, fs.size);
+      fs.read(s[1], fs.Size);
+      fs.Free;
+    End;
+    {$ELSE}
     ps := PayLoad.PayloadSize;
     SetLength(s, ps);
     PayLoad.GetPayLoad(s[1]);
-//    {$ENDIF}
+    PayLoad.Free;
+    {$ENDIF}
     CurLine := UnPackPayload(s);
     CB_SETWINDOWCAPTION;
     For i := 0 To SP_Program_Count -1 do
@@ -272,7 +278,7 @@ Begin
     WaitForDisplayInit;
 
     SP_Interpreter_Ready := True;
-    SP_Execute('GO TO '+IntToString(CurLine), True, Error);
+    SP_ExecuteCommand('GO TO '+IntToString(CurLine), True, Error);
 
     SP_Interpret_QUIT(pInfo);
 

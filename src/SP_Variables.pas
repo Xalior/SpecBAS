@@ -270,7 +270,8 @@ Const
 
 implementation
 
-Uses SP_Main, SP_Interpret_PostFix, SP_InfixToPostFix, SP_Graphics, SP_Streams, SP_BankManager, SP_FileIO, SP_Menu, SP_FPEditor, SP_PreRun;
+Uses SP_Main, SP_Interpret_PostFix, SP_InfixToPostFix, SP_Graphics, SP_Streams,
+     SP_BankManager, SP_FileIO, SP_Menu, SP_PreRun;
 
 Function New_NumVarContent: pSP_NumVarContent; inline;
 Begin

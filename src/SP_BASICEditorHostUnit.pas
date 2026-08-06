@@ -105,6 +105,7 @@ Uses
   SP_ToolTipWindow,     // For the hints system
   SP_MemoUnit,          // For character heights
   SP_EditorTabsUnit,    // Per-tab state save/restore
+  SP_Debugging,         // Breakpoint list
   SP_Tokenise;          // For SP_Program_Delete_Line
 
 // ---------------------------------------------------------------------------
@@ -314,6 +315,7 @@ Begin
   CompilerLock.Enter;
   Try
     Listing.Clear;
+    SP_Program_Clear;
     For i := 0 To FPBASICEditor.Lines.Count - 1 Do
       Listing.Add(FPBASICEditor.Lines[i]);
     // Reset stale flags - TAnsiStringlist.Add does not zero-init fFlags
@@ -636,7 +638,7 @@ Begin
     // Editor not yet open (startup sequence): parse the text and populate
     // Listing directly so EditorHost_LoadFromListing can push it across when
     // the editor window opens.
-    Lines := SP_BASICEditor.ParseBASICText(CleanText, AutoStart, ProgName, Changed);
+    Lines := ParseBASICText(CleanText, AutoStart, ProgName, Changed);
     Try
       CompilerLock.Enter;
       Try

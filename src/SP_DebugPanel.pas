@@ -74,7 +74,7 @@ Const
 implementation
 
 Uses {$IFNDEF FPC}Vcl.ClipBrd{$ELSE}ClipBrd{$ENDIF}, SP_FPEditor, SP_Errors, SP_Graphics, SP_BankManager, SP_BankFiling, SP_SysVars, SP_Components, SP_Variables, SP_AnsiStringList,
-     SP_Interpret_PostFix, SP_FileIO, SP_Main, SP_MenuActions, SP_BASICEditorHostUnit, SP_MemoUnit;
+     SP_Interpret_PostFix, SP_FileIO, SP_Main, SP_MenuActions, SP_BASICEditorHostUnit, SP_MemoUnit, SP_Debugging, SP_Execute;
 
 Procedure SP_UpdateAfterDebug;
 Begin

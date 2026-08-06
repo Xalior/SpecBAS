@@ -145,8 +145,8 @@ Uses {$IFDEF FPC}
         Unix, BaseUnix,
       {$ENDIF}
     {$ENDIF}
-    SP_FPEditor, SP_ToolTipWindow, SP_Display, SP_BASICEditorHostUnit, SP_WindowMenuUnit, SP_PopUpMenuUnit,
-    SP_BASICInterpreter, SP_BankFiling, SP_Interpret_PostFix;
+    {$IFNDEF RUNTIMEONLY}SP_FPEditor, SP_ToolTipWindow, SP_BASICEditorHostUnit,{$ENDIF}
+    SP_Display, SP_WindowMenuUnit, SP_PopUpMenuUnit, SP_BASICInterpreter, SP_BankFiling, SP_Interpret_PostFix;
 
 {$IFDEF FPC}
   {$R *.lfm}
@@ -357,7 +357,9 @@ begin
     // *** TO DO make windowmenu appear when right-clicking if not visible ***
 
     Handled := False;
+    {$IFNDEF RUNTIMEONLY}
     CloseTipWindow;
+    {$ENDIF}
 
     If ForceCapture Then Begin
       If CaptureControl.CanFocus Then
@@ -543,12 +545,14 @@ begin
       If DisplaySection.TryEnter Then Begin
 
         tX := X; tY := Y;
+        {$IFNDEF RUNTIMEONLY}
         If TipWindowID <> -1 Then CheckForTip(tx, ty);
+        {$ENDIF}
         Win := WindowAtPoint(tX, tY, ID);
 
         If Assigned(Win) Then Begin
           Win := ControlAtPoint(Win, tX, tY);
-          If Assigned(Win) And (MouseControl <> pSP_BaseComponent(Win)^) Then
+          If Not Assigned(Win) Or (MouseControl <> pSP_BaseComponent(Win)^) Then
             If Assigned(MouseControl) And SP_CanInteract(MouseControl) Then
               MouseControl.MouseLeave;
         End;
@@ -776,10 +780,12 @@ Begin
           paste := paste + s + #13#10;
       End;
     End;
+    {$IFNDEF RUNTIMEONLY}
     FPBASICEditor.SetFocus(True);
     FPBASICEditor.InsertText(paste);
     FPBASICEditor.EnsureCursorVisible;
     FPBASICEditor.Paint;
+    {$ENDIF}
   end;
   sl.Free;
 End;
@@ -833,7 +839,8 @@ begin
   EXENAME := ParamStr(0);
   PayLoad := TPayLoad.Create(EXENAME);
   PAYLOADPRESENT := PayLoad.HasPayLoad;
-  PayLoad.Free;
+  If Not PAYLOADPRESENT Then
+    PayLoad.Free;
 
   {$IFDEF OPENGL}
   DisplayFlip := False;
@@ -2018,10 +2025,12 @@ begin
             paste := paste + s + #13#10;
         End;
       End;
+      {$IFNDEF RUNTIMEONLY}
       FPBASICEditor.SetFocus(True);
       FPBASICEditor.InsertText(paste);
       FPBASICEditor.EnsureCursorVisible;
       FPBASICEditor.Paint;
+      {$ENDIF}
     End;
     sl.Free;
   end;

@@ -60,6 +60,8 @@ Procedure SP_Program_Insert(Index: Integer; Str: aString);
 Procedure SP_Program_Delete(Index: Integer);
 Procedure SP_Program_Delete_Line(Line: Integer);
 Procedure SP_Program_Clear;
+Function  ParseBASICText(Const RawText: aString; Out AutoStart: Integer; Out ProgName:  aString; Out Changed:   Boolean): TStringList;
+Procedure AutoExpandCompounds(Var s: aString; Var CCol: Integer);
 
 Var
 
@@ -1465,7 +1467,58 @@ Const
 
 implementation
 
-Uses SP_Main, SP_Editor, SP_FileIO, SP_SysVars, {$IFDEF FPC}LclIntf{$ELSE}Windows{$ENDIF};
+Uses SP_Main, SP_FileIO, SP_SysVars, {$IFDEF FPC}LclIntf{$ELSE}Windows{$ENDIF};
+
+Procedure AutoExpandCompounds(Var s: aString; Var CCol: Integer);
+Const
+  Compounds: Array[0..9, 0..1] of aString =
+    (('DEFPROC', 'DEF PROC'), ('DEFFN', 'DEF FN'), ('DEFSTRUCT', 'DEF STRUCT'),
+     ('ENDPROC', 'END PROC'), ('ENDIF', 'END IF'), ('ENDSTRUCT', 'END STRUCT'),
+     ('EXITPROC', 'EXIT PROC'), ('ENDCASE', 'END CASE'), ('GOTO', 'GO TO'),
+     ('GOSUB', 'GO SUB'));
+Var
+  i, p, k, matchLen: Integer;
+  inStr, isWordStart, isWordEnd: Boolean;
+  uStr: aString;
+Begin
+  uStr := Upper(s);
+  For i := 0 To 9 Do Begin
+    p := 1;
+    matchLen := Length(Compounds[i, 0]);
+    While p <= Length(uStr) - matchLen + 1 Do Begin
+      // Fast check on the first character
+      If uStr[p] = Compounds[i, 0][1] Then Begin
+        If Copy(uStr, p, matchLen) = Compounds[i, 0] Then Begin
+
+          // 1. Ensure we are not inside a string
+          inStr := False;
+          For k := 1 To p - 1 Do
+            If s[k] = '"' Then inStr := Not inStr;
+
+          If Not inStr Then Begin
+            // 2. Ensure it's a whole word (don't expand "MYGOTO")
+            isWordStart := (p = 1) Or Not (uStr[p-1] In['A'..'Z', '0'..'9', '_']);
+            isWordEnd   := (p + matchLen > Length(uStr)) Or Not (uStr[p + matchLen] In['A'..'Z', '0'..'9', '_']);
+
+            If isWordStart And isWordEnd Then Begin
+              // Modify the raw string
+              Delete(s, p, matchLen);
+              System.Insert(Compounds[i, 1], s, p);
+              uStr := Upper(s); // Refresh upper string for subsequent searches
+
+              // Shift the cursor forward if it was sitting after the injected space
+              If CCol > p Then Inc(CCol);
+
+              Inc(p, matchLen + 1);
+              Continue;
+            End;
+          End;
+        End;
+      End;
+      Inc(p);
+    End;
+  End;
+End;
 
 Function SP_IsHybridFn(const Idx: LongWord): Boolean;
 Var
@@ -1479,6 +1532,50 @@ Begin
       Exit;
     End Else
       Inc(i);
+End;
+
+Function ParseBASICText(Const RawText: aString; Out AutoStart: Integer; Out ProgName:  aString; Out Changed:   Boolean): TStringList;
+Var
+  p, i: Integer;
+  Line, Plain: aString;
+Begin
+  Result    := TStringList.Create;
+  AutoStart := -1;
+  ProgName  := '';
+  Changed   := False;
+
+  p := 1;
+  If Copy(RawText, 1, 7) = 'ZXASCII' Then Begin
+    p := 8;
+    While (p <= Length(RawText)) And (RawText[p] < #32) Do Inc(p);
+  End;
+
+  While p <= Length(RawText) Do Begin
+
+    i := p;
+    While (i <= Length(RawText)) And (RawText[i] <> #13) And (RawText[i] <> #10) Do Inc(i);
+
+    Line := Copy(RawText, p, i - p);
+    p := i;
+    If (p <= Length(RawText)) And (RawText[p] = #13) Then Inc(p);
+    If (p <= Length(RawText)) And (RawText[p] = #10) Then Inc(p);
+
+    While (Line <> '') And (Line[Length(Line)] <= ' ') Do
+      SetLength(Line, Length(Line) - 1);
+
+    Plain := StripLeadingSpaces(Line);
+
+    If Lower(Copy(Plain, 1, 4)) = 'auto' Then Begin
+      AutoStart := StrToIntDef(String(StripLeadingSpaces(Copy(Plain, 5, MaxInt))), -1);
+    End Else If Lower(Copy(Plain, 1, 4)) = 'prog' Then Begin
+      ProgName := StripLeadingSpaces(Copy(Plain, 5, MaxInt));
+    End Else If Lower(Copy(Plain, 1, 7)) = 'changed' Then Begin
+      Plain   := StripLeadingSpaces(Copy(Plain, 8, MaxInt));
+      Changed := Lower(Copy(Plain, 1, 4)) = 'true';
+    End Else
+      Result.Add(Line);
+
+  End;
 End;
 
 Function SP_TokeniseLine(Line: aString; IsExpression, AddLineNum: Boolean): aString;

@@ -1454,7 +1454,10 @@ Begin
       While (p < fCursorCol) And (s[p] = ' ') Do Inc(p);
       If p >= fCursorCol Then Begin
         spaces := TabRetreat;
-        spaces := Min(spaces, fCursorCol - numLen - 1);
+        If (numLen = 0) And (fCursorCol > 0) And (fCursorCol < Length(s)) And (s[fCursorCol] in ['0'..'9']) Then
+          spaces := fCursorCol - numLen - 1
+        Else
+          spaces := Min(spaces, fCursorCol - numLen - 1);
         StoreUndo(uoDeleteBack);
         fLines[fCursorLine] := Copy(s, 1, fCursorCol - spaces - 1) +
                                Copy(s, fCursorCol, Length(s));
