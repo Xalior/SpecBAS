@@ -839,9 +839,12 @@ const
 {$IFDEF LINUX}
   bassdll = 'libbass.so';
 {$ENDIF}
-{$IFDEF MACOS}
+// Delphi defines MACOS for the Apple targets; Free Pascal defines DARWIN and
+// never MACOS. Both have to be named, or the const block ends up empty and
+// bassdll is undeclared for every import below it.
+{$IF DEFINED(MACOS) OR DEFINED(DARWIN)}
   bassdll = 'libbass.dylib';
-{$ENDIF}
+{$IFEND}
 {$IFDEF ANDROID}
   bassdll = 'libbass.so';
 {$ENDIF}

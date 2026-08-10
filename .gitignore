@@ -29,3 +29,7 @@ src/backup.bat
 specbas_dev_notes.txt
 specbas_log.txt
 *.log
+
+# SDL2 backend build: fetched dependencies and build products.
+/build-sdl2/vendor/
+/build-sdl2/build/

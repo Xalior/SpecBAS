@@ -72,14 +72,16 @@ type
     {$ENDIF}
     procedure OnAppMessage(var Msg: TMsg; var Handled: Boolean);
     procedure CMDialogKey( Var msg: TCMDialogKey ); message CM_DIALOGKEY;
-    Procedure OnResizeMain(Var Msg: TMessage); Message WM_RESIZEMAIN;
     {$IFNDEF FPC}
+    Procedure OnResizeMain(Var Msg: TMessage); Message WM_RESIZEMAIN;
     procedure WMMenuChar(var MessageRec: TWMMenuChar); message WM_MENUCHAR;
     {$ENDIF}
   public
     { Public declarations }
     Function  GetCharFromVirtualKey(Var Key: Word): astring;
+    {$IFNDEF FPC}
     procedure DropFiles(var msg: TMessage ); message WM_DROPFILES;
+    {$ENDIF}
     Procedure CreateGDIBitmap;
     {$IFDEF FPC}
     Procedure DoResizeMain(l, t, w, h: Integer);
@@ -186,6 +188,7 @@ Begin
 End;
 {$ENDIF}
 
+{$IFNDEF FPC}
 Procedure TMain.OnResizeMain(Var Msg: TMessage);
 Var
   l, t, w, h, cw, ch: Integer;
@@ -222,6 +225,7 @@ Begin
   MainCanResize := True;
 
 End;
+{$ENDIF}
 
 procedure TMain.Timer1Timer(Sender: TObject);
 Var
@@ -1995,6 +1999,7 @@ Begin
 }
 End;
 
+{$IFNDEF FPC}
 procedure TMain.DropFiles(var msg: TMessage);
 var
   i, count, j: integer;
@@ -2036,6 +2041,7 @@ begin
   end;
   DragFinish(msg.WParam);
 end;
+{$ENDIF}
 
 Initialization
 

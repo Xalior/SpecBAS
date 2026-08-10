@@ -29,7 +29,10 @@ type
 implementation
 
 uses
-  SysUtils, ActiveX, SP_Tokenise, SP_Util, SP_BankFiling, SP_SysVars;
+  // ActiveX was imported only for IsEqualGUID. It is a Windows unit, and the
+  // comparison below is a fixed-size memory compare, so SysUtils supplies
+  // everything this unit needs on every target.
+  SysUtils, SP_Tokenise, SP_Util, SP_BankFiling, SP_SysVars;
 
 type
   TPayloadFooter = packed record
@@ -64,7 +67,7 @@ begin
     // .. this ensures watermark is invalid
     FillChar(Footer, SizeOf(Footer), 0);
   // Return if watermark is valid
-  Result := IsEqualGUID(Footer.WaterMark, cWaterMarkGUID);
+  Result := CompareMem(@Footer.WaterMark, @cWaterMarkGUID, SizeOf(TGUID));
 end;
 
 procedure TPayload.Close;
