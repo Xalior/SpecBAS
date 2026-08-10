@@ -25,9 +25,9 @@ Unit SP_Interpret_PostFix;
 
 interface
 
-Uses SyncObjs, Forms, {$IFNDEF FPC}IOUtils,{$ELSE}FileUtil,{$ENDIF} SP_Util, SP_Graphics, SP_Graphics32, SP_SysVars, SP_Errors, SP_Components, SP_Tokenise, SP_InfixToPostFix, SP_FileIO,
-     SP_Input, SP_BankManager, SP_BankFiling, SP_Streams, SP_Sound, SP_Package, Math, Classes, SysUtils, SP_Math, {$IFNDEF FPC}Vcl.ClipBrd{$ELSE}ClipBrd{$ENDIF},
-     {$IFDEF FPC}LclIntf{$ELSE}Windows{$ENDIF}, SP_Strings, SP_Menu, SP_Dialogs, SP_AnsiStringlist, SP_Variables, SP_PreRun;
+Uses SyncObjs, {$IFNDEF SDL2}Forms,{$ENDIF} {$IFNDEF FPC}IOUtils,{$ELSE}{$IFDEF SDL2}SP_SDL2Compat,{$ELSE}FileUtil,{$ENDIF}{$ENDIF} SP_Util, SP_Graphics, SP_Graphics32, SP_SysVars, SP_Errors, SP_Components, SP_Tokenise, SP_InfixToPostFix, SP_FileIO,
+     SP_Input, SP_BankManager, SP_BankFiling, SP_Streams, SP_Sound, SP_Package, Math, Classes, SysUtils, SP_Math, {$IFNDEF FPC}Vcl.ClipBrd,{$ELSE}{$IFNDEF SDL2}ClipBrd,{$ENDIF}{$ENDIF}
+     {$IFDEF FPC}{$IFNDEF SDL2}LclIntf,{$ENDIF}{$ELSE}Windows,{$ENDIF} SP_Strings, SP_Menu, SP_Dialogs, SP_AnsiStringlist, SP_Variables, SP_PreRun;
 
 Type
 

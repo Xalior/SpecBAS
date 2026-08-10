@@ -1467,7 +1467,7 @@ Const
 
 implementation
 
-Uses SP_Main, SP_FileIO, SP_SysVars, {$IFDEF FPC}LclIntf{$ELSE}Windows{$ENDIF};
+Uses SP_Main, SP_FileIO, SP_SysVars{$IFDEF FPC}{$IFNDEF SDL2}, LclIntf{$ENDIF}{$ELSE}, Windows{$ENDIF};
 
 Procedure AutoExpandCompounds(Var s: aString; Var CCol: Integer);
 Const

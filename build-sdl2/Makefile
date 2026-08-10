@@ -36,14 +36,25 @@ OBJDIR     := $(BUILD)/obj
 APP        := $(BUILD)/$(APP_NAME).app
 PROGRAM    := $(SRC)/SpecBAS_SDL2.dpr
 
+# -O1, not -O2: Free Pascal 3.2.2 for aarch64 raises internal error
+# 200510011 on SP_FPEditor.pas at -O2.
+#
 # -WM11.0 pins the deployment target to the same macOS 11 floor the SDL2
 # release framework carries, so the bundle is not silently tied to whatever
 # macOS the build host happens to run.
+#
 # -Mdelphi matches the mode every SpecBAS unit selects for itself.
-FPCFLAGS   := -MDelphi -Sh -O2 -vewn -Fu$(SRC) -Fi$(SRC) -Fu$(UNITS) -Fi$(UNITS)
+FPCFLAGS   := -MDelphi -Sh -O1 -vew -Fu$(SRC) -Fi$(SRC) -Fu$(UNITS) -Fi$(UNITS)
 
 ifeq ($(shell uname -s),Darwin)
-FPCFLAGS   += -WM11.0 -Fl$(LINKDIR) -k-rpath -k@executable_path/../Frameworks
+# -undefined dynamic_lookup leaves the BASS imports unresolved at link time.
+# bass.pas declares them "delayed", which Free Pascal honours only on
+# Windows; elsewhere they become ordinary imports and the link fails without
+# a BASS library present. SpecBAS loads BASS by hand at startup and runs
+# silent when the load fails, so nothing calls those symbols when the
+# library is absent, and a build is not blocked on obtaining one.
+FPCFLAGS   += -WM11.0 -Fl$(LINKDIR) -k-rpath -k@executable_path/../Frameworks \
+              -k-undefined -kdynamic_lookup
 endif
 
 .PHONY: all deps exe app clean distclean

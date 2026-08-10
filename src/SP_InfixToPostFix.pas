@@ -234,7 +234,7 @@ Var
 
 implementation
 
-Uses SP_Interpret_PostFix, {$IFDEF FPC}LclIntf{$ELSE}Windows{$ENDIF}, SP_AnsiStringlist, SP_PreRun, SP_3DEngineUnit;
+Uses SP_Interpret_PostFix, {$IFDEF FPC}{$IFNDEF SDL2}LclIntf,{$ENDIF}{$ELSE}Windows,{$ENDIF} SP_AnsiStringlist, SP_PreRun, SP_3DEngineUnit;
 
 Function CreateToken(tType: Byte; tVarious, tLength: LongWord): aString;
 Begin

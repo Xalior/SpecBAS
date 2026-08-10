@@ -224,7 +224,7 @@ Var
 
 implementation
 
-Uses MainForm, {$IFNDEF RUNTIMEONLY}SP_FPEditor, SP_BASICEditorHostUnit, SP_ToolTipWindow, {$ENDIF}
+Uses {$IFDEF SDL2}SP_SDL2Host{$ELSE}MainForm{$ENDIF}, {$IFNDEF RUNTIMEONLY}SP_FPEditor, SP_BASICEditorHostUnit, SP_ToolTipWindow, {$ENDIF}
      SP_Graphics, SP_Graphics32, SP_Sound, SP_Main, SP_BaseComponentUnit, SP_3DEngineUnit;
 
 Procedure SP_ChangeBankSize(Index: Integer);

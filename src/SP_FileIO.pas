@@ -26,7 +26,7 @@ unit SP_FileIO;
 interface
 
 Uses {$IFNDEF FPC}Windows, {$ENDIF}Types, Classes, SysUtils, SyncObjs, SP_Util, SP_Errors,
-     SP_SysVars, SP_Variables, SP_InfixToPostFix{$IFDEF FPC}, FileUtil{$ENDIF}, SP_AnsiStringlist;
+     SP_SysVars, SP_Variables, SP_InfixToPostFix{$IFDEF FPC}, {$IFDEF SDL2}SP_SDL2Compat{$ELSE}FileUtil{$ENDIF}{$ENDIF}, SP_AnsiStringlist;
 
 Type
 
@@ -138,7 +138,7 @@ Begin
        If cpy Then Begin
          SP_PRINT(-1, Round(PRPOSX), Round(PRPOSY), -1, 'Copying '+ aString(DestName), 0, 8, Err);
          {$IFDEF FPC}
-         FileUtil.CopyFile(SrcName, DestName, True);
+         {$IFDEF SDL2}SP_SDL2Compat{$ELSE}FileUtil{$ENDIF}.CopyFile(SrcName, DestName, True);
          {$ENDIF}
        End Else
          SP_PRINT(-1, Round(PRPOSX), Round(PRPOSY), -1, 'Skipped '+ aString(DestName), 2, 8, Err);

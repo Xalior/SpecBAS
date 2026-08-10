@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test/sdl2-seam/bundle.sh <executable> <SDL2.framework> <out.app> <binname>
+# build-sdl2/bundle.sh <executable> <SDL2.framework> <out.app> <binname>
 #
 # Assemble a self-contained .app: the executable, an Info.plist, and SDL2
 # inside the bundle. The result runs on a machine with no toolchain, no
@@ -49,7 +49,7 @@ cat > "${contents}/Info.plist" <<PLIST
 <dict>
 	<key>CFBundleDevelopmentRegion</key>          <string>en</string>
 	<key>CFBundleExecutable</key>                 <string>${binname}</string>
-	<key>CFBundleIdentifier</key>                 <string>net.xalior.specbas.seamtest</string>
+	<key>CFBundleIdentifier</key>                 <string>net.xalior.specbas</string>
 	<key>CFBundleInfoDictionaryVersion</key>      <string>6.0</string>
 	<key>CFBundleName</key>                       <string>$(basename "${app}" .app)</string>
 	<key>CFBundlePackageType</key>                <string>APPL</string>

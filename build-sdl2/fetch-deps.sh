@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# test/sdl2-seam/fetch-deps.sh
+# build-sdl2/fetch-deps.sh
 #
-# Put the two outside pieces the seam proof needs into vendor/:
+# Put the two outside pieces the SDL2 build needs into vendor/:
 #
 #   vendor/SDL2.framework      the SDL2 runtime that goes inside the bundle
 #   vendor/SDL2-for-Pascal/    the Pascal bindings, units only

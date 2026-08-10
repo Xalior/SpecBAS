@@ -60,7 +60,7 @@ End;
 
 implementation
 
-Uses {$IFNDEF FPC}Windows{$ELSE}LCLType{$ENDIF}, Types, Classes, Math, SP_Interpret_PostFix, SP_Input, SP_Components, SP_Sound, SP_SysVars;
+Uses {$IFNDEF FPC}Windows,{$ELSE}{$IFNDEF SDL2}LCLType,{$ENDIF}{$ENDIF} Types, Classes, Math, SP_Interpret_PostFix, SP_Input, SP_Components, SP_Sound, SP_SysVars;
 
 // SP_CheckBox
 
