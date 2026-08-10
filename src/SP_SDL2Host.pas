@@ -450,38 +450,64 @@ Begin
   SP_AddKey(kInfo);
 End;
 
-Procedure HandleTextInput(Const Ev: TSDL_Event);
+Procedure DeliverCharacter(C: aChar);
 Var
-  C: aChar;
+  kInfo: SP_KeyInfo;
 Begin
-  If Not PendingKeyValid Then Exit;
-  // The text field is UTF-8. SpecBAS's character set is single-byte, so
-  // only a single-byte sequence can be delivered as a key.
-  If (Ev.text.text[0] = #0) or (Ev.text.text[1] <> #0) Then Begin
+  If (C < ' ') or (C = #127) Then Exit;
+
+  If PendingKeyValid Then Begin
+    // The key-down event that started this character is waiting for it.
+    kInfo := PendingKeyInfo;
     PendingKeyValid := False;
-    Exit;
-  End;
-  C := aChar(Ev.text.text[0]);
-  If (C < ' ') or (C = #127) Then Begin
-    PendingKeyValid := False;
-    Exit;
+  End Else Begin
+    // A character with no key-down of its own: a paste, an input method, or
+    // a whole string injected at once. SpecBAS still wants a key code, and
+    // for letters and digits the virtual-key code is the upper-case
+    // character, so the character supplies its own.
+    kInfo.KeyCode := Ord(UpCase(Char(C))) and $7F;
+    kInfo.NextFrameTime := FRAMES;
+    kInfo.Repeating := False;
+    kInfo.CanRepeat := True;
+    kInfo.IsKey := True;
+    kInfo.WindowID := FocusedWindow;
   End;
 
-  PendingKeyInfo.KeyChar := C;
-  PendingKeyValid := False;
+  kInfo.KeyChar := C;
 
   If ControlsAreInUse Then Begin
     DisplaySection.Enter;
     Try
-      If ControlKeyEvent(PendingKeyInfo.KeyChar, PendingKeyInfo.KeyCode,
-                         True, PendingKeyInfo.IsKey) Then
+      If ControlKeyEvent(kInfo.KeyChar, kInfo.KeyCode, True, kInfo.IsKey) Then
         Exit;
     Finally
       DisplaySection.Leave;
     End;
   End;
 
-  SP_AddKey(PendingKeyInfo);
+  SP_AddKey(kInfo);
+End;
+
+Procedure HandleTextInput(Const Ev: TSDL_Event);
+Var
+  i: Integer;
+  C: aChar;
+Begin
+  // SDL_TEXTINPUT is the only event that carries a typed character, and one
+  // event may carry several: text pasted in, an input method committing a
+  // phrase, or a whole string injected by another program. Each byte is
+  // delivered as its own key.
+  //
+  // The field is UTF-8. SpecBAS's character set is single-byte, so anything
+  // above 127 is the first byte of a sequence it has no room for and is
+  // dropped rather than delivered as mojibake.
+  For i := 0 To SDL_TEXTINPUTEVENT_TEXT_SIZE - 1 Do Begin
+    C := aChar(Ev.text.text[i]);
+    If C = #0 Then Break;
+    If C < #128 Then
+      DeliverCharacter(C);
+  End;
+  PendingKeyValid := False;
 End;
 
 Procedure HandleKeyUp(Const Ev: TSDL_Event);
@@ -504,20 +530,19 @@ Begin
   End;
 End;
 
-Procedure HandleMouseMotion(Const Ev: TSDL_Event);
+// MainForm.pas keeps these as TMain fields. They dedupe motion events at
+// the raw window-pixel resolution, before SP_Display.pas's own
+// LastScaledMouseX/Y dedupe the same events again at the scaled resolution.
 Var
-  X, Y: Integer;
-Begin
-  If ScaleMouseX <= 0 Then Exit;
-  X := Round(Ev.motion.x / ScaleMouseX);
-  Y := Round(Ev.motion.y / ScaleMouseY);
-  If (X = MOUSEX) and (Y = MOUSEY) Then Exit;
-  MOUSEX := X;
-  MOUSEY := Y;
-  MOUSEMOVED := True;
-  SP_NeedDisplayUpdate := True;
-End;
+  LastMouseX: Integer = 0;
+  LastMouseY: Integer = 0;
 
+// The button that changed, for a button-down or button-up event: SDL's
+// SDL_BUTTON_LEFT/RIGHT/MIDDLE constants (1/2/3) read onto the 1 (left) / 2
+// (right) / 4 (middle) bitmask SpecBAS uses everywhere else. FormMouseDown
+// built the equivalent value out of Shift, and FormMouseUp out of a Case on
+// its own Button parameter; both come out the same, so this one function
+// serves both ported handlers below.
 Function ButtonMask(Const Ev: TSDL_Event): Integer;
 Begin
   Case Ev.button.button of
@@ -529,22 +554,563 @@ Begin
   End;
 End;
 
-Procedure HandleMouseDown(Const Ev: TSDL_Event);
+// The full set of currently-held buttons, for a motion event (Ev.motion.state)
+// or a wheel event (queried separately, since SDL_MOUSEWHEEL carries no
+// button state of its own). SDL's own LMASK/RMASK/MMASK bits land on
+// different positions than ButtonMask's single-button result, so this maps
+// them onto the same 1/2/4 bitmask independently.
+Function ButtonStateMask(State: LongWord): Integer;
 Begin
-  If ScaleMouseX <= 0 Then Exit;
-  MOUSEX := Round(Ev.button.x / ScaleMouseX);
-  MOUSEY := Round(Ev.button.y / ScaleMouseY);
-  MOUSEBTN := ButtonMask(Ev);
-  M_DOWNFLAG := True;
+  Result := 0;
+  If (State and SDL_BUTTON_LMASK) <> 0 Then Result := Result Or 1;
+  If (State and SDL_BUTTON_RMASK) <> 0 Then Result := Result Or 2;
+  If (State and SDL_BUTTON_MMASK) <> 0 Then Result := Result Or 4;
 End;
 
-Procedure HandleMouseUp(Const Ev: TSDL_Event);
+// TestForWindowMenu (SP_Components.pas) takes a TShiftState. That type is
+// declared in the RTL's own Classes unit, not in the LCL, so it is honestly
+// available here. It only ever inspects ssLeft, ssRight and ssMiddle — the
+// same three bits this file tracks as a plain Integer — so this rebuilds a
+// genuine TShiftState carrying just those three bits. No keyboard modifiers
+// are carried, because none of the ported handlers below tracked any either.
+Function ToShiftState(Shift: Integer): TShiftState;
 Begin
+  Result := [];
+  If (Shift and 1) <> 0 Then Include(Result, ssLeft);
+  If (Shift and 2) <> 0 Then Include(Result, ssRight);
+  If (Shift and 4) <> 0 Then Include(Result, ssMiddle);
+End;
+
+// The pointer moved. In order: a decorated window being dragged or resized
+// takes the movement; then an open menu tracks the highlight; then the
+// captured or hovered control gets it; and if none of those claimed it, the
+// interpreter's own MOUSEX and MOUSEY are all that changed.
+Procedure HandleMouseMotion(Const Ev: TSDL_Event);
+Var
+  Shift: Integer;
+  Win: Pointer;
+  p: TPoint;
+  LMenu, LItem, Btn, X, Y, tX, tY, ID, Dx, Dy, NewX, NewY, NewW, NewH: Integer;
+  Handled: Boolean;
+  sPtr: pSP_Window_Info;
+  BankIdx: Integer;
+  Err: TSP_ErrorCode;
+Begin
+
+  X := Ev.motion.x;
+  Y := Ev.motion.y;
+
+  If ((X = LastMouseX) And (Y = LastMouseY)) or SIZINGMAIN or (ScaleMouseX = 0) Then Exit;
+
+  Handled := False;
+  LastMouseX := X;
+  LastMouseY := Y;
+  If ScaleMouseX > 0 Then
+    X := Round(X / ScaleMouseX);
+  If ScaleMouseY > 0 Then
+    Y := Round(Y / ScaleMouseY);
+  If (X = LastScaledMouseX) And (Y = LastScaledMouseY) Then Exit;
+  LastScaledMouseX := X;
+  LastScaledMouseY := Y;
+
+  Shift := ButtonStateMask(Ev.motion.state);
+  Btn := Shift;
+  M_DELTAX := X - MOUSEX;
+  M_DELTAY := Y - MOUSEY;
+  MOUSEX := X;
+  MOUSEY := Y;
+
+  SP_SetDirtyRect(Min(MOUSEX, MOUSESTOREX), Min(MOUSEY, MOUSESTOREY), Max(MOUSEX+MOUSEW, MOUSESTOREX+MOUSESTOREW), Max(MOUSEY+MOUSEH, MOUSESTOREY+MOUSESTOREH));
+  SP_NeedDisplayUpdate := True;
+
+  // Decorated window drag/resize
+  For BankIdx := 0 To Length(SP_BankList) -1 Do Begin
+    If SP_BankList[BankIdx]^.DataType <> SP_WINDOW_BANK Then Continue;
+    sPtr := @SP_BankList[BankIdx].Info[0];
+    If sPtr^.Dragging Then Begin
+      Err.Code := SP_ERR_OK;
+      SP_MoveWindow(sPtr^.ID, MOUSEX - sPtr^.DragOffX, MOUSEY - sPtr^.DragOffY, Err);
+      SP_NeedDisplayUpdate := True;
+      Handled := True;
+      Break;
+    End;
+    If sPtr^.Resizing Then Begin
+      DX   := MOUSEX - sPtr^.ResizeMouseX;
+      DY   := MOUSEY - sPtr^.ResizeMouseY;
+      NewX := sPtr^.ResizeOrigX;
+      NewY := sPtr^.ResizeOrigY;
+      NewW := sPtr^.ResizeOrigW;
+      NewH := sPtr^.ResizeOrigH;
+      If sPtr^.ResizeEdge And 1 <> 0 Then Begin  // left edge
+        NewX := sPtr^.ResizeOrigX + DX;
+        NewW := sPtr^.ResizeOrigW - DX;
+      End;
+      If sPtr^.ResizeEdge And 2 <> 0 Then         // right edge
+        NewW := sPtr^.ResizeOrigW + DX;
+      If sPtr^.ResizeEdge And 4 <> 0 Then Begin   // top edge
+        NewY := sPtr^.ResizeOrigY + DY;
+        NewH := sPtr^.ResizeOrigH - DY;
+      End;
+      If sPtr^.ResizeEdge And 8 <> 0 Then         // bottom edge
+        NewH := sPtr^.ResizeOrigH + DY;
+      // clamp to minimum size
+      If NewW < 40 Then Begin
+        NewW := 40;
+        If sPtr^.ResizeEdge And 1 <> 0 Then
+          NewX := sPtr^.ResizeOrigX + sPtr^.ResizeOrigW - 40;
+      End;
+      If NewH < sPtr^.CaptionHeight + 10 Then Begin
+        NewH := sPtr^.CaptionHeight + 10;
+        If sPtr^.ResizeEdge And 4 <> 0 Then
+          NewY := sPtr^.ResizeOrigY + sPtr^.ResizeOrigH - (sPtr^.CaptionHeight + 10);
+      End;
+      Err.Code := SP_ERR_OK;
+      If (NewX <> sPtr^.Left) Or (NewY <> sPtr^.Top) Then
+        SP_MoveWindow(sPtr^.ID, NewX, NewY, Err);
+      If (NewW <> sPtr^.Width) Or (NewH <> sPtr^.Height) Then
+        SP_ResizeWindow(sPtr^.ID, NewW, NewH, -1, SPFULLSCREEN, False, Err);
+      If sPtr^.ID = SCREENBANK Then
+        SP_WindowResizeFlag := sPtr^.ID;
+      SP_NeedDisplayUpdate := True;
+      Handled := True;
+      Break;
+    End;
+  End;
+
+  If (CURMENU <> -1) And ((Shift and 2) <> 0) And MENUSHOWING Then Begin
+
+    LMenu := LASTMENU;
+    LItem := LASTMENUITEM;
+    SP_SetMenuSelection(X, Y, CURMENU);
+    SP_InvalidateWholeDisplay;
+    SP_NeedDisplayUpdate := True;
+
+    If (LMenu <> LASTMENU) or (LItem <> LASTMENUITEM) Then
+      MENU_HIGHLIGHTFLAG := True;
+
+  End Else
+
+    If (Assigned(CaptureControl) or MOUSEVISIBLE) And Not SIZINGMAIN Then Begin
+
+      // Now check for controls under the mouse
+
+      Handled := False;
+      If DisplaySection.TryEnter Then Begin
+
+        tX := X; tY := Y;
+        {$IFNDEF RUNTIMEONLY}
+        If TipWindowID <> -1 Then CheckForTip(tx, ty);
+        {$ENDIF}
+        Win := WindowAtPoint(tX, tY, ID);
+
+        If Assigned(Win) Then Begin
+          Win := ControlAtPoint(Win, tX, tY);
+          If Not Assigned(Win) Or (MouseControl <> pSP_BaseComponent(Win)^) Then
+            If Assigned(MouseControl) And SP_CanInteract(MouseControl) Then
+              MouseControl.MouseLeave;
+        End;
+        If Assigned(CaptureControl) And CaptureControl.Visible Then Begin
+          p := CaptureControl.ScreenToClient(Point(x, y));
+          If SP_CanInteract(CaptureControl) Then Begin
+            CaptureControl.PreMouseMove(p.x, p.y, Btn);
+            Handled := True;
+          End;
+        End Else Begin
+          If Assigned(Win) And pSP_BaseComponent(Win)^.Enabled Then Begin
+            If MouseControl <> pSP_BaseComponent(Win)^ Then Begin
+              MouseControl := pSP_BaseComponent(Win)^;
+              p := MouseControl.ScreenToClient(Point(tX, tY));
+              If SP_CanInteract(MouseControl) Then
+                MouseControl.MouseEnter(p.X, p.Y);
+            End;
+            If SP_CanInteract(pSP_BaseComponent(Win)^) Then
+              pSP_BaseComponent(Win)^.PreMouseMove(tX, tY, Btn);
+            Handled := True;
+          End Else
+            If Assigned(MouseControl) And SP_CanInteract(MouseControl) Then
+              MouseControl.MouseLeave;
+        End;
+
+      End;
+
+      DisplaySection.Leave;
+
+    End;
+
+    // Fall through to allow user code to get mousemove events
+
+  If Not Handled Then Begin
+    M_MOVEFLAG := True;
+    MOUSEBTN := Btn;
+  End;
+
+End;
+
+// A button went down. Menus take precedence over everything; then a
+// decorated window's edges and caption bar, for a resize or a drag; then
+// the control under the pointer; and only if nothing claimed it does the
+// interpreter see the click.
+//
+// SDL_CaptureMouse keeps events coming while the button is held even if the
+// pointer leaves the window, so a drag that wanders off still delivers its
+// button-up. SpecBAS's own CaptureControl, set further down, is an
+// unrelated thing with a similar name.
+Procedure HandleMouseDown(Const Ev: TSDL_Event);
+Var
+  Shift: Integer;
+  WShift: TShiftState;
+  mi: SP_MenuSelection;
+  Win: Pointer;
+  Btn, ID, X, Y: Integer;
+  p: TPoint;
+  Handled: Boolean;
+  sPtr: pSP_Window_Info;
+  Edge: Integer;
+Begin
+
   If ScaleMouseX <= 0 Then Exit;
-  MOUSEX := Round(Ev.button.x / ScaleMouseX);
-  MOUSEY := Round(Ev.button.y / ScaleMouseY);
-  MOUSEBTN := 0;
-  M_UPFLAG := True;
+
+  SDL_CaptureMouse(SDL_TRUE);
+
+  X := Round(Ev.button.x / ScaleMouseX);
+  Y := Round(Ev.button.y / ScaleMouseY);
+
+  MOUSEX := X;
+  MOUSEY := Y;
+  Shift := ButtonMask(Ev);
+  Btn := Shift;
+
+  // Menus take precedence over everything
+
+  If CURMENU <> -1 Then Begin
+
+    If (Shift and 2) <> 0 Then
+      If Not (MENUSHOWING Or MENUBLOCK) Then Begin
+
+        SP_DisplayMainMenu;
+        SP_SetMenuSelection(X, Y, CURMENU);
+        SP_InvalidateWholeDisplay;
+        MENU_SHOWFLAG := True;
+        Exit;
+
+      End;
+
+    If (Shift and 1) <> 0 Then
+      If MENUSHOWING Then Begin
+
+        SP_SetMenuSelection(X, Y, CURMENU);
+        mi := SP_WhichItem(X, Y);
+        LASTMENU := mi.MenuID;
+        LASTMENUITEM := mi.ItemIdx;
+        SP_DisplayMainMenu;
+        SP_InvalidateWholeDisplay;
+        Refresh_Display;
+        MENUBLOCK := True;
+
+        MENU_HIDEFLAG := True;
+        Exit;
+
+      End;
+
+  End;
+
+  // Now check for controls under the mouse
+  // *** TO DO make windowmenu appear when right-clicking if not visible ***
+
+  Handled := False;
+  {$IFNDEF RUNTIMEONLY}
+  CloseTipWindow;
+  {$ENDIF}
+
+  If ForceCapture Then Begin
+    If CaptureControl.CanFocus Then
+      CaptureControl.SetFocus(True);
+    p := CaptureControl.ScreenToClient(Point(X, Y));
+    If SP_CanInteract(CaptureControl) Then
+      SP_BaseComponent(CaptureControl).MouseDown(SP_BaseComponent(CaptureControl), p.X, p.Y, Btn);
+    Handled := True;
+  End Else Begin
+    Win := WindowAtPoint(X, Y, ID);  // X, Y become window-relative after this
+    If Assigned(Win) Then Begin
+      sPtr := pSP_Window_Info(Win);
+      If sPtr^.Decorated And ((Shift and 1) <> 0) Then Begin
+        Edge := 0;
+        If sPtr^.Resizable Then Begin
+          If X < 2                     Then Edge := Edge Or 1;
+          If X >= sPtr^.Width  - 2     Then Edge := Edge Or 2;
+          If Y < 2                     Then Edge := Edge Or 4;
+          If Y >= sPtr^.Height - 2     Then Edge := Edge Or 8;
+          If (X >= sPtr^.Width - 8) And
+             (Y >= sPtr^.Height - 8)   Then Edge := Edge Or 10;
+        End;
+        If (Edge = 0) And sPtr^.Draggable And (Y < sPtr^.CaptionHeight) Then Begin
+          sPtr^.Dragging  := True;
+          sPtr^.DragOffX  := MOUSEX - sPtr^.Left;
+          sPtr^.DragOffY  := MOUSEY - sPtr^.Top;
+          SwitchFocusedWindow(ID);
+          Handled := True;
+        End Else If Edge <> 0 Then Begin
+          sPtr^.Resizing    := True;
+          sPtr^.ResizeEdge  := Edge;
+          sPtr^.ResizeOrigX := sPtr^.Left;
+          sPtr^.ResizeOrigY := sPtr^.Top;
+          sPtr^.ResizeOrigW := sPtr^.Width;
+          sPtr^.ResizeOrigH := sPtr^.Height;
+          sPtr^.ResizeMouseX := MOUSEX;
+          sPtr^.ResizeMouseY := MOUSEY;
+          SwitchFocusedWindow(ID);
+          Handled := True;
+        End;
+      End;
+      If Not Handled Then Begin
+        WShift := ToShiftState(Shift);
+        If not TestForWindowMenu(Nil, WShift) Then Begin
+          If Not (SYSTEMSTATE in [SS_EDITOR, SS_DIRECT, SS_EVALUATE]) and (MODALWINDOW = -1) Then
+            SwitchFocusedWindow(ID); // The editor handles this.
+          Win := ControlAtPoint(Win, X, Y);
+          If Assigned(Win) Then Begin
+            if pSP_BaseComponent(Win)^.Enabled Then Begin
+              CaptureControl := pSP_BaseComponent(Win)^;
+              If CaptureControl.CanFocus Then
+                CaptureControl.SetFocus(True);
+              If SP_CanInteract(CaptureControl) Then
+                SP_BaseComponent(CaptureControl).MouseDown(SP_BaseComponent(CaptureControl), X, Y, Btn);
+              Handled := True;
+            End;
+          End Else Begin
+            If Assigned(CaptureControl) And SP_CanInteract(CaptureControl) Then
+              SP_BaseComponent(CaptureControl).MouseDown(SP_BaseComponent(CaptureControl), X, Y, Btn);
+            If Assigned(FocusedControl) And (MODALWINDOW = -1) And ((FocusedControl Is SP_PopUpMenu) or (FocusedControl is SP_WindowMenu)) Then
+              FocusedControl.SetFocus(False);
+          End;
+        End;
+      End;
+    End;
+  End;
+
+  // Finally, pass the mouse event to the interpreter
+
+  If Not Handled Then Begin
+    MOUSEBTN := Btn;
+    M_DOWNFLAG := True;
+  End;
+
+End;
+
+// A button came up. The capture is released first and unconditionally, so
+// that a release always ends a drag even when nothing else about the event
+// can be used.
+Procedure HandleMouseUp(Const Ev: TSDL_Event);
+Var
+  Shift: Integer;
+  WShift: TShiftState;
+  mi: SP_MenuSelection;
+  Win: Pointer;
+  Btn, ID, X, Y, BankIdx: Integer;
+  p: TPoint;
+  Handled: Boolean;
+  sPtr: pSP_Window_Info;
+Begin
+
+  SDL_CaptureMouse(SDL_FALSE);
+
+  If ScaleMouseX = 0 Then Exit;
+  X := Round(Ev.button.x / ScaleMouseX);
+  Y := Round(Ev.button.y / ScaleMouseY);
+
+  MOUSEX := X;
+  MOUSEY := Y;
+
+  Shift := ButtonMask(Ev);
+  Btn := Shift;
+
+  For BankIdx := 0 To Length(SP_BankList) -1 Do Begin
+    If SP_BankList[BankIdx]^.DataType <> SP_WINDOW_BANK Then Continue;
+    sPtr := @SP_BankList[BankIdx].Info[0];
+    If sPtr^.Dragging Or sPtr^.Resizing Then Begin
+      sPtr^.Dragging := False;
+      sPtr^.Resizing := False;
+      SP_NeedDisplayUpdate := True;
+    End;
+  End;
+
+  // Menus take precedence
+
+  If (CURMENU <> -1) And (Not ((Shift and 2) <> 0)) And MENUSHOWING Then Begin
+
+    SP_SetMenuSelection(X, Y, CURMENU);
+    mi := SP_WhichItem(X, Y);
+    LASTMENU := mi.MenuID;
+    LASTMENUITEM := mi.ItemIdx;
+    SP_DisplayMainMenu;
+    SP_InvalidateWholeDisplay;
+    SP_NeedDisplayUpdate := True;
+
+    MENU_HIDEFLAG := True;
+
+  End Else Begin
+
+    // Now check for controls under the mouse
+
+    WShift := ToShiftState(Shift);
+    Handled := TestForWindowMenu(Nil, WShift);
+    If Assigned(CaptureControl) Then Begin
+      p := CaptureControl.ScreenToClient(Point(x, y));
+      If SP_CanInteract(CaptureControl) Then
+        CaptureControl.MouseUp(CaptureControl, p.x, p.y, Btn);
+      If Not ForceCapture Then
+        CaptureControl := Nil;
+      Handled := True;
+    End Else Begin
+      Win := WindowAtPoint(X, Y, ID);
+      If Assigned(Win) Then Begin
+        Win := ControlAtPoint(Win, X, Y);
+        If Assigned(Win) And pSP_BaseComponent(Win)^.Enabled And SP_CanInteract(pSP_BaseComponent(Win)^) Then Begin
+          pSP_BaseComponent(Win)^.MouseUp(pSP_BaseComponent(Win)^, X, Y, Btn);
+          Handled := True;
+        End;
+      End;
+    End;
+
+    // Finally, pass the mouse event to the interpreter
+
+    MOUSEBTN := MOUSEBTN And Not Btn;
+    If Not Handled Then Begin
+      M_UPFLAG := True;
+    End;
+
+  End;
+
+  MENUBLOCK := (Shift and 2) <> 0;
+
+End;
+
+// The wheel turned towards the user. The control under the pointer gets
+// first refusal; failing that the scroll reaches the interpreter through
+// MOUSEWHEEL. The position comes from MOUSEX and MOUSEY, which the motion
+// handler keeps current.
+Procedure DoMouseWheelDown(Shift: Integer);
+Var
+  p: TPoint;
+  Win: Pointer;
+  cp: pSP_BaseComponent;
+  Ctrl: SP_BaseComponent;
+  X, Y, Btn, ID: Integer;
+  Handled: Boolean;
+Begin
+
+  X := MOUSEX;
+  Y := MOUSEY;
+  Btn := Shift;
+
+  Handled := False;
+  DisplaySection.Enter;
+
+  If Assigned(CaptureControl) Then Begin
+    p := CaptureControl.ScreenToClient(Point(x, y));
+    CaptureControl.MouseMove(CaptureControl, p.x, p.y, Btn);
+  End Else Begin
+    Win := WindowAtPoint(X, Y, ID);
+    If Assigned(Win) Then Begin
+      cp := ControlAtPoint(Win, X, Y);
+      If Assigned(cp) Then Begin
+        Ctrl := cp^;
+        While Assigned(Ctrl) And Not Handled Do Begin
+          Ctrl.MouseWheel(Ctrl, X, Y, Btn, 1, Handled);
+          If Not Handled Then
+            If Ctrl.fParentType = spWindow Then
+              Ctrl := Nil
+            Else
+              Ctrl := Ctrl.GetParentControl;
+        End;
+      End;
+    End;
+  End;
+
+  DisplaySection.Leave;
+
+  If Not Handled Then Begin
+    M_WHEELDNFLAG := True;
+    Inc(MOUSEWHEEL);
+  End;
+
+End;
+
+// The wheel turned away from the user. The same shape as DoMouseWheelDown,
+// with the sign of the delta and the direction of MOUSEWHEEL reversed.
+Procedure DoMouseWheelUp(Shift: Integer);
+Var
+  p: TPoint;
+  Win: Pointer;
+  cp: pSP_BaseComponent;
+  Ctrl: SP_BaseComponent;
+  X, Y, Btn, ID: Integer;
+  Handled: Boolean;
+Begin
+
+  X := MOUSEX;
+  Y := MOUSEY;
+  Btn := Shift;
+
+  Handled := False;
+  DisplaySection.Enter;
+
+  If Assigned(CaptureControl) Then Begin
+    p := CaptureControl.ScreenToClient(Point(x, y));
+    CaptureControl.MouseMove(CaptureControl, p.x, p.y, Btn);
+  End Else Begin
+    Win := WindowAtPoint(X, Y, ID);
+    If Assigned(Win) Then Begin
+      cp := ControlAtPoint(Win, X, Y);
+      If Assigned(cp) Then Begin
+        Ctrl := cp^;
+        While Assigned(Ctrl) And not Handled Do Begin
+          Ctrl.MouseWheel(Ctrl, X, Y, Btn, -1, Handled);
+          If Not Handled Then
+            If Ctrl.fParentType = spWindow Then
+              Ctrl := Nil
+            Else
+              Ctrl := Ctrl.GetParentControl;
+        End;
+      End;
+    End;
+  End;
+
+  DisplaySection.Leave;
+
+  If Not Handled Then Begin
+    M_WHEELUPFLAG := True;
+    Dec(MouseWheel);
+  End;
+
+End;
+
+// SDL_MOUSEWHEEL has no direct FormMouseWheelDown/FormMouseWheelUp split of
+// its own — just a signed scroll amount — so this is the seam that decides
+// which of the two ported handlers above a given wheel event means. Positive
+// Ev.wheel.y is "away from the user", the same gesture Win32/GTK report as a
+// positive wheel delta, which is what the LCL routes to OnMouseWheelUp; a
+// SDL_MOUSEWHEEL_FLIPPED direction (natural/reversed scrolling) negates it
+// first, per the field's own doc comment. Neither FormMouseWheelDown nor
+// FormMouseWheelUp read the mouse position their MousePos parameter carried,
+// using MOUSEX/MOUSEY instead, so nothing is lost by SDL not supplying one
+// either. SDL_MOUSEWHEEL itself carries no held-button state, unlike a
+// motion event, so that is asked for separately via SDL_GetMouseState.
+Procedure HandleMouseWheel(Const Ev: TSDL_Event);
+Var
+  Delta: Integer;
+  Shift: Integer;
+Begin
+  Delta := Ev.wheel.y;
+  If Ev.wheel.direction = SDL_MOUSEWHEEL_FLIPPED Then Delta := -Delta;
+  If Delta = 0 Then Exit;
+
+  Shift := ButtonStateMask(SDL_GetMouseState(Nil, Nil));
+
+  If Delta > 0 Then
+    DoMouseWheelUp(Shift)
+  Else
+    DoMouseWheelDown(Shift);
 End;
 
 Procedure SDLHost_PumpEvents;
@@ -576,6 +1142,9 @@ Begin
 
       SDL_MOUSEBUTTONUP:
         HandleMouseUp(Ev);
+
+      SDL_MOUSEWHEEL:
+        HandleMouseWheel(Ev);
 
       SDL_WINDOWEVENT:
         Case Ev.window.event of
