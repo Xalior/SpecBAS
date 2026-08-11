@@ -842,6 +842,9 @@ const
 {$IFDEF MACOS}
   bassdll = 'libbass.dylib';
 {$ENDIF}
+{$IFDEF DARWIN}
+  bassdll = 'libbass.dylib';
+{$ENDIF}
 {$IFDEF ANDROID}
   bassdll = 'libbass.so';
 {$ENDIF}

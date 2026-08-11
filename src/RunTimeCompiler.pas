@@ -29,7 +29,9 @@ type
 implementation
 
 uses
-  SysUtils, ActiveX, SP_Tokenise, SP_Util, SP_BankFiling, SP_SysVars;
+  // ActiveX is a Windows unit and supplies IsEqualGUID there. Off Windows
+  // the same function comes from SysUtils.
+  SysUtils, {$IFNDEF UNIX}ActiveX, {$ENDIF}SP_Tokenise, SP_Util, SP_BankFiling, SP_SysVars;
 
 type
   TPayloadFooter = packed record
