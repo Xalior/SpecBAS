@@ -49,28 +49,14 @@ unit SP_Sockets;
 {$ENDIF}
 {$INCLUDE SpecBAS.inc}
 
-// The POSIX half of this unit calls getaddrinfo through fpGetAddrInfo, and
-// creates sockets through a bare socket(). Neither is declared anywhere in
-// Free Pascal 3.2.2's runtime, so that half does not build outside Windows.
-// Until it is written against what the runtime does supply, the SDL2 build
-// carries the interface with every entry point reporting that the socket
-// could not be opened. SOCKET commands then fail cleanly instead of
-// blocking the whole build.
-{$IF DEFINED(SDL2) AND NOT DEFINED(SP_WINSOCK)}
-  {$DEFINE SP_NOSOCKETS}
-{$ENDIF}
-
 interface
 
 Uses
-  SysUtils, SP_SysVars, SP_Errors, SP_Util
-  {$IFNDEF SP_NOSOCKETS}
-  ,
+  SysUtils, SP_SysVars, SP_Errors, SP_Util,
   {$IFDEF SP_WINSOCK}
   WinSock2
   {$ELSE}
-  Sockets, BaseUnix, Unix
-  {$ENDIF}
+  Sockets, BaseUnix, Unix, termio, netdb
   {$ENDIF}
   ;
 
@@ -133,58 +119,6 @@ implementation
 
 Uses SP_Streams, SP_Main;
 
-{$IFDEF SP_NOSOCKETS}
-
-Function  SP_SocketConnect(Const Host: aString; Port: Integer; Var Error: TSP_ErrorCode): Integer;
-Begin Error.Code := SP_ERR_SOCKET_CONNECT; Result := -1; End;
-
-Function  SP_SocketListen(Port, Backlog: Integer; Var Error: TSP_ErrorCode): Integer;
-Begin Error.Code := SP_ERR_SOCKET_LISTEN; Result := -1; End;
-
-Function  SP_SocketAccept(ListenStreamID: Integer; Var Error: TSP_ErrorCode): Integer;
-Begin Error.Code := SP_ERR_SOCKET_ACCEPT; Result := -1; End;
-
-Function  SP_SocketUDP(Const Host: aString; Port: Integer; Var Error: TSP_ErrorCode): Integer;
-Begin Error.Code := SP_ERR_SOCKET_CONNECT; Result := -1; End;
-
-Function  SP_SocketSend(StreamID: Integer; Const Data: aString; Var Error: TSP_ErrorCode): Integer;
-Begin Error.Code := SP_ERR_SOCKET_CLOSED; Result := -1; End;
-
-Function  SP_SocketRecv(StreamID: Integer; MaxBytes: Integer; Var Error: TSP_ErrorCode): aString;
-Begin Error.Code := SP_ERR_SOCKET_CLOSED; Result := ''; End;
-
-Function  SP_SocketRecvLine(StreamID: Integer; Var Error: TSP_ErrorCode): aString;
-Begin Error.Code := SP_ERR_SOCKET_CLOSED; Result := ''; End;
-
-Procedure SP_SocketSetTimeout(StreamID, Ms: Integer; Var Error: TSP_ErrorCode);
-Begin Error.Code := SP_ERR_SOCKET_CLOSED; End;
-
-Procedure SP_SocketSetNonBlocking(StreamID: Integer; Var Error: TSP_ErrorCode);
-Begin Error.Code := SP_ERR_SOCKET_CLOSED; End;
-
-Function  SP_SocketSize(StreamID: Integer; Var Error: TSP_ErrorCode): Integer;
-Begin Error.Code := SP_ERR_SOCKET_CLOSED; Result := 0; End;
-
-Function  SP_SocketState(StreamID: Integer; Var Error: TSP_ErrorCode): Integer;
-Begin Result := SP_SOCKET_CLOSED; End;
-
-Function  SP_SocketAddr(StreamID: Integer; Var Error: TSP_ErrorCode): aString;
-Begin Error.Code := SP_ERR_SOCKET_CLOSED; Result := ''; End;
-
-Function  SP_SocketPort(StreamID: Integer; Var Error: TSP_ErrorCode): Integer;
-Begin Error.Code := SP_ERR_SOCKET_CLOSED; Result := 0; End;
-
-Procedure SP_SocketCloseHandle(Handle: NativeInt);
-Begin End;
-
-Function  SP_HTTPGet(Const Host, Path: aString; Port: Integer; Var Error: TSP_ErrorCode): aString;
-Begin Error.Code := SP_ERR_SOCKET_CONNECT; Result := ''; End;
-
-Function  SP_HTTPPost(Const Host, Path, Body, ContentType: aString; Port: Integer; Var Error: TSP_ErrorCode): aString;
-Begin Error.Code := SP_ERR_SOCKET_CONNECT; Result := ''; End;
-
-{$ELSE}
-
 // ---------------------------------------------------------------------------
 // Platform-specific helpers
 // ---------------------------------------------------------------------------
@@ -242,29 +176,32 @@ Begin
   // Nothing needed on POSIX
 End;
 
+// Free Pascal calls the socket entry points fpSocket, fpBind and so on. Only
+// socket() is named in the code shared with WinSock, so it is the only one
+// that needs a name of its own here.
+Function socket(Domain, SockType, Protocol: Integer): TSocket;
+Begin
+  Result := fpSocket(Domain, SockType, Protocol);
+End;
+
+// StrToNetAddr handles a dotted-quad and yields 0.0.0.0 for anything else,
+// which is when the name goes to the resolver in netdb.
 Function ResolveHost(Const Host: aString; Port: Integer; Out Addr: TInetSockAddr): Boolean;
 Var
-  Hints  : AddrInfo;
-  Res    : PAddrInfo;
-  sHost: AnsiString;
-  sPort  : AnsiString;
+  Entry : THostEntry;
+  sHost : AnsiString;
 Begin
   Result := False;
   FillChar(Addr, SizeOf(Addr), 0);
-  FillChar(Hints, SizeOf(Hints), 0);
-  Hints.ai_family   := AF_INET;
-  Hints.ai_socktype := SOCK_STREAM;
+  Addr.sin_family := AF_INET;
+  Addr.sin_port   := htons(Port);
   sHost := AnsiString(Host);
-  sPort := AnsiString(IntToStr(Port));
-  If fpGetAddrInfo(PAnsiChar(sHost), PAnsiChar(sPort), @Hints, @Res) <> 0 Then
-    Exit;
-  Try
-    If Res = Nil Then Exit;
-    Move(Res^.ai_addr^, Addr, SizeOf(TInetSockAddr));
+  Addr.sin_addr := StrToNetAddr(sHost);
+  If Addr.sin_addr.s_addr = 0 Then Begin
+    If Not ResolveHostByName(String(sHost), Entry) Then Exit;
+    Addr.sin_addr := Entry.Addr;
+  End;
   Result := True;
-  Finally
-    fpFreeAddrInfo(Res);
-End;
 End;
 
 Function LastSockError: Integer;
@@ -826,10 +763,6 @@ End;
 // URL encoding / decoding
 // ---------------------------------------------------------------------------
 
-{$ENDIF} // SP_NOSOCKETS
-
-// The four helpers below are pure string code and build on every target.
-
 Function SP_URLEncode(Const s: aString): aString;
 Const
   Safe  : Set of AnsiChar = ['A'..'Z','a'..'z','0'..'9','-','_','.','~'];
@@ -940,8 +873,6 @@ End;
 // (everything after the blank header line). On error returns '' and sets
 // Error.Code. Redirects are not followed.
 
-{$IFNDEF SP_NOSOCKETS}
-
 Function SP_HTTPGet(Const Host, Path: aString; Port: Integer; Var Error: TSP_ErrorCode): aString;
 Var
   StreamID   : Integer;
@@ -1047,12 +978,8 @@ Begin
   SP_StreamClose(StreamID, Error);
 End;
 
-{$ENDIF}
-
 Initialization
 
-  {$IFNDEF SP_NOSOCKETS}
   InitWinSock;
-  {$ENDIF}
 
 end.
