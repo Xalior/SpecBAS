@@ -676,10 +676,23 @@ Begin
   // A printable key waits for the SDL_TEXTINPUT event that carries its
   // character. That event is the only thing that survives keyboard
   // layouts, dead keys and input methods correctly.
+  //
+  // Ctrl held is the exception, because the key press is then a shortcut
+  // and not typing, and no usable character event follows one: macOS sends
+  // none at all, and where one does arrive it carries a control code, which
+  // is dropped. So the character comes from the key instead. SDL's keycode
+  // is the character the current layout puts on that physical key, which is
+  // the same answer MainForm.pas takes from GetCharFromVirtualKey, and it
+  // is what SP_Components and the widgets expect: they read the shortcut
+  // from the lower-case letter.
   If Not SDL2_IsNonPrintingKey(VK) Then Begin
-    PendingKeyInfo  := kInfo;
-    PendingKeyValid := True;
-    Exit;
+    If KEYSTATE[K_CONTROL] = 0 Then Begin
+      PendingKeyInfo  := kInfo;
+      PendingKeyValid := True;
+      Exit;
+    End;
+    If (Ev.key.keysym.sym > 0) And (Ev.key.keysym.sym < 128) Then
+      kInfo.KeyChar := aChar(Ev.key.keysym.sym);
   End;
 
   If VK = K_ALT Then Begin
