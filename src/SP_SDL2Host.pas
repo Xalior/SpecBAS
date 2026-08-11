@@ -1638,6 +1638,13 @@ Begin
 
     While Not (Quitting or QUITMSG) Do Begin
       SDLHost_PumpEvents;
+      // The interpreter thread reaches the host's image loader through
+      // TThread.Synchronize (SP_BankManager.IntLoadImage), which parks the
+      // call on the main thread's queue and waits. Something on the main
+      // thread has to run that queue or the wait never ends. Under Lazarus
+      // the LCL's own idle handler did it; here there is no LCL, so the
+      // main loop does it itself.
+      CheckSynchronize;
       FrameLoop;
     End;
 
