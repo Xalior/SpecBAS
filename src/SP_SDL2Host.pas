@@ -144,7 +144,13 @@ implementation
 Uses
   {$IFNDEF RUNTIMEONLY}SP_FPEditor, SP_ToolTipWindow, SP_BASICEditorHostUnit,{$ENDIF}
   SP_Display, SP_WindowMenuUnit, SP_PopUpMenuUnit, SP_BASICInterpreter,
-  SP_BankFiling, SP_Interpret_PostFix, SP_MenuActions, DynLibs;
+  SP_BankFiling, SP_Interpret_PostFix, SP_MenuActions, DynLibs,
+  // LoadImage/SaveImage decode and encode through Free Pascal's own
+  // fcl-image, per SPX-011 - never SDL2_image, and there is no LCL here to
+  // supply Graphics/TBitmap/TPortableNetworkGraphic. This Free Pascal
+  // install ships readers for all four formats MainForm.pas recognises but
+  // a writer only for PNG and BMP, not GIF; SaveImage below reflects that.
+  FPImage, FPReadPNG, FPReadBMP, FPReadJPEG, FPReadGIF, FPWritePNG, FPWriteBMP;
 
 // ---------------------------------------------------------------- TSDLMain
 
@@ -355,18 +361,287 @@ End;
 
 // -------------------------------------------------------------- images
 
+// Free Pascal's own fcl-image decodes into a TFPCustomImage of 16-bit-per-
+// channel TFPColor pixels. SpecBAS's own globals - ImgWidth, ImgHeight,
+// ImgBpp, ImgStride, ImgPtr and ImgPalette, all declared in SP_Graphics.pas
+// - are set from that here the same way MainForm.pas's LoadImage sets them
+// from a decoded TBitmap, so SP_BankManager's IntLoadImage and
+// SP_New_GraphicC read exactly what they already expect no matter which
+// host decoded the picture.
 Procedure LoadImage(Filename: aString; Var Error: TSP_ErrorCode);
+Var
+  FS:          TFileStream;
+  MagicBuf:    Array[0..7] of Byte;
+  FirstBytes:  aString;
+  Ext:         aString;
+  Img:         TFPMemoryImage;
+  Reader:      TFPCustomImageReader;
+  BmpBitCount: Word;
+  X, Y, ci,
+  ColCount,
+  Idx:         Integer;
+  Found,
+  Decoded:     Boolean;
+  ColMap:      Array[0..255] of LongWord;
+  Clr:         TFPColor;
+  Pixel:       LongWord;
+  DPtr:        pByte;
 Begin
-  // Not yet supplied on the SDL2 backend. SPX-011 requires this to be built
-  // on Free Pascal's fcl-image, not on SDL2_image; until it is, a LOAD
-  // SCREEN$ of a picture file reports an unsupported format rather than
-  // producing a wrong picture.
-  Error.Code := SP_ERR_INVALID_IMAGE_FORMAT;
+
+  If Not FileExists(String(Filename)) Then Begin
+    Error.Code := SP_ERR_FILE_MISSING;
+    Exit;
+  End;
+
+  // Detect the format from its magic bytes, exactly as MainForm.pas's
+  // LoadImage does - a file arriving through SpecBAS's own filing system
+  // may carry any extension, or none, so the extension itself is never
+  // trusted. Unlike MainForm.pas, nothing here needs the file renamed to
+  // match: the reader class below is chosen directly from Ext rather than
+  // through an extension-dispatching loader.
+  FS := TFileStream.Create(String(Filename), fmOpenRead Or fmShareDenyNone);
+  Try
+    FS.Read(MagicBuf[0], 8);
+  Finally
+    FS.Free;
+  End;
+  SetLength(FirstBytes, 8);
+  Move(MagicBuf[0], FirstBytes[1], 8);
+
+  Ext := '';
+  If Copy(FirstBytes, 1, 2) = 'BM'      Then Ext := '.bmp';
+  If FirstBytes = #137'PNG'#13#10#26#10 Then Ext := '.png';
+  If Copy(FirstBytes, 1, 3) = 'GIF'     Then Ext := '.gif';
+  If Copy(FirstBytes, 1, 2) = #$FF#$D8  Then Ext := '.jpg';
+
+  If Ext = '' Then Begin
+    Error.Code := SP_ERR_UNSUPPORTED_IMAGE_FORMAT;
+    Exit;
+  End;
+
+  ImgBpp  := 32;
+  Decoded := True;
+
+  Img := TFPMemoryImage.Create(0, 0);
+  Try
+
+    FS := TFileStream.Create(String(Filename), fmOpenRead Or fmShareDenyNone);
+    Try
+
+      Reader := Nil;
+      Try
+        Try
+
+          If Ext = '.png' Then Begin
+
+            Reader := TFPReaderPNG.Create;
+            Reader.ImageRead(FS, Img);
+            // ColorType 0 (greyscale) and 3 (indexed) never carry more than
+            // 256 distinct colours between them; the rest always decode to
+            // a full 32bpp picture. This is the same IHDR field
+            // MainForm.pas reads to make the same decision.
+            If (TFPReaderPNG(Reader).ColorType In [0, 3]) And
+               (TFPReaderPNG(Reader).BitDepth <= 8) Then
+              ImgBpp := 8;
+
+          End Else If Ext = '.bmp' Then Begin
+
+            // fcl-image's BMP reader does not expose the source bit depth
+            // itself, so it is read directly off the BITMAPINFOHEADER: 14
+            // bytes of BITMAPFILEHEADER, then the biBitCount field 14
+            // bytes into BITMAPINFOHEADER.
+            FS.Position := 28;
+            FS.Read(BmpBitCount, 2);
+            FS.Position := 0;
+            If BmpBitCount <= 8 Then ImgBpp := 8;
+            Reader := TFPReaderBMP.Create;
+            Reader.ImageRead(FS, Img);
+
+          End Else If Ext = '.jpg' Then Begin
+
+            // JPEG carries no palette and no alpha channel - always 32bpp.
+            Reader := TFPReaderJPEG.Create;
+            Reader.ImageRead(FS, Img);
+
+          End Else Begin // '.gif'
+
+            // GIF is always palette/indexed.
+            ImgBpp := 8;
+            Reader := TFPReaderGIF.Create;
+            Reader.ImageRead(FS, Img);
+
+          End;
+
+        Except
+          Decoded := False;
+        End;
+      Finally
+        Reader.Free;
+      End;
+
+    Finally
+      FS.Free;
+    End;
+
+    If Not Decoded Then Begin
+      Error.Code := SP_ERR_UNSUPPORTED_IMAGE_FORMAT;
+      Exit;
+    End;
+
+    ImgWidth  := Img.Width;
+    ImgHeight := Img.Height;
+
+    If ImgBpp = 8 Then Begin
+
+      // fcl-image, like the LCL canvas MainForm.pas's own FPC path draws
+      // onto, hands back true-colour pixels rather than the source file's
+      // own palette indices, so a palette is re-derived here by
+      // uniquifying the decoded colours - the same two-pass scheme
+      // MainForm.pas uses on its FPC path.
+      ColCount := 0;
+      FillChar(ColMap, SizeOf(ColMap), 0);
+
+      For Y := 0 To Img.Height - 1 Do
+        For X := 0 To Img.Width - 1 Do Begin
+          Clr := Img.Colors[X, Y];
+          Pixel := ((Clr.red Shr 8) Shl 16) Or ((Clr.green Shr 8) Shl 8) Or (Clr.blue Shr 8);
+          Found := False;
+          For ci := 0 To ColCount - 1 Do
+            If ColMap[ci] = Pixel Then Begin Found := True; Break; End;
+          If Not Found And (ColCount < 256) Then Begin
+            ColMap[ColCount] := Pixel;
+            Inc(ColCount);
+          End;
+        End;
+
+      For ci := 0 To ColCount - 1 Do Begin
+        ImgPalette[ci].B := ColMap[ci] And $FF;
+        ImgPalette[ci].G := (ColMap[ci] Shr 8) And $FF;
+        ImgPalette[ci].R := (ColMap[ci] Shr 16) And $FF;
+      End;
+
+      SetLength(ImgResource, Img.Width * Img.Height);
+      DPtr := @ImgResource[0];
+      ImgPtr := DPtr;
+      For Y := 0 To Img.Height - 1 Do
+        For X := 0 To Img.Width - 1 Do Begin
+          Clr := Img.Colors[X, Y];
+          Pixel := ((Clr.red Shr 8) Shl 16) Or ((Clr.green Shr 8) Shl 8) Or (Clr.blue Shr 8);
+          DPtr^ := 0; // default index 0 if not found (shouldn't happen)
+          For ci := 0 To ColCount - 1 Do
+            If ColMap[ci] = Pixel Then Begin DPtr^ := ci; Break; End;
+          Inc(DPtr);
+        End;
+      ImgStride := Img.Width;
+
+    End Else Begin
+
+      // 32bpp: bytes come out B,G,R,A per pixel, matching the frame
+      // buffer's own byte order (SP_Display.pas uploads it as GL_BGRA).
+      SetLength(ImgResource, Img.Width * Img.Height * 4);
+      DPtr := @ImgResource[0];
+      ImgPtr := DPtr;
+      For Y := 0 To Img.Height - 1 Do
+        For X := 0 To Img.Width - 1 Do Begin
+          Clr := Img.Colors[X, Y];
+          DPtr^ := Clr.blue  Shr 8; Inc(DPtr);
+          DPtr^ := Clr.green Shr 8; Inc(DPtr);
+          DPtr^ := Clr.red   Shr 8; Inc(DPtr);
+          DPtr^ := Clr.alpha Shr 8; Inc(DPtr);
+        End;
+      ImgStride := Img.Width * 4;
+
+      // A format with no alpha channel of its own decodes fully opaque
+      // already - fcl-image's readers set every TFPColor.alpha to
+      // alphaOpaque when the source has none - but patching any stray
+      // zero byte here is cheap insurance, the same safety net
+      // MainForm.pas applies explicitly for jpg/bmp. PNG alpha is left
+      // exactly as decoded, since a PNG may carry genuine transparency.
+      If (Ext = '.jpg') Or (Ext = '.bmp') Then Begin
+        DPtr := @ImgResource[3];
+        For Idx := 0 To Img.Width * Img.Height - 1 Do Begin
+          If DPtr^ = 0 Then DPtr^ := $FF;
+          Inc(DPtr, 4);
+        End;
+      End;
+
+    End;
+
+  Finally
+    Img.Free;
+  End;
+
 End;
 
+// The inverse of LoadImage, and bound by the same signature SpecBAS calls
+// it through everywhere - SP_Interpret_PostFix's SCREEN SAVE and GRAPHIC
+// SAVE both pass a screen or a graphic bank's raw pixels and its palette
+// with no depth of its own alongside them. Pixels is therefore always read
+// as one palette index per pixel here, exactly as MainForm.pas's SaveImage
+// reads it: that signature carries no way to tell a 32bpp bank's data
+// apart from an 8bpp one, on either host.
 Procedure SaveImage(Filename: aString; w, h: Integer; Pixels, Palette: pByte);
+Var
+  Ext:      aString;
+  Img:      TFPMemoryImage;
+  Writer:   TFPCustomImageWriter;
+  Pal,
+  PalEntry: pTP_Colour;
+  Clr:      TFPColor;
+  Row:      pByte;
+  PIdx:     Byte;
+  X, Y:     Integer;
 Begin
-  // As LoadImage.
+
+  If (w <= 0) Or (h <= 0) Or (Pixels = Nil) Or (Palette = Nil) Then Exit;
+
+  Ext := Lower(aString(ExtractFileExt(String(Filename))));
+
+  // fcl-image on this Free Pascal install ships no GIF writer - there is an
+  // FPReadGIF but no FPWriteGIF - and .gif is one of the three extensions
+  // MainForm.pas's SaveImage accepts. Refusing it here is honest; writing
+  // a renamed PNG in its place would not be.
+  If (Ext <> '.png') And (Ext <> '.bmp') Then Exit;
+
+  If FileExists(String(Filename)) Then
+    DeleteFile(String(Filename));
+
+  Pal := pTP_Colour(Palette);
+
+  Img := TFPMemoryImage.Create(w, h);
+  Try
+
+    Row := Pixels;
+    For Y := 0 To h - 1 Do Begin
+      For X := 0 To w - 1 Do Begin
+        PIdx := (Row + X)^;
+        PalEntry := Pal;
+        Inc(PalEntry, PIdx);
+        Clr.red   := PalEntry^.R * $101;
+        Clr.green := PalEntry^.G * $101;
+        Clr.blue  := PalEntry^.B * $101;
+        Clr.alpha := alphaOpaque;
+        Img.Colors[X, Y] := Clr;
+      End;
+      Inc(Row, w);
+    End;
+
+    If Ext = '.png' Then Begin
+      Writer := TFPWriterPNG.Create;
+      TFPWriterPNG(Writer).UseAlpha := False;
+    End Else
+      Writer := TFPWriterBMP.Create;
+
+    Try
+      Img.SaveToFile(String(Filename), Writer);
+    Finally
+      Writer.Free;
+    End;
+
+  Finally
+    Img.Free;
+  End;
+
 End;
 
 Procedure FreeImageResource;
