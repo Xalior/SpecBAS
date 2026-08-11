@@ -90,8 +90,10 @@ Var
   Procedure SDLB_SetWindowPos(X, Y: Integer);
   Function  SDLB_SetFullScreen(OnOff: Boolean): Boolean;
 
-  // Bounds of the display the window is on.
+  // Bounds of the display the window is on, and the part of it a window may
+  // use once the desktop has reserved what it wants.
   Procedure SDLB_GetDisplayBounds(Out X, Y, W, H: Integer);
+  Procedure SDLB_GetUsableBounds(Out X, Y, W, H: Integer);
   Function  SDLB_GetRefreshRate: Integer;
 
   // Where the pointer is in window coordinates, and whether it is over the
@@ -339,6 +341,21 @@ Begin
   If Idx < 0 Then Idx := 0;
   FillChar(R, SizeOf(R), 0);
   If SDL_GetDisplayBounds(Idx, @R) = 0 Then Begin
+    X := R.x; Y := R.y; W := R.w; H := R.h;
+  End;
+End;
+
+Procedure SDLB_GetUsableBounds(Out X, Y, W, H: Integer);
+Var
+  R: TSDL_Rect;
+  Idx: Integer;
+Begin
+  X := 0; Y := 0; W := 0; H := 0;
+  If SDLB_Window = Nil Then Exit;
+  Idx := SDL_GetWindowDisplayIndex(SDLB_Window);
+  If Idx < 0 Then Idx := 0;
+  FillChar(R, SizeOf(R), 0);
+  If SDL_GetDisplayUsableBounds(Idx, @R) = 0 Then Begin
     X := R.x; Y := R.y; W := R.w; H := R.h;
   End;
 End;
