@@ -18,6 +18,12 @@
 {$IF DEFINED(FPC) AND NOT DEFINED(WINDOWS)}
   {$DEFINE SDL2}
 {$ENDIF}
+// SpecBAS reads K_CONTROL for copy, cut, paste and select-all. macOS puts
+// those on Command, so Command delivers K_CONTROL as well and both keys
+// work. Undefine to have Command deliver K_LWIN and K_RWIN instead.
+{$IFDEF DARWIN}
+  {$DEFINE MAC_COMMAND_IS_CONTROL}
+{$ENDIF}
 //{$DEFINE RUNTIMEONLY}  // passed on command line to build "rt"
 //{$DEFINE DEBUGPAYLOAD} // Debugging the compiler
 //{$DEFINE RefreshThread}
