@@ -56,7 +56,9 @@ Uses
   {$IFDEF SP_WINSOCK}
   WinSock2
   {$ELSE}
-  Sockets, BaseUnix, Unix
+  // FIONREAD is declared in termio, not in BaseUnix or Unix. netdb has the
+  // name resolver.
+  Sockets, BaseUnix, Unix, termio, netdb
   {$ENDIF}
   ;
 
@@ -176,29 +178,34 @@ Begin
   // Nothing needed on POSIX
 End;
 
+// Free Pascal names its socket entry points fpSocket, fpBind and so on. The
+// code shared with WinSock names socket() alone, so that is the only one
+// that needs a name here.
+Function socket(Domain, SockType, Protocol: Integer): TSocket;
+Begin
+  Result := fpSocket(Domain, SockType, Protocol);
+End;
+
+// StrToNetAddr answers a dotted quad, and 0.0.0.0 for anything that is not
+// one, which is when the name goes to the resolver. It is the network-order
+// partner to what netdb returns; the host-order helper alongside it would
+// reverse the octets and connect to the wrong machine.
 Function ResolveHost(Const Host: aString; Port: Integer; Out Addr: TInetSockAddr): Boolean;
 Var
-  Hints  : AddrInfo;
-  Res    : PAddrInfo;
-  sHost: AnsiString;
-  sPort  : AnsiString;
+  Entry : THostEntry;
+  sHost : AnsiString;
 Begin
   Result := False;
   FillChar(Addr, SizeOf(Addr), 0);
-  FillChar(Hints, SizeOf(Hints), 0);
-  Hints.ai_family   := AF_INET;
-  Hints.ai_socktype := SOCK_STREAM;
+  Addr.sin_family := AF_INET;
+  Addr.sin_port   := htons(Port);
   sHost := AnsiString(Host);
-  sPort := AnsiString(IntToStr(Port));
-  If fpGetAddrInfo(PAnsiChar(sHost), PAnsiChar(sPort), @Hints, @Res) <> 0 Then
-    Exit;
-  Try
-    If Res = Nil Then Exit;
-    Move(Res^.ai_addr^, Addr, SizeOf(TInetSockAddr));
+  Addr.sin_addr := StrToNetAddr(sHost);
+  If Addr.sin_addr.s_addr = 0 Then Begin
+    If Not ResolveHostByName(String(sHost), Entry) Then Exit;
+    Addr.sin_addr := Entry.Addr;
+  End;
   Result := True;
-  Finally
-    fpFreeAddrInfo(Res);
-End;
 End;
 
 Function LastSockError: Integer;
