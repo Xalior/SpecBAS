@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
 # build-sdl2/fetch-deps.sh
 #
-# Put the two outside pieces the SDL2 build needs into vendor/:
+# Put the outside pieces the SDL2 build needs into vendor/:
 #
-#   vendor/SDL2.framework      the SDL2 runtime that goes inside the bundle
-#   vendor/SDL2-for-Pascal/    the Pascal bindings, units only
+#   vendor/SDL2-for-Pascal/    the Pascal bindings, units only  (all platforms)
+#   vendor/SDL2.framework      the SDL2 runtime for the bundle  (macOS only)
 #
-# vendor/ is gitignored. Both pieces are pinned by version and verified, so
-# this script is the tracked, repeatable half and vendor/ is disposable.
+# vendor/ is gitignored. Everything fetched is pinned by version and
+# verified, so this script is the tracked, repeatable half and vendor/ is
+# disposable.
 #
-# Why the official SDL2 release framework and not Homebrew's sdl2:
+# On Linux SDL2 comes from the distribution instead. The bindings name
+# libSDL2.so, fpc turns that into -lSDL2, and the development package
+# supplies both that link name and the shared object behind it. This script
+# checks it is there and says what to install if it is not.
+#
+# Why the official SDL2 release framework and not Homebrew's sdl2 on macOS:
 #
 #   Homebrew's "sdl2" formula is sdl2-compat, a shim that reaches SDL3 by
 #   dlopen at run time. Copying its dylib into a bundle copies a stub that
@@ -42,50 +48,71 @@ BINDINGS_COMMIT="a48b83efbfa7c13ce548905ebdc954eb6c8384be"
 
 mkdir -p "${work}"
 
-# --- SDL2.framework ----------------------------------------------------
+# --- SDL2 runtime ------------------------------------------------------
 
-if [[ -d "${vendor}/SDL2.framework" ]]; then
-    echo "==> SDL2.framework already present"
-else
-    dmg="${work}/SDL2-${SDL2_VERSION}.dmg"
-    if [[ ! -f "${dmg}" ]]; then
-        echo "==> downloading SDL2 ${SDL2_VERSION}"
-        curl -fsSL -o "${dmg}" "${SDL2_DMG_URL}"
+case "$(uname -s)" in
+Darwin)
+    if [[ -d "${vendor}/SDL2.framework" ]]; then
+        echo "==> SDL2.framework already present"
+    else
+        dmg="${work}/SDL2-${SDL2_VERSION}.dmg"
+        if [[ ! -f "${dmg}" ]]; then
+            echo "==> downloading SDL2 ${SDL2_VERSION}"
+            curl -fsSL -o "${dmg}" "${SDL2_DMG_URL}"
+        fi
+
+        got="$(shasum -a 256 "${dmg}" | awk '{print $1}')"
+        if [[ "${got}" != "${SDL2_DMG_SHA256}" ]]; then
+            echo "fetch-deps.sh: sha256 mismatch for ${dmg}" >&2
+            echo "  expected ${SDL2_DMG_SHA256}" >&2
+            echo "  got      ${got}" >&2
+            exit 1
+        fi
+
+        # The image is mounted at hdiutil's own choice of mount point, not
+        # one named here: `-mountpoint` under this repository is refused
+        # outright ("attach failed - Permission denied"), because the
+        # repository lives on a secondary volume and macOS will not nest a
+        # mount inside it. The chosen path is read back out of hdiutil's
+        # own output.
+        echo "==> mounting ${dmg}"
+        mnt="$(hdiutil attach -nobrowse -readonly "${dmg}" \
+            | sed -n 's#.*\(/Volumes/.*\)$#\1#p' | tail -1)"
+        if [[ -z "${mnt}" || ! -d "${mnt}/SDL2.framework" ]]; then
+            echo "fetch-deps.sh: could not mount ${dmg}" >&2
+            exit 1
+        fi
+        trap 'hdiutil detach -quiet "'"${mnt}"'" >/dev/null 2>&1 || true' EXIT
+
+        echo "==> copying SDL2.framework into vendor/"
+        # ditto, not cp -R: it keeps symlinks, permissions and extended
+        # attributes, which is what leaves the framework's signature intact.
+        ditto "${mnt}/SDL2.framework" "${vendor}/SDL2.framework"
+        cp "${mnt}/License.txt" "${vendor}/SDL2-License.txt"
+
+        hdiutil detach -quiet "${mnt}" || true
+        trap - EXIT
     fi
 
-    got="$(shasum -a 256 "${dmg}" | awk '{print $1}')"
-    if [[ "${got}" != "${SDL2_DMG_SHA256}" ]]; then
-        echo "fetch-deps.sh: sha256 mismatch for ${dmg}" >&2
-        echo "  expected ${SDL2_DMG_SHA256}" >&2
-        echo "  got      ${got}" >&2
+    codesign --verify --verbose=1 "${vendor}/SDL2.framework" 2>&1 | sed 's/^/    /'
+    ;;
+Linux)
+    if command -v sdl2-config >/dev/null 2>&1; then
+        echo "==> system SDL2 $(sdl2-config --version)"
+    elif command -v pkg-config >/dev/null 2>&1 && pkg-config --exists sdl2; then
+        echo "==> system SDL2 $(pkg-config --modversion sdl2)"
+    else
+        echo "fetch-deps.sh: SDL2 development files not found." >&2
+        echo "  Debian, Ubuntu, Raspberry Pi OS:  sudo apt install libsdl2-dev" >&2
+        echo "  Fedora:                           sudo dnf install SDL2-devel" >&2
+        echo "  Arch:                             sudo pacman -S sdl2" >&2
         exit 1
     fi
-
-    # The image is mounted at hdiutil's own choice of mount point, not one
-    # named here: `-mountpoint` under this repository is refused outright
-    # ("attach failed - Permission denied"), because the repository lives on
-    # a secondary volume and macOS will not nest a mount inside it. The
-    # chosen path is read back out of hdiutil's own output.
-    echo "==> mounting ${dmg}"
-    mnt="$(hdiutil attach -nobrowse -readonly "${dmg}" \
-        | sed -n 's#.*\(/Volumes/.*\)$#\1#p' | tail -1)"
-    if [[ -z "${mnt}" || ! -d "${mnt}/SDL2.framework" ]]; then
-        echo "fetch-deps.sh: could not mount ${dmg}" >&2
-        exit 1
-    fi
-    trap 'hdiutil detach -quiet "'"${mnt}"'" >/dev/null 2>&1 || true' EXIT
-
-    echo "==> copying SDL2.framework into vendor/"
-    # ditto, not cp -R: it keeps symlinks, permissions and extended
-    # attributes, which is what leaves the framework's signature intact.
-    ditto "${mnt}/SDL2.framework" "${vendor}/SDL2.framework"
-    cp "${mnt}/License.txt" "${vendor}/SDL2-License.txt"
-
-    hdiutil detach -quiet "${mnt}" || true
-    trap - EXIT
-fi
-
-codesign --verify --verbose=1 "${vendor}/SDL2.framework" 2>&1 | sed 's/^/    /'
+    ;;
+*)
+    echo "==> $(uname -s): assuming SDL2 is supplied by the system"
+    ;;
+esac
 
 # --- SDL2-for-Pascal ---------------------------------------------------
 
