@@ -13,6 +13,11 @@
 {$IF DEFINED(WINDOWS) AND DEFINED(FPC)}
   {$DEFINE OPENGL}
 {$ENDIF}
+// Off Windows the window, the buffer present, the event queue and the frame
+// clock come from SDL2 instead of from Lazarus.
+{$IF DEFINED(FPC) AND NOT DEFINED(WINDOWS)}
+  {$DEFINE SDL2}
+{$ENDIF}
 //{$DEFINE RUNTIMEONLY}  // passed on command line to build "rt"
 //{$DEFINE DEBUGPAYLOAD} // Debugging the compiler
 //{$DEFINE RefreshThread}
