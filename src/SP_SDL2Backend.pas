@@ -390,6 +390,15 @@ Begin
   X := mx - wx;
   Y := my - wy;
   Result := (X >= 0) and (Y >= 0) and (X < ww) and (Y < wh);
+  // Inside the window, answer the position SDL reports for the window
+  // itself. Motion events are delivered in that space and the caller marks
+  // the area to repaint from them, so a position derived a second way can
+  // put the pointer outside the rectangle drawn for it.
+  If Result Then Begin
+    SDL_GetMouseState(@mx, @my);
+    X := mx;
+    Y := my;
+  End;
 End;
 
 Procedure SDLB_WarpMouse(X, Y: Integer);
