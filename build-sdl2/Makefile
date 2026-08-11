@@ -46,7 +46,15 @@ UNAME_S    := $(shell uname -s)
 # 200510011 on SP_FPEditor.pas at -O2. Seen on both macOS and Linux hosts.
 #
 # -Mdelphi matches the mode every SpecBAS unit selects for itself.
-FPCFLAGS   := -MDelphi -Sh -O1 -vew -Fu$(SRC) -Fi$(SRC) -Fu$(UNITS) -Fi$(UNITS)
+#
+# -Fi$(OBJDIR) is for the generated version include described below.
+FPCFLAGS   := -MDelphi -Sh -O1 -vew -Fu$(SRC) -Fi$(SRC) -Fu$(UNITS) -Fi$(UNITS) \
+              -Fi$(OBJDIR)
+
+VERSION_RC  := $(SRC)/SpecBAS.rc
+VERSION_INC := $(OBJDIR)/SpecBAS_Version.inc
+VERSION     := $(shell sed -n 's/^FILEVERSION *[0-9]*,[0-9]*,\([0-9]*\),\([0-9]*\).*/\1.\2/p' $(VERSION_RC))
+BUILDNUM    := $(shell sed -n 's/^FILEVERSION *[0-9]*,[0-9]*,[0-9]*,\([0-9]*\).*/\1/p' $(VERSION_RC))
 
 ifeq ($(UNAME_S),Darwin)
 # -WM11.0 pins the deployment target to the same macOS 11 floor the SDL2
@@ -96,13 +104,33 @@ $(LINKDIR)/libbass.so:
 	@mkdir -p $(LINKDIR)
 	@printf '/* Empty linker script. See the BASS note in build-sdl2/Makefile. */\n' > $@
 
-exe: $(LINKDEPS)
+# The version SpecBAS puts in its window title and in the BUILDSTR system
+# variable.
+#
+# On Windows it comes from the executable's own VERSIONINFO resource, read
+# back at run time by Sto_GetFmtFileVersion in MainForm.pas. src/SpecBAS.rc
+# is where that resource is written, so it is the project's single statement
+# of its own version and this build reads the same file rather than keeping
+# a second copy of the number.
+#
+# Only the last two of the four components are used, because that is what
+# Sto_GetFmtFileVersion returns and therefore what the Windows title bar
+# shows: FILEVERSION 0,0,0,1511 becomes 0.1511 there, and becomes 0.1511
+# here, so both builds report the same version.
+$(VERSION_INC): $(VERSION_RC)
+	@mkdir -p $(OBJDIR)
+	@sed -n 's/^FILEVERSION *\([0-9]*\),\([0-9]*\),\([0-9]*\),\([0-9]*\).*/'"'"'\3.\4'"'"'/p' \
+	    $(VERSION_RC) > $@
+	@test -s $@ || { echo "Makefile: no FILEVERSION in $(VERSION_RC)" >&2; rm -f $@; exit 1; }
+
+exe: $(LINKDEPS) $(VERSION_INC)
 	@mkdir -p $(OBJDIR)
 	$(FPC) $(FPCFLAGS) -FU$(OBJDIR) -FE$(OBJDIR) -o$(OBJDIR)/$(BIN_NAME) $(PROGRAM)
 
 app: exe
 ifeq ($(UNAME_S),Darwin)
-	@$(HERE)/bundle.sh $(OBJDIR)/$(BIN_NAME) $(FRAMEWORK) $(APP) $(BIN_NAME)
+	@$(HERE)/bundle.sh $(OBJDIR)/$(BIN_NAME) $(FRAMEWORK) $(APP) $(BIN_NAME) \
+	    $(VERSION) $(BUILDNUM)
 else
 	@echo "make app builds a macOS application bundle; on $(UNAME_S) the"
 	@echo "executable in $(OBJDIR) is the build product."

@@ -32,6 +32,10 @@ exe="${1:?executable}"
 framework="${2:?SDL2.framework}"
 app="${3:?out .app}"
 binname="${4:?bin name}"
+# The same version SpecBAS shows in its own title bar, so Finder and the
+# application agree. Both come from src/SpecBAS.rc by way of the Makefile.
+version="${5:?version, e.g. 0.1511}"
+buildnum="${6:?build number}"
 
 contents="${app}/Contents"
 
@@ -53,8 +57,8 @@ cat > "${contents}/Info.plist" <<PLIST
 	<key>CFBundleInfoDictionaryVersion</key>      <string>6.0</string>
 	<key>CFBundleName</key>                       <string>$(basename "${app}" .app)</string>
 	<key>CFBundlePackageType</key>                <string>APPL</string>
-	<key>CFBundleShortVersionString</key>         <string>1.0</string>
-	<key>CFBundleVersion</key>                    <string>1</string>
+	<key>CFBundleShortVersionString</key>         <string>${version}</string>
+	<key>CFBundleVersion</key>                    <string>${buildnum}</string>
 	<key>LSMinimumSystemVersion</key>             <string>11.0</string>
 	<key>NSHighResolutionCapable</key>            <true/>
 	<key>NSPrincipalClass</key>                   <string>NSApplication</string>
