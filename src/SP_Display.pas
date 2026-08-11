@@ -137,7 +137,9 @@ Var
   FrameProcessedEvent: TEvent; // Create in InitSystem, Free in FinalizeSystem
   G_DisplayChangeLock: TCriticalSection;
   G_PerformingDisplayChange_Internal: Boolean;
-  {$IFNDEF UNIX}
+  // Windows only, and named as such: a target that is neither Windows nor
+  // Unix has none of the types this declaration is written in.
+  {$IF DEFINED(WINDOWS) OR DEFINED(MSWINDOWS)}
   _CreateWaitableTimerExW: function(lpTimerAttributes: PSecurityAttributes; lpTimerName: LPCWSTR; dwFlags: DWORD; dwDesiredAccess: DWORD): THandle; stdcall;
   {$ENDIF}
 
@@ -623,7 +625,7 @@ Begin
     NowTime := CB_GetTicks;
   Until (NowTime - Start) >= AMilliseconds;
 End;
-{$ELSE}
+{$ELSEIF DEFINED(WINDOWS) OR DEFINED(MSWINDOWS)}
 Var
   hTimer: THandle;
   DueTime: Int64;
@@ -648,6 +650,23 @@ Begin
     Sleep(Trunc(AMilliseconds - 2));
   Repeat
     NowTime := GetTicks;
+  Until (NowTime - Start) >= AMilliseconds;
+End;
+{$ELSE}
+// A target with no operating system beneath it. Sleep is a runtime stub that
+// returns immediately, so a wait built on it would pace nothing and would
+// still burn the core; the wait is an open spin instead, which at least says
+// what it is. The clock is safe to spin on: CB_GetTicks is the backend's own
+// high-resolution counter, not a runtime service. ThreadSwitch offers the
+// core to any other thread that is ready to run, and where the runtime has
+// no thread manager it costs one call and returns.
+Var
+  Start, NowTime: aFloat;
+Begin
+  Start := CB_GetTicks;
+  Repeat
+    ThreadSwitch;
+    NowTime := CB_GetTicks;
   Until (NowTime - Start) >= AMilliseconds;
 End;
 {$ENDIF}
@@ -1736,7 +1755,7 @@ Initialization
   StartTime := 0;
   G_DisplayChangeLock := TCriticalSection.Create;
   FrameProcessedEvent := TEvent.Create{$IFDEF FPC}(nil, False, False, ''){$ENDIF};
-  {$IFNDEF UNIX}
+  {$IF DEFINED(WINDOWS) OR DEFINED(MSWINDOWS)}
   @_CreateWaitableTimerExW := GetProcAddress(GetModuleHandle(kernel32), 'CreateWaitableTimerExW');
   {$ENDIF}
 
