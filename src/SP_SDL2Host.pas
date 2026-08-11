@@ -611,24 +611,42 @@ Begin
   Img := TFPMemoryImage.Create(w, h);
   Try
 
+    // The picture is written as a palette image carrying SpecBAS's own 256
+    // colours, with SpecBAS's own indices in the pixels. That is what the
+    // Lazarus host writes (MainForm.pas builds a pf8Bit TBitmap and calls
+    // SetDIBColorTable), and it is what makes the file reload as an 8bpp
+    // graphic bank rather than a true-colour one: SP_Load_Graphic keys off
+    // the file's own depth, and only an 8bpp bank can be drawn by
+    // SP_PutRegion or saved again by SAVE ... GRAPHIC.
+    Img.UsePalette := True;
+    Img.Palette.Clear;
+    For X := 0 To 255 Do Begin
+      PalEntry := Pal;
+      Inc(PalEntry, X);
+      Clr.red   := PalEntry^.R * $101;
+      Clr.green := PalEntry^.G * $101;
+      Clr.blue  := PalEntry^.B * $101;
+      Clr.alpha := alphaOpaque;
+      Img.Palette.Add(Clr);
+    End;
+
     Row := Pixels;
     For Y := 0 To h - 1 Do Begin
       For X := 0 To w - 1 Do Begin
         PIdx := (Row + X)^;
-        PalEntry := Pal;
-        Inc(PalEntry, PIdx);
-        Clr.red   := PalEntry^.R * $101;
-        Clr.green := PalEntry^.G * $101;
-        Clr.blue  := PalEntry^.B * $101;
-        Clr.alpha := alphaOpaque;
-        Img.Colors[X, Y] := Clr;
+        Img.Pixels[X, Y] := PIdx;
       End;
       Inc(Row, w);
     End;
 
     If Ext = '.png' Then Begin
       Writer := TFPWriterPNG.Create;
-      TFPWriterPNG(Writer).UseAlpha := False;
+      TFPWriterPNG(Writer).UseAlpha  := False;
+      // Without these two the writer emits 16 bits per channel of
+      // true colour, six bytes for every pixel of a picture that only ever
+      // had 256 colours in it.
+      TFPWriterPNG(Writer).WordSized := False;
+      TFPWriterPNG(Writer).Indexed   := True;
     End Else
       Writer := TFPWriterBMP.Create;
 
