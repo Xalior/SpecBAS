@@ -42,7 +42,10 @@ UNAME_S    := $(shell uname -s)
 # 200510011 on SP_FPEditor.pas at -O2.
 #
 # -MDelphi matches the mode every SpecBAS unit selects for itself.
-FPCFLAGS   := -MDelphi -Sh -O1 -vew -Fu$(SRC) -Fi$(SRC) -Fu$(UNITS) -Fi$(UNITS)
+#
+# -Fi$(OBJDIR) is for the generated version include below.
+FPCFLAGS   := -MDelphi -Sh -O1 -vew -Fu$(SRC) -Fi$(SRC) -Fu$(UNITS) -Fi$(UNITS) \
+              -Fi$(OBJDIR)
 
 # The version SpecBAS shows in Finder, taken from the same file the Windows
 # build's VERSIONINFO resource is written in.
@@ -94,7 +97,25 @@ $(LINKDIR)/libbass.so:
 	@mkdir -p $(LINKDIR)
 	@printf '/* Empty linker script. See the BASS note in build-sdl2/Makefile. */\n' > $@
 
-exe: $(LINKDEPS)
+# The version SpecBAS puts in its window title and in BUILDSTR.
+#
+# On Windows it comes from the executable's own VERSIONINFO resource, read
+# back at run time. src/SpecBAS.rc is where that resource is written, so it
+# is the project's one statement of its own version, and this build reads
+# the same file rather than keeping a second copy of the number.
+#
+# Only the last two of the four components are used, because that is what
+# the Windows title bar shows: FILEVERSION 0,0,0,1511 is 0.1511 there and
+# 0.1511 here.
+VERSION_INC := $(OBJDIR)/SpecBAS_Version.inc
+
+$(VERSION_INC): $(VERSION_RC)
+	@mkdir -p $(OBJDIR)
+	@sed -n 's/^FILEVERSION *\([0-9]*\),\([0-9]*\),\([0-9]*\),\([0-9]*\).*/'"'"'\3.\4'"'"'/p' \
+	    $(VERSION_RC) > $@
+	@test -s $@ || { echo "Makefile: no FILEVERSION in $(VERSION_RC)" >&2; rm -f $@; exit 1; }
+
+exe: $(LINKDEPS) $(VERSION_INC)
 	@mkdir -p $(OBJDIR)
 	$(FPC) $(FPCFLAGS) -FU$(OBJDIR) -FE$(OBJDIR) -o$(OBJDIR)/$(BIN_NAME) $(PROGRAM)
 

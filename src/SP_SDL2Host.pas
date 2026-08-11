@@ -1553,7 +1553,11 @@ Begin
 
   If Not PAYLOADPRESENT Then Begin
 
-    BUILDSTR := '0.0.0.0';
+    // The project's version, from the same place the Windows build takes
+    // it: the VERSIONINFO in src/SpecBAS.rc. There is no version resource
+    // to read back at run time here, so build-sdl2/Makefile reads that file
+    // and writes SpecBAS_Version.inc.
+    BUILDSTR := {$INCLUDE SpecBAS_Version.inc};
     {$IFDEF DEBUG}
       BUILDSTR := BUILDSTR + ' [Debug]';
     {$ENDIF}
