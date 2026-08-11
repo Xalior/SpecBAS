@@ -774,10 +774,25 @@ Begin
   Result := False;
   If Not (Quitting or SCREENCHANGE) Then Begin
     If (Not SCREENLOCK) or UPDATENOW Then Begin
+
+      {$IFDEF SDL2}
+      // The pointer's rectangle, before the frame is tested for work, and
+      // started where the image is actually drawn: MOUSEX - MOUSEHSX.
+      If MOUSEVISIBLE And ((MOUSESTOREX <> MOUSEX) or (MOUSESTOREY <> MOUSEY)) Then Begin
+        SP_SetDirtyRect(Min(MOUSEX, MOUSESTOREX) - MOUSEHSX,
+                        Min(MOUSEY, MOUSESTOREY) - MOUSEHSY,
+                        Max(MOUSEX, MOUSESTOREX) - MOUSEHSX + MOUSEW,
+                        Max(MOUSEY, MOUSESTOREY) - MOUSEHSY + MOUSEH);
+        MOUSESTOREX := MOUSEX;
+        MOUSESTOREY := MOUSEY;
+      End;
+      {$ENDIF}
+
       If SCMAXX >= SCMINX Then Begin // SCMINX/Y/MAXX/Y are dirty rect in logical coordinates
         While SetDR Do Sleep(1); SetDR := True; // Ensure SetDR is thread-safe if accessed elsewhere
         If SHOWFPS Then PrepFPSVars;
 
+        {$IFNDEF SDL2}
         If (MOUSESTOREX <> MOUSEX) or (MOUSESTOREY <> MOUSEY) Then Begin
           X1 := Min(MOUSEX, MOUSESTOREX);
           Y1 := Min(MOUSEY, MOUSESTOREY);
@@ -787,6 +802,7 @@ Begin
           MOUSESTOREX := MOUSEX;
           MOUSESTOREY := MOUSEY;
         End;
+        {$ENDIF}
 
         X1 := SCMINX; Y1 := SCMINY; X2 := SCMAXX +1; Y2 := SCMAXY +1;
 

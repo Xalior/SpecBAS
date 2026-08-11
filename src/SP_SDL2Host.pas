@@ -925,7 +925,10 @@ Begin
   MOUSEX := X;
   MOUSEY := Y;
 
-  SP_SetDirtyRect(Min(MOUSEX, MOUSESTOREX), Min(MOUSEY, MOUSESTOREY), Max(MOUSEX+MOUSEW, MOUSESTOREX+MOUSESTOREW), Max(MOUSEY+MOUSEH, MOUSESTOREY+MOUSESTOREH));
+  // Origin shifted by the pointer's hotspot, which is where the image is
+  // actually drawn.
+  SP_SetDirtyRect(Min(MOUSEX, MOUSESTOREX) - MOUSEHSX, Min(MOUSEY, MOUSESTOREY) - MOUSEHSY,
+                  Max(MOUSEX, MOUSESTOREX) - MOUSEHSX + MOUSEW, Max(MOUSEY, MOUSESTOREY) - MOUSEHSY + MOUSEH);
   SP_NeedDisplayUpdate := True;
 
   // Decorated window drag/resize
