@@ -49,14 +49,26 @@ unit SP_Sockets;
 {$ENDIF}
 {$INCLUDE SpecBAS.inc}
 
+// A target with no operating system beneath it has neither WinSock nor a
+// POSIX socket layer, and nothing to build one on: there is no IP stack to
+// call. Sockets are excluded there. The unit still builds and still exports
+// everything the interpreter links against, so a SOCKET command reports
+// failure cleanly rather than being absent.
+{$IF NOT DEFINED(SP_WINSOCK) AND NOT DEFINED(UNIX)}
+  {$DEFINE SP_NOSOCKETS}
+{$ENDIF}
+
 interface
 
 Uses
-  SysUtils, SP_SysVars, SP_Errors, SP_Util,
+  SysUtils, SP_SysVars, SP_Errors, SP_Util
+  {$IFNDEF SP_NOSOCKETS}
+  ,
   {$IFDEF SP_WINSOCK}
   WinSock2
   {$ELSE}
   Sockets, BaseUnix, Unix, termio, netdb
+  {$ENDIF}
   {$ENDIF}
   ;
 
@@ -118,6 +130,58 @@ Function  SP_HTTPPost(Const Host, Path, Body, ContentType: aString; Port: Intege
 implementation
 
 Uses SP_Streams, SP_Main;
+
+{$IFDEF SP_NOSOCKETS}
+
+Function  SP_SocketConnect(Const Host: aString; Port: Integer; Var Error: TSP_ErrorCode): Integer;
+Begin Error.Code := SP_ERR_SOCKET_CONNECT; Result := -1; End;
+
+Function  SP_SocketListen(Port, Backlog: Integer; Var Error: TSP_ErrorCode): Integer;
+Begin Error.Code := SP_ERR_SOCKET_LISTEN; Result := -1; End;
+
+Function  SP_SocketAccept(ListenStreamID: Integer; Var Error: TSP_ErrorCode): Integer;
+Begin Error.Code := SP_ERR_SOCKET_ACCEPT; Result := -1; End;
+
+Function  SP_SocketUDP(Const Host: aString; Port: Integer; Var Error: TSP_ErrorCode): Integer;
+Begin Error.Code := SP_ERR_SOCKET_CONNECT; Result := -1; End;
+
+Function  SP_SocketSend(StreamID: Integer; Const Data: aString; Var Error: TSP_ErrorCode): Integer;
+Begin Error.Code := SP_ERR_SOCKET_CLOSED; Result := -1; End;
+
+Function  SP_SocketRecv(StreamID: Integer; MaxBytes: Integer; Var Error: TSP_ErrorCode): aString;
+Begin Error.Code := SP_ERR_SOCKET_CLOSED; Result := ''; End;
+
+Function  SP_SocketRecvLine(StreamID: Integer; Var Error: TSP_ErrorCode): aString;
+Begin Error.Code := SP_ERR_SOCKET_CLOSED; Result := ''; End;
+
+Procedure SP_SocketSetTimeout(StreamID, Ms: Integer; Var Error: TSP_ErrorCode);
+Begin Error.Code := SP_ERR_SOCKET_CLOSED; End;
+
+Procedure SP_SocketSetNonBlocking(StreamID: Integer; Var Error: TSP_ErrorCode);
+Begin Error.Code := SP_ERR_SOCKET_CLOSED; End;
+
+Function  SP_SocketSize(StreamID: Integer; Var Error: TSP_ErrorCode): Integer;
+Begin Error.Code := SP_ERR_SOCKET_CLOSED; Result := 0; End;
+
+Function  SP_SocketState(StreamID: Integer; Var Error: TSP_ErrorCode): Integer;
+Begin Result := SP_SOCKET_CLOSED; End;
+
+Function  SP_SocketAddr(StreamID: Integer; Var Error: TSP_ErrorCode): aString;
+Begin Error.Code := SP_ERR_SOCKET_CLOSED; Result := ''; End;
+
+Function  SP_SocketPort(StreamID: Integer; Var Error: TSP_ErrorCode): Integer;
+Begin Error.Code := SP_ERR_SOCKET_CLOSED; Result := 0; End;
+
+Procedure SP_SocketCloseHandle(Handle: NativeInt);
+Begin End;
+
+Function  SP_HTTPGet(Const Host, Path: aString; Port: Integer; Var Error: TSP_ErrorCode): aString;
+Begin Error.Code := SP_ERR_SOCKET_CONNECT; Result := ''; End;
+
+Function  SP_HTTPPost(Const Host, Path, Body, ContentType: aString; Port: Integer; Var Error: TSP_ErrorCode): aString;
+Begin Error.Code := SP_ERR_SOCKET_CONNECT; Result := ''; End;
+
+{$ELSE}
 
 // ---------------------------------------------------------------------------
 // Platform-specific helpers
@@ -759,9 +823,13 @@ Begin
     Result := StrToIntDef(String(Copy(Stream^.RemoteAddr, Colon + 1, 99)), 0);
 End;
 
+{$ENDIF} // SP_NOSOCKETS
+
 // ---------------------------------------------------------------------------
 // URL encoding / decoding
 // ---------------------------------------------------------------------------
+
+// The four helpers below are pure string code and build on every target.
 
 Function SP_URLEncode(Const s: aString): aString;
 Const
@@ -873,6 +941,8 @@ End;
 // (everything after the blank header line). On error returns '' and sets
 // Error.Code. Redirects are not followed.
 
+{$IFNDEF SP_NOSOCKETS}
+
 Function SP_HTTPGet(Const Host, Path: aString; Port: Integer; Var Error: TSP_ErrorCode): aString;
 Var
   StreamID   : Integer;
@@ -978,8 +1048,12 @@ Begin
   SP_StreamClose(StreamID, Error);
 End;
 
+{$ENDIF}
+
 Initialization
 
+  {$IFNDEF SP_NOSOCKETS}
   InitWinSock;
+  {$ENDIF}
 
 end.
