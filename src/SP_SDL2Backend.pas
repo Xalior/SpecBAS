@@ -41,6 +41,17 @@ unit SP_SDL2Backend;
 // Vertical sync is deliberately off. SpecBAS paces itself to its own frame
 // rate from SP_Display.FrameLoop; a renderer synchronised to the display
 // would run at the display's rate instead, which is a different number.
+//
+// The window belongs to the main thread. SpecBAS asks for a window change
+// from its interpreter thread - SCREEN FULL reaches SDLB_SetFullScreen that
+// way - and on macOS SDL2 answers SDL_SetWindowFullscreen by asking
+// NSApplication for events while the fullscreen transition runs. AppKit
+// allows that from the main thread only, and refuses by raising an
+// Objective-C exception, which no Free Pascal handler catches and which
+// therefore ends the process. So every call below that changes the window
+// or the texture runs on the main thread, marshalled there through
+// TThread.Synchronize when the caller is another thread. The main loop in
+// SP_SDL2Host runs the queue that delivers them.
 
 {$IFDEF FPC}
   {$MODE Delphi}
@@ -50,7 +61,7 @@ unit SP_SDL2Backend;
 
 interface
 
-Uses SysUtils, SDL2;
+Uses SysUtils, Classes, SDL2;
 
 Var
 
@@ -101,9 +112,63 @@ Var
 
 implementation
 
+Type
+
+  // One window call, waiting for the main thread to make it. The Run method
+  // calls straight back into the public procedure, which by then is running
+  // on the main thread and does the work itself.
+  TSDLB_WindowOp = (woFullScreen, woClientSize, woWindowPos, woTitle, woLogicalSize);
+
+  TSDLB_WindowCall = Class
+    Op:     TSDLB_WindowOp;
+    W, H:   Integer;
+    OnOff:  Boolean;
+    Title:  AnsiString;
+    Answer: Boolean;
+    Procedure Run;
+  End;
+
 Var
   StartCounter: UInt64 = 0;
   CounterFreq:  Double = 1.0;
+
+Function OnMainThread: Boolean;
+Begin
+  Result := GetCurrentThreadId = MainThreadID;
+End;
+
+// Make a window call on the main thread and wait for it. The same road
+// SP_BankManager.IntLoadImage takes to reach the host's image loader.
+Function CallOnMainThread(Op: TSDLB_WindowOp; W, H: Integer; OnOff: Boolean;
+                          Const Title: AnsiString): Boolean;
+Var
+  Call: TSDLB_WindowCall;
+Begin
+  Call := TSDLB_WindowCall.Create;
+  Try
+    Call.Op     := Op;
+    Call.W      := W;
+    Call.H      := H;
+    Call.OnOff  := OnOff;
+    Call.Title  := Title;
+    Call.Answer := False;
+    TThread.Synchronize(Nil, Call.Run);
+    Result := Call.Answer;
+  Finally
+    Call.Free;
+  End;
+End;
+
+Procedure TSDLB_WindowCall.Run;
+Begin
+  Case Op of
+    woFullScreen:  Answer := SDLB_SetFullScreen(OnOff);
+    woClientSize:  SDLB_SetClientSize(W, H);
+    woWindowPos:   SDLB_SetWindowPos(W, H);
+    woTitle:       SDLB_SetTitle(String(Title));
+    woLogicalSize: Answer := SDLB_SetLogicalSize(W, H);
+  End;
+End;
 
 Function SDLB_Milliseconds: Double;
 Begin
@@ -175,6 +240,10 @@ Begin
     Result := True;
     Exit;
   End;
+  If Not OnMainThread Then Begin
+    Result := CallOnMainThread(woLogicalSize, W, H, False, '');
+    Exit;
+  End;
 
   If SDLB_Texture <> Nil Then Begin
     SDL_DestroyTexture(SDLB_Texture);
@@ -200,8 +269,12 @@ End;
 
 Procedure SDLB_SetTitle(Const Title: String);
 Begin
-  If SDLB_Window <> Nil Then
-    SDL_SetWindowTitle(SDLB_Window, PAnsiChar(AnsiString(Title)));
+  If SDLB_Window = Nil Then Exit;
+  If Not OnMainThread Then Begin
+    CallOnMainThread(woTitle, 0, 0, False, AnsiString(Title));
+    Exit;
+  End;
+  SDL_SetWindowTitle(SDLB_Window, PAnsiChar(AnsiString(Title)));
 End;
 
 Procedure SDLB_GetClientSize(Out W, H: Integer);
@@ -218,8 +291,12 @@ End;
 
 Procedure SDLB_SetClientSize(W, H: Integer);
 Begin
-  If (SDLB_Window <> Nil) and (W > 0) and (H > 0) Then
-    SDL_SetWindowSize(SDLB_Window, W, H);
+  If (SDLB_Window = Nil) or (W <= 0) or (H <= 0) Then Exit;
+  If Not OnMainThread Then Begin
+    CallOnMainThread(woClientSize, W, H, False, '');
+    Exit;
+  End;
+  SDL_SetWindowSize(SDLB_Window, W, H);
 End;
 
 Procedure SDLB_GetWindowPos(Out X, Y: Integer);
@@ -235,8 +312,12 @@ End;
 
 Procedure SDLB_SetWindowPos(X, Y: Integer);
 Begin
-  If SDLB_Window <> Nil Then
-    SDL_SetWindowPosition(SDLB_Window, X, Y);
+  If SDLB_Window = Nil Then Exit;
+  If Not OnMainThread Then Begin
+    CallOnMainThread(woWindowPos, X, Y, False, '');
+    Exit;
+  End;
+  SDL_SetWindowPosition(SDLB_Window, X, Y);
 End;
 
 Function SDLB_SetFullScreen(OnOff: Boolean): Boolean;
@@ -245,6 +326,10 @@ Var
 Begin
   Result := False;
   If SDLB_Window = Nil Then Exit;
+  If Not OnMainThread Then Begin
+    Result := CallOnMainThread(woFullScreen, 0, 0, OnOff, '');
+    Exit;
+  End;
   // Desktop fullscreen, not a video-mode change: SpecBAS's logical screen is
   // scaled to the display by the renderer, so there is nothing to gain from
   // switching the monitor's mode and a great deal to lose.

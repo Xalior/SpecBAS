@@ -651,6 +651,26 @@ End;
 
 // ------------------------------------------------------------ the events
 
+// Take DisplaySection on the main thread, without ever waiting for it
+// unconditionally.
+//
+// Delivering an event to SpecBAS's own controls needs that lock, and the
+// interpreter thread holds it across SP_Display.SetScreen. Inside SetScreen
+// the interpreter asks this thread to make the window calls Cocoa refuses
+// from any other thread, and waits. Waiting here in the ordinary way would
+// leave each thread waiting for the other, so this wait runs the queue those
+// calls arrive on. Nothing that reaches the queue takes DisplaySection
+// itself - neither the window calls in SP_SDL2Backend nor the image loader -
+// so servicing it from inside the wait cannot re-enter the lock.
+//
+// Only the main thread reaches the event handlers below, and CheckSynchronize
+// belongs to the main thread alone.
+Procedure EnterDisplaySection;
+Begin
+  While Not DisplaySection.TryEnter Do
+    CheckSynchronize(1);
+End;
+
 Procedure HandleKeyDown(Const Ev: TSDL_Event);
 Var
   VK: Word;
@@ -726,7 +746,7 @@ Begin
   End;
 
   If ControlsAreInUse Then Begin
-    DisplaySection.Enter;
+    EnterDisplaySection;
     Try
       If ControlKeyEvent(kInfo.KeyChar, kInfo.KeyCode, True, kInfo.IsKey) Then
         Exit;
@@ -764,7 +784,7 @@ Begin
   kInfo.KeyChar := C;
 
   If ControlsAreInUse Then Begin
-    DisplaySection.Enter;
+    EnterDisplaySection;
     Try
       If ControlKeyEvent(kInfo.KeyChar, kInfo.KeyCode, True, kInfo.IsKey) Then
         Exit;
@@ -1292,7 +1312,7 @@ Begin
   Btn := Shift;
 
   Handled := False;
-  DisplaySection.Enter;
+  EnterDisplaySection;
 
   If Assigned(CaptureControl) Then Begin
     p := CaptureControl.ScreenToClient(Point(x, y));
@@ -1341,7 +1361,7 @@ Begin
   Btn := Shift;
 
   Handled := False;
-  DisplaySection.Enter;
+  EnterDisplaySection;
 
   If Assigned(CaptureControl) Then Begin
     p := CaptureControl.ScreenToClient(Point(x, y));
@@ -1621,8 +1641,12 @@ Begin
     SP_WaitForSecondaries;
   End;
 
-  While InterpreterThreadAlive Do
+  While InterpreterThreadAlive Do Begin
+    // The interpreter thread may be parked waiting for a window call this
+    // thread has to make. See SDLHost_Run's loop and SP_SDL2Backend.
+    CheckSynchronize;
     CB_YIELD(1);
+  End;
 
   If Assigned(PARAMS) Then PARAMS.Free;
 
@@ -1657,12 +1681,13 @@ Begin
 
     While Not (Quitting or QUITMSG) Do Begin
       SDLHost_PumpEvents;
-      // The interpreter thread reaches the host's image loader through
-      // TThread.Synchronize (SP_BankManager.IntLoadImage), which parks the
-      // call on the main thread's queue and waits. Something on the main
-      // thread has to run that queue or the wait never ends. Under Lazarus
-      // the LCL's own idle handler did it; here there is no LCL, so the
-      // main loop does it itself.
+      // Two things the interpreter thread cannot do for itself arrive
+      // through TThread.Synchronize, which parks the call on the main
+      // thread's queue and waits: the host's image loader
+      // (SP_BankManager.IntLoadImage) and every window call in
+      // SP_SDL2Backend. Something on the main thread has to run that queue
+      // or the wait never ends. Under Lazarus the LCL's own idle handler did
+      // it; here there is no LCL, so the main loop does it itself.
       CheckSynchronize;
       FrameLoop;
     End;
