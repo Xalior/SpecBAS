@@ -1036,9 +1036,13 @@ Begin
               MouseControl.MouseLeave;
         End;
 
-      End;
+        // Released inside the guard that took it. A failed TryEnter means
+        // another thread holds the lock, and releasing one this thread does
+        // not own is a pthread error, which the runtime turns into an
+        // exception no caller here catches.
+        DisplaySection.Leave;
 
-      DisplaySection.Leave;
+      End;
 
     End;
 
