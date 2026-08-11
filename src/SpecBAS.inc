@@ -19,6 +19,14 @@
 {$IF DEFINED(FPC) AND NOT DEFINED(WINDOWS)}
   {$DEFINE SDL2}
 {$ENDIF}
+// macOS puts copy, cut, paste and select-all on Command where the rest of the
+// world puts them on Control, and SpecBAS reads K_CONTROL for all of them. So
+// the Command key arrives as K_CONTROL and the shortcuts work as a Mac user
+// expects; the Control key still arrives as K_CONTROL as well, so both do.
+// Undefine this to map Command literally to K_LWIN / K_RWIN instead.
+{$IFDEF DARWIN}
+  {$DEFINE MAC_COMMAND_IS_CONTROL}
+{$ENDIF}
 //{$DEFINE RUNTIMEONLY}  // passed on command line to build "rt"
 //{$DEFINE DEBUGPAYLOAD} // Debugging the compiler
 //{$DEFINE RefreshThread}

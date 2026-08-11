@@ -140,8 +140,15 @@ Begin
     SDL_SCANCODE_RSHIFT:       Result := 16;   // K_SHIFT
     SDL_SCANCODE_LALT,
     SDL_SCANCODE_RALT:         Result := 18;   // K_ALT
+    {$IFDEF MAC_COMMAND_IS_CONTROL}
+    // The Command key is macOS's shortcut modifier, so it delivers the code
+    // SpecBAS's shortcuts test for. See SpecBAS.inc for the define.
+    SDL_SCANCODE_LGUI,
+    SDL_SCANCODE_RGUI:         Result := 17;   // K_CONTROL
+    {$ELSE}
     SDL_SCANCODE_LGUI:         Result := 91;   // K_LWIN
     SDL_SCANCODE_RGUI:         Result := 92;   // K_RWIN
+    {$ENDIF}
 
   Else
     Result := 0;
