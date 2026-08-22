@@ -13,9 +13,11 @@ Uses
     {$ENDIF}
     MultiMon,
     {$ELSE}
+    SysUtils, SyncObjs, Types,
     {$IFDEF UNIX}Unix, BaseUnix,{$ENDIF}
     {$ENDIF}
-    Graphics, Forms, Classes, Math, {$IFNDEF FPC}PNGImage,{$ENDIF} MainForm,
+    {$IFNDEF SDL2}Graphics, Forms,{$ENDIF} Classes, Math, {$IFNDEF FPC}PNGImage,{$ENDIF}
+    {$IFDEF SDL2}SP_SDL2Backend, SP_SDL2Host,{$ELSE}MainForm,{$ENDIF}
     SP_FileIO,
     {$IFDEF OPENGL}
     {$IFDEF FPC}OpenGLContext, GL, GLExt,{$ELSE}dglOpenGL,{$ENDIF}
@@ -31,7 +33,7 @@ Type
   End;
   {$ENDIF}
 
-  {$IFDEF FPC}
+  {$IF DEFINED(FPC) AND NOT DEFINED(SDL2)}
   Type
     TPNGImage = TPortableNetworkGraphic;
   {$ENDIF}
@@ -108,6 +110,11 @@ Var
     // This will store the actual integer scale used for the first NN pass
     ActualNNScaleFactor: Integer; // Can be float if you allow non-uniform NN scaling
   {$ENDIF}
+  {$IFDEF SDL2}
+    ReScaleFlag: Boolean;
+    PixArray: Array of Byte;
+    CurrentOutputWidth, CurrentOutputHeight: Integer; // Actual window client size
+  {$ENDIF}
   // DoScale: Boolean = False; // Removed
   // ScaleFactor: Integer = 1; // Removed
   ScaleMouseX, ScaleMouseY: aFloat;
@@ -159,7 +166,8 @@ Var
 
 implementation
 
-Uses SP_SysVars, SP_Graphics, SP_Graphics32, SP_Main, SP_Tokenise, SP_Errors;
+Uses SP_SysVars, SP_Graphics, SP_Graphics32, SP_Main, SP_Tokenise, SP_Errors
+     {$IFDEF SDL2}, FPImage, FPWritePNG{$ENDIF};
 
 procedure SetPerformingDisplayChange(Value: Boolean);
 begin
@@ -487,8 +495,12 @@ Procedure HandleMouse;
 Var
   p: TPoint;
 Begin
+  {$IFDEF SDL2}
+  SDLB_GetMousePos(p.X, p.Y);
+  {$ELSE}
   GetCursorPos(p);
   p := Main.ScreenToClient(p);
+  {$ENDIF}
   // ScaleMouseX/Y are calculated in SetScaling based on logical vs client size
   MOUSEX := Integer(Round(p.X / ScaleMouseX));
   MOUSEY := Integer(Round(p.Y / ScaleMouseY));
@@ -762,10 +774,25 @@ Begin
   Result := False;
   If Not (Quitting or SCREENCHANGE) Then Begin
     If (Not SCREENLOCK) or UPDATENOW Then Begin
+
+      {$IFDEF SDL2}
+      // The pointer's rectangle, before the frame is tested for work, and
+      // started where the image is actually drawn: MOUSEX - MOUSEHSX.
+      If MOUSEVISIBLE And ((MOUSESTOREX <> MOUSEX) or (MOUSESTOREY <> MOUSEY)) Then Begin
+        SP_SetDirtyRect(Min(MOUSEX, MOUSESTOREX) - MOUSEHSX,
+                        Min(MOUSEY, MOUSESTOREY) - MOUSEHSY,
+                        Max(MOUSEX, MOUSESTOREX) - MOUSEHSX + MOUSEW,
+                        Max(MOUSEY, MOUSESTOREY) - MOUSEHSY + MOUSEH);
+        MOUSESTOREX := MOUSEX;
+        MOUSESTOREY := MOUSEY;
+      End;
+      {$ENDIF}
+
       If SCMAXX >= SCMINX Then Begin // SCMINX/Y/MAXX/Y are dirty rect in logical coordinates
         While SetDR Do Sleep(1); SetDR := True; // Ensure SetDR is thread-safe if accessed elsewhere
         If SHOWFPS Then PrepFPSVars;
 
+        {$IFNDEF SDL2}
         If (MOUSESTOREX <> MOUSEX) or (MOUSESTOREY <> MOUSEY) Then Begin
           X1 := Min(MOUSEX, MOUSESTOREX);
           Y1 := Min(MOUSEY, MOUSESTOREY);
@@ -775,6 +802,7 @@ Begin
           MOUSESTOREX := MOUSEX;
           MOUSESTOREY := MOUSEY;
         End;
+        {$ENDIF}
 
         X1 := SCMINX; Y1 := SCMINY; X2 := SCMAXX +1; Y2 := SCMAXY +1;
 
@@ -1007,7 +1035,13 @@ Begin
   {$ELSE} // Not OPENGL
     If StartTime = 0 Then
       StartTime := CB_GetTicks;
+    {$IFDEF SDL2}
+    // One upload of the whole logical screen, one stretched copy into the
+    // window, one present.
+    SDLB_Present(DISPLAYPOINTER, DISPLAYSTRIDE);
+    {$ELSE}
     StretchBlt(Main.Canvas.Handle, 0, 0, Main.ClientWidth, Main.ClientHeight, Bitmap.Canvas.Handle, 0, 0, DISPLAYWIDTH, DISPLAYHEIGHT, SrcCopy);
+    {$ENDIF}
   {$ENDIF} // OPENGL
 End;
 
@@ -1061,9 +1095,39 @@ Begin
 
   ReScaleFlag := True; // Signal GLResize/SetupFBO needs to run
   {$ELSE}
+  {$IFDEF SDL2}
+  CurrentOutputWidth := OutputClientWidth;
+  CurrentOutputHeight := OutputClientHeight;
+
+  if (InternalWidth <= 0) or (InternalHeight <= 0) then
+  begin
+    ScaleMouseX := 1.0;
+    ScaleMouseY := 1.0;
+  end
+  else
+  begin
+    ScaleMouseX := OutputClientWidth / InternalWidth;
+    ScaleMouseY := OutputClientHeight / InternalHeight;
+  end;
+
+  DISPLAYWIDTH := InternalWidth;
+  DISPLAYHEIGHT := InternalHeight;
+  DISPLAYSTRIDE := InternalWidth * 4;
+  If (Length(PixArray) <> DISPLAYSTRIDE * InternalHeight) or (DISPLAYPOINTER = nil) then
+  Begin
+    SetLength(PixArray, DISPLAYSTRIDE * InternalHeight);
+    if Length(PixArray) > 0 then FillChar(PixArray[0], Length(PixArray), 0);
+    if Length(PixArray) > 0 then DISPLAYPOINTER := @PixArray[0] else DISPLAYPOINTER := nil;
+  End;
+
+  // The streaming texture is the logical screen, not the window.
+  SDLB_SetLogicalSize(InternalWidth, InternalHeight);
+  ReScaleFlag := True;
+  {$ELSE}
   Main.CreateGDIBitmap;
   ScaleMouseX := OutputClientWidth / InternalWidth;
   ScaleMouseY := OutputClientHeight / InternalHeight;
+  {$ENDIF}
   {$ENDIF}
 End;
 
@@ -1082,7 +1146,7 @@ Begin
   {$ENDIF}
   Try
     Result := 0;
-    {$IFDEF OPENGL}
+    {$IF DEFINED(OPENGL) OR DEFINED(SDL2)}
     oW := CurrentOutputWidth; // Previously SCALEWIDTH
     oH := CurrentOutputHeight; // Previously SCALEHEIGHT
     {$ELSE}
@@ -1128,9 +1192,17 @@ Begin
       {$ENDIF}
       SetScreenResolution(sWidth, sHeight, FullScreen); // This changes physical screen res / window style
     End Else
-      {$IFDEF OpenGL}ReScaleFlag := True{$ENDIF}; // Only scaling parameters changed, or no change
+      {$IF DEFINED(OpenGL) OR DEFINED(SDL2)}ReScaleFlag := True{$ENDIF}; // Only scaling parameters changed, or no change
 
+    {$IFDEF SDL2}
+    // What SPI_GETWORKAREA reports is the desktop less whatever the window
+    // manager keeps for itself, which is SDL2's usable bounds.
+    SDLB_GetUsableBounds(r.Left, r.Top, r.Right, r.Bottom);
+    r.Right := r.Left + r.Right;
+    r.Bottom := r.Top + r.Bottom;
+    {$ELSE}
     SystemParametersInfo(SPI_GETWORKAREA, 0, @r, 0);
+    {$ENDIF}
 
     If FullScreen Then Begin
       SP_GetMonitorMetrics; // Updates REALSCREENLEFT, TOP, WIDTH, HEIGHT
@@ -1184,6 +1256,48 @@ Begin
   End;
 End;
 
+{$IFDEF SDL2}
+Function GetScreenRefreshRate: aFloat;
+Begin
+  Result := SDLB_GetRefreshRate;
+
+  // Guard against zero/invalid return (a display that reports no rate)
+  If Result < 10 Then
+    Result := 50;
+End;
+
+procedure SP_GetMonitorMetrics;
+Var
+  X, Y, W, H: Integer;
+Begin
+  SDLB_GetDisplayBounds(X, Y, W, H);
+  REALSCREENLEFT := X;
+  REALSCREENTOP := Y;
+  REALSCREENWIDTH := W;
+  REALSCREENHEIGHT := H;
+End;
+
+function TestScreenResolution(Width, Height: Integer; FullScreen: Boolean): Boolean;
+Begin
+  SP_GetMonitorMetrics;
+  // Fullscreen is desktop fullscreen - the logical screen is stretched to
+  // the display rather than the display being switched to another mode - so
+  // any size is available. A window only has to fit, and SDL2 measures it by
+  // its client area, so there is no border to allow for.
+  If FullScreen Then
+    Result := True
+  Else
+    Result := (Width <= REALSCREENWIDTH) and (Height <= REALSCREENHEIGHT);
+End;
+
+function SetScreenResolution(Width, Height: Integer; FullScreen: Boolean): Boolean;
+Begin
+  SP_GetMonitorMetrics;
+  Result := SDLB_SetFullScreen(FullScreen);
+  SPFULLSCREEN := FullScreen;
+  SP_SetFPS(GetScreenRefreshrate); // In case we have a changed refresh rate
+End;
+{$ELSE}
 Function GetScreenRefreshRate: aFloat;
 var
   DeviceMode: TDeviceMode;
@@ -1332,6 +1446,7 @@ begin
   End;
   SP_SetFPS(GetScreenRefreshrate); // In case we have a changed refresh rate
 end;
+{$ENDIF}
 
 {$IFDEF OpenGL}
 Procedure EnsureMainTextureIsSetup; // NEW HELPER specifically for MainTextureID
@@ -1476,6 +1591,57 @@ Begin
 End;
 {$ENDIF}
 
+{$IFDEF SDL2}
+Procedure ScreenShot(fullWindow: Boolean);
+Var
+  Img: TFPMemoryImage;
+  Writer: TFPWriterPNG;
+  Row: pLongWord;
+  Px: LongWord;
+  Clr: TFPColor;
+  X, Y: Integer;
+  FName, FileName: String;
+  Error: TSP_ErrorCode;
+Begin
+  // fullWindow makes no difference here. The window shows nothing the
+  // logical screen does not already hold, because the renderer only ever
+  // stretches that one buffer to fill it.
+  If Not Assigned(DISPLAYPOINTER) or (Length(PixArray) = 0) Then Exit;
+
+  If Not DirectoryExists(String(HOMEFOLDER) + PathDelim + 'snaps') Then
+    CreateDir(String(HOMEFOLDER) + PathDelim + 'snaps');
+
+  FName := Format('/snaps/%s.png', ['Screenshot_' + FormatDateTime('mm-dd-yyyy-hhnnss', Now())]);
+  Filename := String(SP_ConvertFilenameToHost(aString(FName), Error));
+
+  Img := TFPMemoryImage.Create(DISPLAYWIDTH, DISPLAYHEIGHT);
+  Try
+    Clr.alpha := alphaOpaque;
+    For Y := 0 To DISPLAYHEIGHT -1 Do Begin
+      Row := pLongWord(NativeUInt(DISPLAYPOINTER) + NativeUInt(Y * DISPLAYSTRIDE));
+      For X := 0 To DISPLAYWIDTH -1 Do Begin
+        // A pixel is B, G, R, A in memory. fcl-image wants sixteen bits a
+        // channel, so each byte is doubled into its channel.
+        Px := Row^;
+        Clr.red   := ((Px shr 16) and $FF) * $101;
+        Clr.green := ((Px shr 8) and $FF) * $101;
+        Clr.blue  := (Px and $FF) * $101;
+        Img.Colors[X, Y] := Clr;
+        Inc(Row);
+      End;
+    End;
+    Writer := TFPWriterPNG.Create;
+    Try
+      Writer.UseAlpha := False;
+      Img.SaveToFile(Filename, Writer);
+    Finally
+      Writer.Free;
+    End;
+  Finally
+    Img.Free;
+  End;
+End;
+{$ELSE}
 Procedure ScreenShot(fullWindow: Boolean);
 {$IFDEF OPENGL}
 var
@@ -1568,6 +1734,7 @@ begin
   end;
   {$ENDIF} // OPENGL
 end;
+{$ENDIF} // SDL2
 
 Initialization
 

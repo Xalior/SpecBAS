@@ -511,6 +511,27 @@ Begin
 
   // Builds the display using the UpdateRects[] array of non-overlapping rectangles.
 
+  {$IFDEF SDL2}
+  // A shadow blurs from the buffer it blends into, so it must be composited
+  // whole. Widen the rectangle to any shadow it touches.
+  For BankIdx := 0 To Length(SP_BankList) - 1 Do Begin
+    If SP_BankList[BankIdx]^.DataType <> SP_WINDOW_BANK Then Continue;
+    sPtr := @SP_BankList[BankIdx].Info[0];
+    If (Not sPtr^.Visible) or (Not sPtr^.DropShadow) Then Continue;
+    shadowR := IfThen(sPtr^.ShadowSize > 0, sPtr^.ShadowSize, dsBlurRadius);
+    sw1 := sPtr^.Left + dsOffsetX - shadowR;
+    sh1 := sPtr^.Top + dsOffsetY - shadowR;
+    sw2 := sPtr^.Left + sPtr^.Width - 1 + dsOffsetX + shadowR;
+    sh2 := sPtr^.Top + sPtr^.Height - 1 + dsOffsetY + shadowR;
+    If IntersectRect32(sw1, sh1, sw2, sh2, X1, Y1, X2 - 1, Y2 - 1) <> -1 Then Begin
+      If sw1 < X1 Then X1 := sw1;
+      If sh1 < Y1 Then Y1 := sh1;
+      If sw2 + 1 > X2 Then X2 := sw2 + 1;
+      If sh2 + 1 > Y2 Then Y2 := sh2 + 1;
+    End;
+  End;
+  {$ENDIF}
+
   X1 := InRange(x1, 0, DISPLAYWIDTH);
   x2 := InRange(x2, 0, DISPLAYWIDTH);
   y1 := InRange(y1, 0, DISPLAYHEIGHT);
@@ -4279,7 +4300,7 @@ Begin
         Inc(dPtr);
         Dec(W);
       End;
-      // Advance by remaining pixels in row × 4 bytes.
+      // Advance by remaining pixels in row ï¿½ 4 bytes.
       Inc(pByte(sPtr), (BuffW - Bw) * SizeOf(LongWord));
       Inc(pByte(dPtr), DstW - Bw * SizeOf(LongWord));
       Dec(Bh);

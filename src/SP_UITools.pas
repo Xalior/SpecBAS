@@ -90,7 +90,7 @@ Const
 
 implementation
 
-Uses SP_Main, SP_FPEditor, SP_Input, MainForm, SP_Interpret_PostFix,
+Uses SP_Main, SP_FPEditor, SP_Input, {$IFNDEF SDL2}MainForm, {$ENDIF}SP_Interpret_PostFix,
      SP_MenuActions, SP_MemoUnit, SP_BASICEditorHostUnit, SP_Sound,
      SP_Execute, SP_Debugging, SP_Dialogs;
 

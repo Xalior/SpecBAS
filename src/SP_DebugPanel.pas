@@ -4,7 +4,7 @@
 
 interface
 
-uses Dialogs, Math, Classes, SyncObjs, SysUtils, SP_Util, SP_BaseComponentUnit, SP_ListBoxUnit, SP_ComboBoxUnit, SP_ControlMsgs, SP_ButtonUnit, SP_Input, SP_ContainerUnit, SP_AmigaGuideUnit;
+uses {$IFNDEF SDL2}Dialogs, {$ENDIF}Math, Classes, SyncObjs, SysUtils, SP_Util, SP_BaseComponentUnit, SP_ListBoxUnit, SP_ComboBoxUnit, SP_ControlMsgs, SP_ButtonUnit, SP_Input, SP_ContainerUnit, SP_AmigaGuideUnit;
 
 Type
 
@@ -73,7 +73,7 @@ Const
 
 implementation
 
-Uses {$IFNDEF FPC}Vcl.ClipBrd{$ELSE}ClipBrd{$ENDIF}, SP_FPEditor, SP_Errors, SP_Graphics, SP_BankManager, SP_BankFiling, SP_SysVars, SP_Components, SP_Variables, SP_AnsiStringList,
+Uses {$IFNDEF FPC}Vcl.ClipBrd, {$ELSE}{$IFNDEF SDL2}ClipBrd, {$ENDIF}{$ENDIF}SP_FPEditor, SP_Errors, SP_Graphics, SP_BankManager, SP_BankFiling, SP_SysVars, SP_Components, SP_Variables, SP_AnsiStringList,
      SP_Interpret_PostFix, SP_FileIO, SP_Main, SP_MenuActions, SP_BASICEditorHostUnit, SP_MemoUnit, SP_Debugging, SP_Execute;
 
 Procedure SP_UpdateAfterDebug;

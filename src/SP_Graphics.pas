@@ -29,7 +29,7 @@ interface
 
 Uses
 
-  Types, Math, Classes, GraphUtil, SyncObjs, SP_SysVars, SP_Errors, SP_Util, SP_BankManager, SP_BankFiling, SP_FileIO, SP_Streams, SP_Menu;
+  Types, Math, Classes, {$IFNDEF SDL2}GraphUtil, {$ENDIF}SyncObjs, SP_SysVars, SP_Errors, SP_Util, SP_BankManager, SP_BankFiling, SP_FileIO, SP_Streams, SP_Menu;
 
 Type
 

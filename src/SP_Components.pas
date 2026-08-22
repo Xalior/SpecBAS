@@ -23,7 +23,7 @@ unit SP_Components;
 interface
 
 Uses Types, SysUtils, {$IFNDEF FPC}System.Generics.Collections{$ELSE}Generics.Collections{$ENDIF}, Classes, SyncObjs, Math,
-     {$IFNDEF FPC}Vcl.ClipBrd{$ELSE}ClipBrd{$ENDIF}, SP_SysVars, SP_FileIO, SP_Util, SP_ButtonUnit, SP_BaseComponentUnit, SP_Errors;
+     {$IFNDEF FPC}Vcl.ClipBrd, {$ELSE}{$IFNDEF SDL2}ClipBrd, {$ENDIF}{$ENDIF}SP_SysVars, SP_FileIO, SP_Util, SP_ButtonUnit, SP_BaseComponentUnit, SP_Errors;
 
 // A collection of UI elements for building UI apps. Based on Windows controls.
 
