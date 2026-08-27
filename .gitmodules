@@ -1,0 +1,3 @@
+[submodule "build-sdl2/rapi-host/circle-libfpc"]
+	path = build-sdl2/rapi-host/circle-libfpc
+	url = git@github.com:Xalior/circle-libfpc.git

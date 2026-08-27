@@ -1,0 +1,9 @@
+# Build products. build/<board>/ holds one board's objects, the Free Pascal
+# blob and the image. build/sd-card/ is what `make card` stages.
+/build/
+
+# The cross toolchain: gigabytes of vendor binaries, either unpacked here or
+# symlinked to an install elsewhere. See mk/toolchain.mk. Both arrangements are
+# ignored, so the symlink form is not mistaken for a file to commit.
+/toolchains
+/toolchains/
