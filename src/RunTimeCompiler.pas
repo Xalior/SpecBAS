@@ -30,8 +30,10 @@ implementation
 
 uses
   // ActiveX is a Windows unit and supplies IsEqualGUID there. Off Windows
-  // the same function comes from SysUtils.
-  SysUtils, {$IFNDEF UNIX}ActiveX, {$ENDIF}SP_Tokenise, SP_Util, SP_BankFiling, SP_SysVars;
+  // the same function comes from SysUtils. Named as what it is rather than
+  // as "not Unix": bare metal is neither, and has no ActiveX either.
+  SysUtils, {$IF DEFINED(MSWINDOWS) OR DEFINED(WINDOWS)}ActiveX, {$IFEND}
+  SP_Tokenise, SP_Util, SP_BankFiling, SP_SysVars;
 
 type
   TPayloadFooter = packed record

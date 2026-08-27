@@ -848,6 +848,11 @@ const
 {$IFDEF ANDROID}
   bassdll = 'libbass.so';
 {$ENDIF}
+// Never opened or looked up, because there is no loader here. The name exists
+// so the `external' clauses have something to name. The link resolves them.
+{$IFDEF CIRCLESDL2}
+  bassdll = 'bass';
+{$ENDIF}
 
 function BASS_SetConfig(option, value: DWORD): BOOL; {$IFDEF MSWINDOWS}stdcall{$ELSE}cdecl{$ENDIF}; external bassdll delayed;
 function BASS_GetConfig(option: DWORD): DWORD; {$IFDEF MSWINDOWS}stdcall{$ELSE}cdecl{$ENDIF}; external bassdll delayed;

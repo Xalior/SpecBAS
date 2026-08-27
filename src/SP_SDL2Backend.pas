@@ -174,7 +174,11 @@ Begin
   Result := ((SDL_GetPerformanceCounter - StartCounter) * 1000.0) / CounterFreq;
 End;
 
+// Zero for both W and H means "you choose": SDL settles the size itself,
+// which on a machine with no window manager is the whole panel.
 Function SDLB_Start(Const Title: String; W, H: Integer): Boolean;
+Var
+  GotW, GotH: LongInt;
 Begin
   Result := False;
 
@@ -197,7 +201,10 @@ Begin
     SDLB_Renderer := SDL_CreateRenderer(SDLB_Window, -1, SDL_RENDERER_SOFTWARE);
   If SDLB_Renderer = Nil Then Exit;
 
-  If Not SDLB_SetLogicalSize(W, H) Then Exit;
+  // The size granted, not the size asked for. The logical size is what is
+  // drawn into, and a window manager, or a request of 0x0, may differ.
+  SDL_GetWindowSize(SDLB_Window, @GotW, @GotH);
+  If Not SDLB_SetLogicalSize(GotW, GotH) Then Exit;
 
   // SpecBAS draws its own pointer, so the system one stays hidden.
   SDL_ShowCursor(SDL_DISABLE);

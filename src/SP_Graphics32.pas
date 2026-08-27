@@ -589,7 +589,10 @@ Begin
 
       If (sPtr^.SpriteCount > 0) or (sPtr^.Component.ControlCount > 0) Then Begin
         tw := sPtr^.Width * sPtr^.Height;
-        If Length(SP_BackBuffer32) <> tw Then SetLength(SP_BackBuffer32, tw);
+        // Grow only. This runs per window per frame, so `<>' reallocated a
+        // multi-megabyte buffer twice a frame with two windows on screen.
+        // Nothing reads its length; it is a base pointer for tw elements.
+        If Length(SP_BackBuffer32) < tw Then SetLength(SP_BackBuffer32, tw);
 
         dstPtr := @SP_BackBuffer32[0];
         CopyMem(dstPtr, sPtr^.Surface, tw);

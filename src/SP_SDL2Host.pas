@@ -132,7 +132,9 @@ implementation
 Uses
   {$IFNDEF RUNTIMEONLY}SP_FPEditor, SP_ToolTipWindow, SP_BASICEditorHostUnit,{$ENDIF}
   SP_Display, SP_WindowMenuUnit, SP_PopUpMenuUnit, SP_BASICInterpreter,
-  SP_BankFiling, SP_Interpret_PostFix, SP_AnsiStringlist, DynLibs,
+  SP_BankFiling, SP_Interpret_PostFix, SP_AnsiStringlist,
+  // DynLibs finds BASS below; there is no run-time loader here.
+  {$IFNDEF CIRCLESDL2}DynLibs,{$ENDIF}
   // Pictures are decoded and encoded through Free Pascal's own fcl-image.
   // There is no LCL here to supply TBitmap, TPortableNetworkGraphic,
   // TJPEGImage or TGIFImage.
@@ -1436,12 +1438,26 @@ Begin
 End;
 {$ENDIF}
 
+// SDL_Event is 56 bytes in C. It is a union with padding the Pascal
+// translation does not carry, and every SDL call that fills one writes all 56.
+// The buffer must be at least that and at least SizeOf(TSDL_Event). The
+// variant record guarantees both.
+Const
+  SDL_EVENT_BYTES = 56;
+
+Type
+  TSDLEventBuf = Record
+    Case Boolean of
+      False: (Ev: TSDL_Event);
+      True:  (Pad: Array[0..SDL_EVENT_BYTES - 1] of Byte);
+  End;
+
 Procedure SDLHost_PumpEvents;
 Var
-  Ev: TSDL_Event;
+  Buf: TSDLEventBuf;
 Begin
-  While SDL_PollEvent(@Ev) = 1 Do
-    Case Ev.type_ of
+  While SDL_PollEvent(@Buf.Ev) = 1 Do
+    Case Buf.Ev.type_ of
 
       SDL_QUITEV:
         Quit;
@@ -1449,36 +1465,36 @@ Begin
       SDL_KEYDOWN:
         // SpecBAS repeats a held key from its own frame clock, in
         // SP_GetNextKey, so the platform's repeats are dropped here.
-        If Ev.key.repeat_ = 0 Then HandleKeyDown(Ev);
+        If Buf.Ev.key.repeat_ = 0 Then HandleKeyDown(Buf.Ev);
 
       SDL_KEYUP:
-        HandleKeyUp(Ev);
+        HandleKeyUp(Buf.Ev);
 
       SDL_TEXTINPUT:
-        HandleTextInput(Ev);
+        HandleTextInput(Buf.Ev);
 
       SDL_MOUSEMOTION:
-        HandleMouseMotion(Ev);
+        HandleMouseMotion(Buf.Ev);
 
       SDL_MOUSEBUTTONDOWN:
-        HandleMouseDown(Ev);
+        HandleMouseDown(Buf.Ev);
 
       SDL_MOUSEBUTTONUP:
-        HandleMouseUp(Ev);
+        HandleMouseUp(Buf.Ev);
 
       SDL_MOUSEWHEEL:
-        HandleMouseWheel(Ev);
+        HandleMouseWheel(Buf.Ev);
 
       SDL_DROPFILE:
         Begin
           {$IFNDEF RUNTIMEONLY}
-          HandleDropFile(String(AnsiString(Ev.drop.file_)));
+          HandleDropFile(String(AnsiString(Buf.Ev.drop.file_)));
           {$ENDIF}
-          SDL_free(Ev.drop.file_);
+          SDL_free(Buf.Ev.drop.file_);
         End;
 
       SDL_WINDOWEVENT:
-        Case Ev.window.event of
+        Case Buf.Ev.window.event of
           SDL_WINDOWEVENT_SIZE_CHANGED:
             If Assigned(Main) and MainCanResize Then Main.FormResize(Main);
           SDL_WINDOWEVENT_FOCUS_GAINED:
@@ -1522,10 +1538,18 @@ Begin
   MOUSEVISIBLE := FALSE;
 
   EXENAME := ParamStr(0);
+
+  // No executable file here, so nothing can carry a payload. Asking anyway is
+  // not harmless: ParamStr(0) is empty, Reset on an empty name binds standard
+  // input, and the FileSize that follows fails.
+  {$IFDEF CIRCLESDL2}
+  PAYLOADPRESENT := False;
+  {$ELSE}
   PayLoad := TPayLoad.Create(EXENAME);
   PAYLOADPRESENT := PayLoad.HasPayLoad;
   If Not PAYLOADPRESENT Then
     PayLoad.Free;
+  {$ENDIF}
 
   If Not PAYLOADPRESENT Then Begin
     PCOUNT := -1;
@@ -1571,7 +1595,14 @@ Begin
     If PCOUNT <= 0 Then Begin
 
       CaptionString := 'SpecBAS v';
+      // GetUserDir answers ExtractFilePath(ParamStr(0)), empty here, so the
+      // usual expression yields a relative path. The working directory is
+      // where the card says SpecBAS lives, and it is absolute.
+      {$IFDEF CIRCLESDL2}
+      HOMEFOLDER := aString(GetCurrentDir);
+      {$ELSE}
       HOMEFOLDER := aString(GetUserDir) + aString('specbas');
+      {$ENDIF}
 
     End Else Begin
 
@@ -1603,10 +1634,15 @@ Begin
 
   AUTOSAVE := Not PAYLOADPRESENT;
 
+  // The size SDL settled the window on above, which here is the panel.
+  {$IFDEF CIRCLESDL2}
+  SDLB_GetClientSize(ScrWidth, ScrHeight);
+  {$ELSE}
   ScrWidth := 800;
   ScrHeight := 480;
-  SCALEWIDTH := 800;
-  SCALEHEIGHT := 480;
+  {$ENDIF}
+  SCALEWIDTH := ScrWidth;
+  SCALEHEIGHT := ScrHeight;
   MENUBLOCK := False;
 
   // Initialise callbacks
@@ -1646,7 +1682,12 @@ Begin
   CURSORCHAR := 32;
   SYSTEMSTATE := SS_IDLE;
 
+  // No BASS build here and no loader, so the answer is stated, not sought.
+  {$IFDEF CIRCLESDL2}
+  SoundEnabled := False;
+  {$ELSE}
   SoundEnabled := LoadLibrary(bassdll) <> NilHandle;
+  {$ENDIF}
   SP_Init_Sound;
 
   CORECOUNT := System.CPUCount;
@@ -1707,7 +1748,12 @@ End;
 Procedure SDLHost_Run;
 Begin
 
+  // No window manager here: ask for nothing and SDL answers with the panel.
+  {$IFDEF CIRCLESDL2}
+  If Not SDLB_Start('SpecBAS', 0, 0) Then Begin
+  {$ELSE}
   If Not SDLB_Start('SpecBAS', 800, 480) Then Begin
+  {$ENDIF}
     WriteLn(StdErr, 'SpecBAS: SDL2 would not start: ', SDL_GetError);
     Halt(1);
   End;

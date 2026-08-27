@@ -5,7 +5,7 @@ unit SP_Display;
 interface
 
 Uses
-    {$IFNDEF UNIX}
+    {$IF DEFINED(MSWINDOWS) OR DEFINED(WINDOWS)}
     {$IFDEF FPC}
     Windows, DWMApi, SysUtils, SyncObjs, Types, Controls,
     {$ELSE}
@@ -15,7 +15,7 @@ Uses
     {$ELSE}
     SysUtils, SyncObjs, Types,
     {$IFDEF UNIX}Unix, BaseUnix,{$ENDIF}
-    {$ENDIF}
+    {$IFEND}
     {$IFNDEF SDL2}Graphics, Forms,{$ENDIF} Classes, Math, {$IFNDEF FPC}PNGImage,{$ENDIF}
     {$IFDEF SDL2}SP_SDL2Backend, SP_SDL2Host,{$ELSE}MainForm,{$ENDIF}
     SP_FileIO,
@@ -124,9 +124,9 @@ Var
   FrameProcessedEvent: TEvent; // Create in InitSystem, Free in FinalizeSystem
   G_DisplayChangeLock: TCriticalSection;
   G_PerformingDisplayChange_Internal: Boolean;
-  {$IFNDEF UNIX}
+  {$IF DEFINED(MSWINDOWS) OR DEFINED(WINDOWS)}
   _CreateWaitableTimerExW: function(lpTimerAttributes: PSecurityAttributes; lpTimerName: LPCWSTR; dwFlags: DWORD; dwDesiredAccess: DWORD): THandle; stdcall;
-  {$ENDIF}
+  {$IFEND}
 
 Const
 
@@ -610,7 +610,7 @@ Begin
     NowTime := CB_GetTicks;
   Until (NowTime - Start) >= AMilliseconds;
 End;
-{$ELSE}
+{$ELSEIF DEFINED(MSWINDOWS) OR DEFINED(WINDOWS)}
 Var
   hTimer: THandle;
   DueTime: Int64;
@@ -637,7 +637,17 @@ Begin
     NowTime := GetTicks;
   Until (NowTime - Start) >= AMilliseconds;
 End;
-{$ENDIF}
+{$ELSE}
+// Nothing preempts a thread here, so this must not spin. It must also yield
+// when the deadline has already passed. FrameLoop's figure goes negative on a
+// late frame, and this is the main thread's only yield.
+Begin
+  If AMilliseconds >= 1 Then
+    Sleep(Trunc(AMilliseconds))
+  Else
+    ThreadSwitch;
+End;
+{$IFEND}
 
 {$IFDEF RefreshThread}
 Procedure TRefreshThread.Execute;
@@ -1741,9 +1751,9 @@ Initialization
   StartTime := 0;
   G_DisplayChangeLock := TCriticalSection.Create;
   FrameProcessedEvent := TEvent.Create{$IFDEF FPC}(nil, False, False, ''){$ENDIF};
-  {$IFNDEF UNIX}
+  {$IF DEFINED(MSWINDOWS) OR DEFINED(WINDOWS)}
   @_CreateWaitableTimerExW := GetProcAddress(GetModuleHandle(kernel32), 'CreateWaitableTimerExW');
-  {$ENDIF}
+  {$IFEND}
 
 Finalization
 

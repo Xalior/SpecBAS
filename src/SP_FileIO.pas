@@ -195,7 +195,9 @@ Begin
     If Pos(':', Path) <> 0 Then
       Path := SP_ConvertFilenameToHost(Path, Error);
     EOFound:= False;
-    If FindFirst(String(Path), faAnyFile, Res) < 0 Then
+    // FindFirst answers 0 for success and a positive code otherwise, 18 for
+    // an empty directory. It never answers a negative one.
+    If FindFirst(String(Path), faAnyFile, Res) <> 0 Then
       Exit
     Else
       While Not EOFound Do Begin

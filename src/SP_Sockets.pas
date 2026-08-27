@@ -44,6 +44,9 @@ unit SP_Sockets;
   {$IFDEF WINDOWS}
     {$DEFINE SP_WINSOCK}   // FPC on Windows
   {$ENDIF}
+  {$IFDEF CIRCLESDL2}
+    {$DEFINE SP_NONET}     // bare metal, no network stack
+  {$ENDIF}
 {$ELSE}
   {$DEFINE SP_WINSOCK}     // Delphi - always Windows
 {$ENDIF}
@@ -52,13 +55,15 @@ unit SP_Sockets;
 interface
 
 Uses
-  SysUtils, SP_SysVars, SP_Errors, SP_Util,
+  SysUtils, SP_SysVars, SP_Errors, SP_Util
   {$IFDEF SP_WINSOCK}
-  WinSock2
+  , WinSock2
   {$ELSE}
+  {$IFNDEF SP_NONET}
   // FIONREAD is declared in termio, not in BaseUnix or Unix. netdb has the
   // name resolver.
-  Sockets, BaseUnix, Unix, termio, netdb
+  , Sockets, BaseUnix, Unix, termio, netdb
+  {$ENDIF}
   {$ENDIF}
   ;
 
@@ -120,6 +125,115 @@ Function  SP_HTTPPost(Const Host, Path, Body, ContentType: aString; Port: Intege
 implementation
 
 Uses SP_Streams, SP_Main;
+
+// ---------------------------------------------------------------------------
+// No network at all
+// ---------------------------------------------------------------------------
+//
+// There is no TCP/IP stack on this target, so every entry point answers the
+// failure it would answer for a socket that could not be created. The URL,
+// Base64 and HTTP sections below are not guarded: the first two touch no
+// socket, and the HTTP pair report whatever these return.
+
+{$IFDEF SP_NONET}
+
+Const
+  NO_NETWORK = 'No network on this machine';
+
+Function SP_SocketConnect(Const Host: aString; Port: Integer; Var Error: TSP_ErrorCode): Integer;
+Begin
+  Result     := -1;
+  Error.Code := SP_ERR_SOCKET_CONNECT;
+  ERRStr     := NO_NETWORK;
+End;
+
+Function SP_SocketListen(Port, Backlog: Integer; Var Error: TSP_ErrorCode): Integer;
+Begin
+  Result     := -1;
+  Error.Code := SP_ERR_SOCKET_LISTEN;
+  ERRStr     := NO_NETWORK;
+End;
+
+Function SP_SocketAccept(ListenStreamID: Integer; Var Error: TSP_ErrorCode): Integer;
+Begin
+  Result     := -1;
+  Error.Code := SP_ERR_SOCKET_ACCEPT;
+  ERRStr     := NO_NETWORK;
+End;
+
+Function SP_SocketUDP(Const Host: aString; Port: Integer; Var Error: TSP_ErrorCode): Integer;
+Begin
+  Result     := -1;
+  Error.Code := SP_ERR_SOCKET_CONNECT;
+  ERRStr     := NO_NETWORK;
+End;
+
+// Reached with a stream ID, and no stream here is ever a socket.
+
+Function SP_SocketSend(StreamID: Integer; Const Data: aString; Var Error: TSP_ErrorCode): Integer;
+Begin
+  Result     := -1;
+  Error.Code := SP_ERR_NOT_A_SOCKET;
+End;
+
+Function SP_SocketRecv(StreamID: Integer; MaxBytes: Integer; Var Error: TSP_ErrorCode): aString;
+Begin
+  Result     := '';
+  Error.Code := SP_ERR_NOT_A_SOCKET;
+End;
+
+Function SP_SocketRecvLine(StreamID: Integer; Var Error: TSP_ErrorCode): aString;
+Begin
+  Result     := '';
+  Error.Code := SP_ERR_NOT_A_SOCKET;
+End;
+
+Procedure SP_SocketSetTimeout(StreamID, Ms: Integer; Var Error: TSP_ErrorCode);
+Begin
+  Error.Code := SP_ERR_NOT_A_SOCKET;
+End;
+
+Procedure SP_SocketSetNonBlocking(StreamID: Integer; Var Error: TSP_ErrorCode);
+Begin
+  Error.Code := SP_ERR_NOT_A_SOCKET;
+End;
+
+Function SP_SocketSize(StreamID: Integer; Var Error: TSP_ErrorCode): Integer;
+Begin
+  Result     := 0;
+  Error.Code := SP_ERR_NOT_A_SOCKET;
+End;
+
+// SOCKETSTATE's answer for a stream that is not a socket.
+Function SP_SocketState(StreamID: Integer; Var Error: TSP_ErrorCode): Integer;
+Begin
+  Result := SP_SOCKET_CLOSED;
+End;
+
+Function SP_SocketAddr(StreamID: Integer; Var Error: TSP_ErrorCode): aString;
+Begin
+  Result     := '';
+  Error.Code := SP_ERR_NOT_A_SOCKET;
+End;
+
+Function SP_SocketPort(StreamID: Integer; Var Error: TSP_ErrorCode): Integer;
+Begin
+  Result     := 0;
+  Error.Code := SP_ERR_NOT_A_SOCKET;
+End;
+
+// SP_StreamClose calls this for every stream, so it must not complain.
+Procedure SP_SocketCloseHandle(Handle: NativeInt);
+Begin
+End;
+
+// Called from Initialization on every target; nothing to start here.
+Procedure InitWinSock;
+Begin
+End;
+
+{$ELSE}
+
 
 // ---------------------------------------------------------------------------
 // Platform-specific helpers
@@ -762,6 +876,8 @@ Begin
   If Colon > 0 Then
     Result := StrToIntDef(String(Copy(Stream^.RemoteAddr, Colon + 1, 99)), 0);
 End;
+
+{$ENDIF}
 
 // ---------------------------------------------------------------------------
 // URL encoding / decoding
