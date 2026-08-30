@@ -54,15 +54,6 @@ for it. `make kernels` builds every board named in `BOARDS`.
 
 The image is `build/rpi5/kernel_2712.img`.
 
-Inside a larger repository that develops this port, it is built through that
-repository's own makefile, which knows where its editing copies of the
-dependencies are:
-
-```sh
-make rapi-host           # the image
-make rapi-host-card      # the card directory
-```
-
 ## The card
 
 `make card` stages a directory into `build/sd-card/`. Copy its contents to the
